@@ -42,6 +42,20 @@ namespace JournalApp
         public NotesGroup(IEnumerable<JournalNote> items) : base(items) { }
     }
 
+    /// <summary>Wrapper used by the Photo Gallery grid to support phantom placeholder items
+    /// that pad the last row so the 3-column layout never looks broken.</summary>
+    public class GalleryItem
+    {
+        public JournalNote Note { get; set; }
+        public bool IsPlaceholder { get; set; }
+        /// <summary>Explicit override for gallery image — falls back to AvatarImagePath (picsum auto-image).</summary>
+        public string GalleryImagePath { get; set; }
+        // Convenience accessors used by x:Bind in the DataTemplate
+        public string HeroImagePath => GalleryImagePath ?? Note?.AvatarImagePath ?? "";
+        public string Title => Note?.Title ?? "";
+        public string DateModifiedFormatted => Note?.DateModifiedFormatted ?? "";
+    }
+
 
     public sealed partial class MainPage : Page
     {
@@ -292,6 +306,7 @@ namespace JournalApp
                         // Load RTF file
                         LoadNoteContent();
                         UpdateWordCount();
+                        UpdateMomentsUI();
                         if (StatusMessageTextBlock != null)
                         {
                             StatusMessageTextBlock.Text = "All changes saved locally";
@@ -331,6 +346,10 @@ namespace JournalApp
         private bool _isPageInitialized = false;
         private object _previousSelectedItem;
         private bool _isUpdatingEffectsUI = false;
+        private bool _isRepositionMode = false;
+        private Windows.Foundation.Point _dragStart;
+        private double _dragStartX;
+        private double _dragStartY;
 
         // Undo trash
         private JournalNote _lastSoftDeletedNote;
@@ -2357,14 +2376,16 @@ namespace JournalApp
                 _isUpdatingEffectsUI = true;
                 try
                 {
-                    if (HeroImageTranslate != null) HeroImageTranslate.Y = SelectedNote.CoverOffsetY;
+                    if (HeroImageTransform != null)
+                    {
+                        HeroImageTransform.TranslateY = SelectedNote.CoverOffsetY;
+                        HeroImageTransform.TranslateX = SelectedNote.CoverOffsetX;
+                    }
                     if (CoverBrightnessOverlay != null) CoverBrightnessOverlay.Opacity = (100 - SelectedNote.CoverBrightness) / 100.0;
                     
-                    if (CoverOffsetYSlider != null) CoverOffsetYSlider.Value = SelectedNote.CoverOffsetY;
                     if (CoverBrightnessSlider != null) CoverBrightnessSlider.Value = SelectedNote.CoverBrightness;
                     if (CoverBlurSlider != null) CoverBlurSlider.Value = SelectedNote.CoverBlur;
                     
-                    if (OffsetYValueText != null) OffsetYValueText.Text = $"{(int)SelectedNote.CoverOffsetY}px";
                     if (BrightnessValueText != null) BrightnessValueText.Text = $"{(int)SelectedNote.CoverBrightness}%";
                     if (BlurValueText != null) BlurValueText.Text = $"{(int)SelectedNote.CoverBlur}%";
                 }
@@ -2622,14 +2643,6 @@ namespace JournalApp
         }
 
         // Cover adjustment slider event handlers
-        private void CoverOffsetYSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
-        {
-            if (_isUpdatingEffectsUI || SelectedNote == null) return;
-            SelectedNote.CoverOffsetY = e.NewValue;
-            if (HeroImageTranslate != null) HeroImageTranslate.Y = e.NewValue;
-            if (OffsetYValueText != null) OffsetYValueText.Text = $"{(int)e.NewValue}px";
-            MarkDirty();
-        }
 
         private void CoverBrightnessSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
@@ -2656,18 +2669,21 @@ namespace JournalApp
             if (SelectedNote == null) return;
             
             // Set sliders back to default
-            if (CoverOffsetYSlider != null) CoverOffsetYSlider.Value = 0;
             if (CoverBrightnessSlider != null) CoverBrightnessSlider.Value = 100;
             if (CoverBlurSlider != null) CoverBlurSlider.Value = 0;
             
             // Apply immediately to the note
             SelectedNote.CoverOffsetY = 0;
+            SelectedNote.CoverOffsetX = 0;
             SelectedNote.CoverBrightness = 100;
             SelectedNote.CoverBlur = 0;
             
             // Update UI elements directly to ensure instant visual update
-            if (HeroImageTranslate != null) HeroImageTranslate.Y = 0;
-            if (OffsetYValueText != null) OffsetYValueText.Text = "0px";
+            if (HeroImageTransform != null)
+            {
+                HeroImageTransform.TranslateY = 0;
+                HeroImageTransform.TranslateX = 0;
+            }
             if (CoverBrightnessOverlay != null) CoverBrightnessOverlay.Opacity = 0;
             if (BrightnessValueText != null) BrightnessValueText.Text = "100%";
             if (BlurValueText != null) BlurValueText.Text = "0%";
@@ -2678,7 +2694,253 @@ namespace JournalApp
             ShowStatusMessage("Cover adjustments reset to default");
         }
 
+        private void AdjustHeroButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Handled automatically by XAML Flyout, but method required for compilation
+        }
+
+        private void EnterRepositionMode_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+            _isRepositionMode = true;
+            
+            if (AdjustHeroFlyout != null) AdjustHeroFlyout.Hide();
+            if (CoverRepositionOverlay != null) CoverRepositionOverlay.Visibility = Visibility.Visible;
+            if (RepositionDoneBar != null) RepositionDoneBar.Visibility = Visibility.Visible;
+        }
+
+        private void HeroDragGrid_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isRepositionMode || SelectedNote == null) return;
+            
+            var grid = sender as UIElement;
+            if (grid == null) return;
+            
+            grid.CapturePointer(e.Pointer);
+            
+            var ptrPt = e.GetCurrentPoint(grid);
+            _dragStart = ptrPt.Position;
+            _dragStartX = HeroImageTransform != null ? HeroImageTransform.TranslateX : SelectedNote.CoverOffsetX;
+            _dragStartY = HeroImageTransform != null ? HeroImageTransform.TranslateY : SelectedNote.CoverOffsetY;
+            
+            e.Handled = true;
+        }
+
+        private void HeroDragGrid_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isRepositionMode || SelectedNote == null) return;
+            
+            var grid = sender as UIElement;
+            if (grid == null) return;
+            
+            var ptrPt = e.GetCurrentPoint(grid);
+            if (ptrPt.Properties.IsLeftButtonPressed)
+            {
+                double deltaX = ptrPt.Position.X - _dragStart.X;
+                double deltaY = ptrPt.Position.Y - _dragStart.Y;
+                
+                double newX = _dragStartX + deltaX;
+                double newY = _dragStartY + deltaY;
+                
+                if (HeroImageTransform != null)
+                {
+                    HeroImageTransform.TranslateX = newX;
+                    HeroImageTransform.TranslateY = newY;
+                }
+                
+                
+                e.Handled = true;
+            }
+        }
+
+        private void HeroDragGrid_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isRepositionMode) return;
+            var grid = sender as UIElement;
+            if (grid != null)
+            {
+                grid.ReleasePointerCapture(e.Pointer);
+            }
+            e.Handled = true;
+        }
+
+        private void RepositionDone_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+            
+            if (HeroImageTransform != null)
+            {
+                SelectedNote.CoverOffsetX = HeroImageTransform.TranslateX;
+                SelectedNote.CoverOffsetY = HeroImageTransform.TranslateY;
+            }
+            
+            _isRepositionMode = false;
+            if (CoverRepositionOverlay != null) CoverRepositionOverlay.Visibility = Visibility.Collapsed;
+            if (RepositionDoneBar != null) RepositionDoneBar.Visibility = Visibility.Collapsed;
+            
+            MarkDirty();
+            ShowStatusMessage("Cover banner position saved");
+        }
+
+        private void RepositionCancel_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+            
+            if (HeroImageTransform != null)
+            {
+                HeroImageTransform.TranslateX = SelectedNote.CoverOffsetX;
+                HeroImageTransform.TranslateY = SelectedNote.CoverOffsetY;
+            }
+            
+            
+            _isRepositionMode = false;
+            if (CoverRepositionOverlay != null) CoverRepositionOverlay.Visibility = Visibility.Collapsed;
+            if (RepositionDoneBar != null) RepositionDoneBar.Visibility = Visibility.Collapsed;
+        }
+
         // Photographer attribution is now handled natively via Hyperlink NavigateUri in XAML.
+
+        // ── Moments Section ──────────────────────────────────────────────────────────
+
+        /// <summary>Update the Moments chips and photo strip to reflect the currently selected note.</summary>
+        private void UpdateMomentsUI()
+        {
+            if (SelectedNote == null) return;
+
+            // Location chip
+            if (LocationChipText != null)
+            {
+                bool hasLoc = !string.IsNullOrEmpty(SelectedNote.LocationTag);
+                LocationChipText.Text = hasLoc ? SelectedNote.LocationTag : "Add Location";
+                LocationChipText.Foreground = hasLoc
+                    ? (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorPrimaryBrush"]
+                    : (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorSecondaryBrush"];
+            }
+
+            // Weather chip
+            if (WeatherChipText != null)
+            {
+                var weatherEmoji = SelectedNote.WeatherTag switch
+                {
+                    "Sunny"        => "☀️ Sunny",
+                    "PartlyCloudy" => "⛅ Partly Cloudy",
+                    "Cloudy"       => "☁️ Cloudy",
+                    "Rainy"        => "🌧️ Rainy",
+                    "Stormy"       => "⚡ Stormy",
+                    "Snowy"        => "❄️ Snowy",
+                    "Foggy"        => "🌫️ Foggy",
+                    _              => "Add Weather"
+                };
+                WeatherChipText.Text = weatherEmoji;
+                bool hasWeather = !string.IsNullOrEmpty(SelectedNote.WeatherTag);
+                WeatherChipText.Foreground = hasWeather
+                    ? (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorPrimaryBrush"]
+                    : (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorSecondaryBrush"];
+            }
+
+            // Photo strip — rebuild (keep "Add Photo" button, prepend thumbnails)
+            if (MomentPhotosPanel != null)
+            {
+                // Remove all children except the "Add Photo" button (always last)
+                while (MomentPhotosPanel.Children.Count > 1)
+                    MomentPhotosPanel.Children.RemoveAt(0);
+
+                if (SelectedNote.AttachedPhotoPaths != null)
+                {
+                    int insertIndex = 0;
+                    foreach (var photoPath in SelectedNote.AttachedPhotoPaths)
+                    {
+                        var absPath = JournalManager.Instance.GetAbsoluteMediaPath(photoPath);
+                        var thumb = new Grid
+                        {
+                            Width = 100, Height = 100,
+                            CornerRadius = new CornerRadius(10),
+                            Margin = new Thickness(0, 0, 0, 0)
+                        };
+                        var img = new Image
+                        {
+                            Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(absPath)),
+                            Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment   = VerticalAlignment.Center
+                        };
+                        var overlay = new Border
+                        {
+                            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+                            CornerRadius = new CornerRadius(10),
+                            Tag = photoPath
+                        };
+                        overlay.Tapped += RemoveMomentPhoto_Tapped;
+                        thumb.Children.Add(img);
+                        thumb.Children.Add(overlay);
+                        MomentPhotosPanel.Children.Insert(insertIndex++, thumb);
+                    }
+                }
+            }
+        }
+
+        private async void LocationChip_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+            string current = SelectedNote.LocationTag ?? "";
+            string result = await PromptForTextInputAsync("Location", "Enter a place or address:", current.Length > 0 ? current : "e.g. New York, NY");
+            if (result != null)
+            {
+                SelectedNote.LocationTag = result;
+                UpdateMomentsUI();
+                MarkDirty();
+            }
+        }
+
+        private void WeatherOption_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+            if (sender is MenuFlyoutItem item)
+            {
+                SelectedNote.WeatherTag = item.Tag?.ToString() ?? "";
+                UpdateMomentsUI();
+                MarkDirty();
+            }
+        }
+
+        private async void AddMomentPhoto_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            picker.FileTypeFilter.Add(".jpg");
+            picker.FileTypeFilter.Add(".jpeg");
+            picker.FileTypeFilter.Add(".png");
+            picker.FileTypeFilter.Add(".webp");
+
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var file = await picker.PickSingleFileAsync();
+            if (file == null) return;
+
+            // Copy into the journal Media folder
+            string destFileName = $"moment_{SelectedNote.Id}_{DateTime.Now:yyyyMMddHHmmss}{System.IO.Path.GetExtension(file.Name)}";
+            string destPath = System.IO.Path.Combine(JournalManager.Instance.MediaDir, destFileName);
+            System.IO.File.Copy(file.Path, destPath, overwrite: true);
+
+            SelectedNote.AttachedPhotoPaths ??= new System.Collections.Generic.List<string>();
+            SelectedNote.AttachedPhotoPaths.Add(destFileName);
+
+            UpdateMomentsUI();
+            MarkDirty();
+            ShowStatusMessage("Photo added to Moments");
+        }
+
+        private void RemoveMomentPhoto_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+        {
+            if (SelectedNote == null || sender is not Border b) return;
+            string photoPath = b.Tag?.ToString();
+            if (string.IsNullOrEmpty(photoPath)) return;
+            SelectedNote.AttachedPhotoPaths?.Remove(photoPath);
+            UpdateMomentsUI();
+            MarkDirty();
+        }
 
         // Helper Dialogs
         private async Task<string> PromptForTextInputAsync(string title, string instruction, string placeholder)
@@ -4712,26 +4974,50 @@ namespace JournalApp
         {
             if (GalleryGridView == null) return;
 
+            // Include ALL non-deleted notes — even those without an explicit cover use the auto-assigned picsum image
             var photoNotes = JournalManager.Instance.Notes
-                .Where(n => !n.IsDeleted && !string.IsNullOrEmpty(n.HeroImagePath))
+                .Where(n => !n.IsDeleted)
                 .OrderByDescending(n => n.DateCreated)
                 .ToList();
 
-            GalleryGridView.ItemsSource = photoNotes;
+            // Empty state
+            if (GalleryEmptyState != null)
+                GalleryEmptyState.Visibility = photoNotes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (GalleryGridView != null)
+                GalleryGridView.Visibility = photoNotes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+            // Build padded list: use AvatarImagePath so auto-images are shown too
+            const int columns = 3;
+            var items = photoNotes.Select(n => new GalleryItem
+            {
+                Note = n,
+                IsPlaceholder = false,
+                GalleryImagePath = n.AvatarImagePath  // explicit cover OR auto picsum
+            }).ToList();
+
+            int remainder = items.Count % columns;
+            if (remainder != 0)
+            {
+                int padding = columns - remainder;
+                for (int i = 0; i < padding; i++)
+                    items.Add(new GalleryItem { IsPlaceholder = true });
+            }
+
+            GalleryGridView.ItemsSource = items;
         }
 
         private void GalleryGridView_ItemClick(object sender, ItemClickEventArgs e)
         {
-            if (e.ClickedItem is JournalNote clickedNote)
+            if (e.ClickedItem is GalleryItem item && item.Note != null && !item.IsPlaceholder)
             {
                 ShowGrid(MainEditorGrid);
-                
+
                 _selectedCategory = "All Entries";
                 if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "All Entries";
-                
+
                 var allEntriesItem = CategoriesNavView.MenuItems
                     .OfType<NavigationViewItem>()
-                    .FirstOrDefault(item => item.Content?.ToString() == "All Entries" || (item.Tag is JournalCategory cat && cat.Name == "All Entries"));
+                    .FirstOrDefault(i => i.Content?.ToString() == "All Entries" || (i.Tag is JournalCategory cat && cat.Name == "All Entries"));
                 if (allEntriesItem != null)
                 {
                     CategoriesNavView.SelectedItem = allEntriesItem;
@@ -4739,8 +5025,8 @@ namespace JournalApp
                 }
 
                 RefreshNotesList();
-                NotesListView.SelectedItem = clickedNote;
-                SelectedNote = clickedNote;
+                NotesListView.SelectedItem = item.Note;
+                SelectedNote = item.Note;
             }
         }
 

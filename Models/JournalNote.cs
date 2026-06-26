@@ -12,6 +12,7 @@ namespace JournalApp
         public DateTime DateModified { get; set; } = DateTime.Now;
         public string HeroImagePath { get; set; } // Can be a URL, absolute local path, or filename under Media/
         public double CoverOffsetY { get; set; } = 0;
+        public double CoverOffsetX { get; set; } = 0;
         public double CoverBrightness { get; set; } = 100;
         public double CoverBlur { get; set; } = 0;
         public string? CoverAttributionText { get; set; }
@@ -24,6 +25,12 @@ namespace JournalApp
         public List<string> Tags { get; set; } = new List<string>();
         public bool HasTime { get; set; } = true;
         public string EditorWidth { get; set; } = "Medium";
+
+        // ── Moments section ──
+        public string LocationTag { get; set; } = "";
+        public string WeatherTag { get; set; } = "";
+        public List<string> AttachedPhotoPaths { get; set; } = new List<string>();
+
         public string AvatarImagePath => !string.IsNullOrEmpty(HeroImagePath) 
             ? HeroImagePath 
             : $"https://picsum.photos/seed/{Id}/100";

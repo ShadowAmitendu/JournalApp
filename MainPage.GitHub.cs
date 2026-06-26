@@ -728,6 +728,7 @@ namespace JournalApp
                 if (!string.IsNullOrEmpty(savedToken))
                 {
                     GitHubTokenPasswordBox.Password = savedToken;
+                    if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Visible;
                     GitHubDisconnectButton.Visibility = Visibility.Visible;
                     GitHubStatusPanel.Visibility = Visibility.Visible;
                     GitHubStatusTitle.Text = "Status: Connected";
@@ -844,6 +845,7 @@ namespace JournalApp
                 if (GitHubTokenPasswordBox != null) GitHubTokenPasswordBox.Password = "";
                 if (GitHubRepoTextBox != null) GitHubRepoTextBox.Text = "My-JournalApp-Backup";
                 if (GitHubStatusPanel != null) GitHubStatusPanel.Visibility = Visibility.Collapsed;
+                if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Collapsed;
                 if (GitHubDisconnectButton != null) GitHubDisconnectButton.Visibility = Visibility.Collapsed;
                 
                 // 3. Clear credentials from vault and settings
@@ -934,6 +936,7 @@ namespace JournalApp
 
             // Disable buttons during sync
             GitHubSyncButton.IsEnabled = false;
+            if (GitHubPullButton != null) GitHubPullButton.IsEnabled = false;
             GitHubDisconnectButton.IsEnabled = false;
             GitHubStatusPanel.Visibility = Visibility.Visible;
             GitHubSyncProgressBar.Visibility = Visibility.Visible;
@@ -1031,6 +1034,7 @@ namespace JournalApp
 
                 GitHubStatusTitle.Text = "Status: Connected & Synced";
                 GitHubStatusDetails.Text = $"Last synced: {syncTime}";
+                if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Visible;
                 GitHubDisconnectButton.Visibility = Visibility.Visible;
 
                 await ShowAlertAsync("Synchronization Complete", $"Successfully backed up {filesToSync.Count} files to your private GitHub repository '{repoName}'!");
@@ -1044,6 +1048,7 @@ namespace JournalApp
             finally
             {
                 GitHubSyncButton.IsEnabled = true;
+                if (GitHubPullButton != null) GitHubPullButton.IsEnabled = true;
                 GitHubDisconnectButton.IsEnabled = true;
                 GitHubSyncProgressBar.Visibility = Visibility.Collapsed;
             }
@@ -1107,10 +1112,265 @@ namespace JournalApp
                 GitHubTokenPasswordBox.Password = "";
                 GitHubRepoTextBox.Text = "My-JournalApp-Backup";
                 GitHubStatusPanel.Visibility = Visibility.Collapsed;
+                if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Collapsed;
                 GitHubDisconnectButton.Visibility = Visibility.Collapsed;
 
                 await ShowAlertAsync("Disconnected", "GitHub credentials have been removed from this device.");
             }
+        }
+
+        private async void GitHubPullButton_Click(object sender, RoutedEventArgs e)
+        {
+            string token = GitHubTokenPasswordBox.Password?.Trim();
+            string repoName = GitHubRepoTextBox.Text?.Trim();
+
+            if (string.IsNullOrEmpty(token))
+            {
+                await ShowAlertAsync("Authentication Required", "Please enter a valid GitHub Personal Access Token (PAT) first.");
+                return;
+            }
+            if (string.IsNullOrEmpty(repoName))
+            {
+                await ShowAlertAsync("Repository Required", "Please enter a repository name for your backup.");
+                return;
+            }
+
+            // Slugify repository name to match GitHub rules
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
+
+            if (string.IsNullOrEmpty(repoName))
+            {
+                await ShowAlertAsync("Invalid Repository Name", "The repository name must contain valid alphanumeric characters, hyphens, underscores, or periods.");
+                return;
+            }
+
+            // Disable buttons during pull
+            GitHubSyncButton.IsEnabled = false;
+            if (GitHubPullButton != null) GitHubPullButton.IsEnabled = false;
+            GitHubDisconnectButton.IsEnabled = false;
+            GitHubStatusPanel.Visibility = Visibility.Visible;
+            GitHubSyncProgressBar.Visibility = Visibility.Visible;
+            GitHubSyncProgressBar.IsIndeterminate = true;
+            GitHubStatusTitle.Text = "Connecting...";
+            GitHubStatusDetails.Text = "Establishing connection with GitHub API...";
+
+            try
+            {
+                // Set up HTTP client headers
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
+                _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+                // 1. Get username
+                var userResponse = await _httpClient.GetAsync("https://api.github.com/user");
+                if (!userResponse.IsSuccessStatusCode)
+                {
+                    throw new Exception("Authentication failed. Make sure your token is valid and has 'repo' permissions.");
+                }
+
+                using var userDoc = System.Text.Json.JsonDocument.Parse(await userResponse.Content.ReadAsStringAsync());
+                string username = userDoc.RootElement.GetProperty("login").GetString();
+
+                GitHubStatusTitle.Text = $"Authenticated as {username}";
+                GitHubStatusDetails.Text = $"Accessing repository '{repoName}'...";
+
+                // 2. Check if repository exists
+                var repoResponse = await _httpClient.GetAsync($"https://api.github.com/repos/{username}/{repoName}");
+                if (repoResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    throw new Exception($"The repository '{repoName}' does not exist on your GitHub account. Sync/backup first to create it.");
+                }
+                else if (!repoResponse.IsSuccessStatusCode)
+                {
+                    string errorResponse = await repoResponse.Content.ReadAsStringAsync();
+                    throw new Exception($"Failed to access repository: {repoResponse.ReasonPhrase}. Details: {errorResponse}");
+                }
+
+                // 3. Download remote notes.json
+                GitHubStatusDetails.Text = "Downloading remote notes metadata...";
+                byte[] remoteNotesBytes = await DownloadRawFileFromGitHub(username, repoName, "notes.json");
+                if (remoteNotesBytes == null)
+                {
+                    throw new Exception("No 'notes.json' found in the remote repository. Nothing to pull.");
+                }
+
+                string remoteNotesJson = System.Text.Encoding.UTF8.GetString(remoteNotesBytes);
+                var remoteNotesList = System.Text.Json.JsonSerializer.Deserialize<List<JournalNote>>(remoteNotesJson);
+                if (remoteNotesList == null)
+                {
+                    throw new Exception("Failed to parse remote notes metadata.");
+                }
+
+                // 4. Download remote categories.json (optional/fallback)
+                GitHubStatusDetails.Text = "Downloading remote categories metadata...";
+                List<JournalCategory> remoteCategoriesList = null;
+                byte[] remoteCategoriesBytes = await DownloadRawFileFromGitHub(username, repoName, "categories.json");
+                if (remoteCategoriesBytes != null)
+                {
+                    string remoteCategoriesJson = System.Text.Encoding.UTF8.GetString(remoteCategoriesBytes);
+                    remoteCategoriesList = System.Text.Json.JsonSerializer.Deserialize<List<JournalCategory>>(remoteCategoriesJson);
+                }
+
+                // Prepare tracking variables for stats/info
+                int updatedNotesCount = 0;
+                int addedNotesCount = 0;
+                int skippedNotesCount = 0;
+
+                GitHubSyncProgressBar.IsIndeterminate = false;
+                GitHubSyncProgressBar.Maximum = remoteNotesList.Count;
+                GitHubSyncProgressBar.Value = 0;
+
+                // 5. Merge notes and download corresponding RTF files
+                for (int i = 0; i < remoteNotesList.Count; i++)
+                {
+                    var remoteNote = remoteNotesList[i];
+                    GitHubStatusDetails.Text = $"Processing remote note {i + 1} of {remoteNotesList.Count}: {remoteNote.Title}...";
+                    
+                    var localNote = JournalManager.Instance.Notes.FirstOrDefault(n => n.Id == remoteNote.Id);
+                    bool shouldDownloadRtf = false;
+
+                    if (localNote == null)
+                    {
+                        // Note is brand new to local
+                        shouldDownloadRtf = true;
+                        JournalManager.Instance.Notes.Add(remoteNote);
+                        addedNotesCount++;
+                    }
+                    else if (remoteNote.DateModified > localNote.DateModified)
+                    {
+                        // Remote note is newer, overwrite local metadata
+                        shouldDownloadRtf = true;
+                        
+                        // Overwrite properties
+                        localNote.Title = remoteNote.Title;
+                        localNote.Category = remoteNote.Category;
+                        localNote.DateCreated = remoteNote.DateCreated;
+                        localNote.DateModified = remoteNote.DateModified;
+                        localNote.HeroImagePath = remoteNote.HeroImagePath;
+                        localNote.CoverOffsetY = remoteNote.CoverOffsetY;
+                        localNote.CoverOffsetX = remoteNote.CoverOffsetX;
+                        localNote.CoverBrightness = remoteNote.CoverBrightness;
+                        localNote.CoverBlur = remoteNote.CoverBlur;
+                        localNote.CoverAttributionText = remoteNote.CoverAttributionText;
+                        localNote.CoverAttributionUrl = remoteNote.CoverAttributionUrl;
+                        localNote.RtfFileName = remoteNote.RtfFileName;
+                        localNote.IsFavorite = remoteNote.IsFavorite;
+                        localNote.IsDeleted = remoteNote.IsDeleted;
+                        localNote.IsPinned = remoteNote.IsPinned;
+                        localNote.Mood = remoteNote.Mood;
+                        localNote.Tags = remoteNote.Tags;
+                        localNote.HasTime = remoteNote.HasTime;
+                        localNote.EditorWidth = remoteNote.EditorWidth;
+                        
+                        // Moments
+                        localNote.LocationTag = remoteNote.LocationTag;
+                        localNote.WeatherTag = remoteNote.WeatherTag;
+                        localNote.AttachedPhotoPaths = remoteNote.AttachedPhotoPaths;
+                        
+                        updatedNotesCount++;
+                    }
+                    else
+                    {
+                        // Local note is newer or equal, skip
+                        skippedNotesCount++;
+                    }
+
+                    if (shouldDownloadRtf)
+                    {
+                        // Download the RTF file
+                        string rtfPath = $"Notes/{remoteNote.RtfFileName}";
+                        byte[] rtfBytes = await DownloadRawFileFromGitHub(username, repoName, rtfPath);
+                        if (rtfBytes != null)
+                        {
+                            string localRtfPath = JournalManager.Instance.GetAbsoluteRtfPath(remoteNote.RtfFileName);
+                            if (localRtfPath != null)
+                            {
+                                Directory.CreateDirectory(Path.GetDirectoryName(localRtfPath));
+                                await Task.Run(() => File.WriteAllBytes(localRtfPath, rtfBytes));
+                            }
+                        }
+                    }
+
+                    GitHubSyncProgressBar.Value = i + 1;
+                }
+
+                // 6. Merge categories
+                if (remoteCategoriesList != null)
+                {
+                    foreach (var remoteCat in remoteCategoriesList)
+                    {
+                        var localCat = JournalManager.Instance.Categories.FirstOrDefault(c => c.Name.Equals(remoteCat.Name, StringComparison.OrdinalIgnoreCase));
+                        if (localCat == null)
+                        {
+                            JournalManager.Instance.Categories.Add(remoteCat);
+                        }
+                        else
+                        {
+                            // Optionally update icon and color if missing or default
+                            localCat.Icon = remoteCat.Icon;
+                            localCat.Color = remoteCat.Color;
+                        }
+                    }
+                    JournalManager.Instance.SaveCategories();
+                }
+
+                // 7. Save merged notes metadata locally
+                JournalManager.Instance.SaveNotesMetadata();
+
+                // Save credentials and last sync time on success
+                SaveSecureToken(token);
+                SaveSetting("GitHubRepo", repoName);
+                
+                string syncTime = DateTime.Now.ToString("g");
+                SaveSetting("GitHubLastSynced", syncTime);
+
+                GitHubStatusTitle.Text = "Status: Connected & Merged";
+                GitHubStatusDetails.Text = $"Last pulled/synced: {syncTime}";
+                if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Visible;
+                GitHubDisconnectButton.Visibility = Visibility.Visible;
+
+                // Refresh UI
+                RefreshNotesList();
+
+                await ShowAlertAsync("Restore & Merge Complete", 
+                    $"Synchronization pull complete!\n\n" +
+                    $"• Added: {addedNotesCount} new entries\n" +
+                    $"• Updated: {updatedNotesCount} newer entries\n" +
+                    $"• Skipped: {skippedNotesCount} local-only or up-to-date entries");
+            }
+            catch (Exception ex)
+            {
+                GitHubStatusTitle.Text = "Status: Connection Error";
+                GitHubStatusDetails.Text = ex.Message;
+                await ShowAlertAsync("Pull & Merge Failed", $"An error occurred while pulling your backup:\n{ex.Message}");
+            }
+            finally
+            {
+                GitHubSyncButton.IsEnabled = true;
+                if (GitHubPullButton != null) GitHubPullButton.IsEnabled = true;
+                GitHubDisconnectButton.IsEnabled = true;
+                GitHubSyncProgressBar.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async Task<byte[]> DownloadRawFileFromGitHub(string username, string repoName, string githubPath)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}");
+            request.Headers.Accept.Clear();
+            request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/vnd.github.v3.raw"));
+            
+            var response = await _httpClient.SendAsync(request);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                string err = await response.Content.ReadAsStringAsync();
+                throw new Exception($"Failed to download '{githubPath}': {response.ReasonPhrase}. Details: {err}");
+            }
+            return await response.Content.ReadAsByteArrayAsync();
         }
 
         private bool _isResizing = false;

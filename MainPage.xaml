@@ -14,9 +14,19 @@
         <ThemeShadow x:Key="SharedShadow" />
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <local:BoolToVisibilityInverseConverter x:Key="BoolToVisibilityInverseConverter" />
+        <local:BoolToOpacityConverter x:Key="BoolToOpacityConverter" />
         <local:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
         <local:ImagePathConverter x:Key="ImagePathConverter" />
         <local:HexToBrushConverter x:Key="HexToBrushConverter" />
+
+        <!-- Shimmer gradient brush for skeleton loaders -->
+        <LinearGradientBrush x:Key="ShimmerBrush" StartPoint="0,0.5" EndPoint="1,0.5">
+            <GradientStop Color="#1AFFFFFF" Offset="0" />
+            <GradientStop Color="#33FFFFFF" Offset="0.4" />
+            <GradientStop Color="#55FFFFFF" Offset="0.5" />
+            <GradientStop Color="#33FFFFFF" Offset="0.6" />
+            <GradientStop Color="#1AFFFFFF" Offset="1" />
+        </LinearGradientBrush>
         
         <!-- Notes List Item Grouping Source -->
         <CollectionViewSource x:Key="NotesCVS" x:Name="NotesCVS" IsSourceGrouped="True"/>
@@ -630,15 +640,33 @@
                             <!-- Hero Image Banner (Stretches full width, overlay cover actions) -->
                             <Grid x:Name="HeroImageContainer" Grid.Row="0" Height="300" Background="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" HorizontalAlignment="Stretch" CornerRadius="0.1" SizeChanged="HeroImageContainer_SizeChanged">
                                 <!-- Clipped container for image positioning -->
-                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" CornerRadius="0.1">
-                                    <Image x:Name="HeroImage" Height="600" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" CornerRadius="0.1"
+                                      PointerPressed="HeroDragGrid_PointerPressed"
+                                      PointerMoved="HeroDragGrid_PointerMoved"
+                                      PointerReleased="HeroDragGrid_PointerReleased"
+                                      PointerCanceled="HeroDragGrid_PointerReleased"
+                                      x:Name="HeroDragGrid">
+                                    <Image x:Name="HeroImage" Height="600" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Center" IsHitTestVisible="False">
                                         <Image.RenderTransform>
-                                            <TranslateTransform x:Name="HeroImageTranslate" Y="0" />
+                                            <CompositeTransform x:Name="HeroImageTransform" TranslateX="0" TranslateY="0" />
                                         </Image.RenderTransform>
                                     </Image>
-                                    
+
                                     <!-- Brightness/Dimming Overlay -->
                                     <Border x:Name="CoverBrightnessOverlay" Background="Black" Opacity="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" />
+
+                                    <!-- Reposition-mode hint overlay (shown only while dragging is active) -->
+                                    <Border x:Name="CoverRepositionOverlay" Visibility="Collapsed"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            Background="#33000000" IsHitTestVisible="False">
+                                        <Border.BorderBrush>
+                                            <SolidColorBrush Color="White" />
+                                        </Border.BorderBrush>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                                            <FontIcon Glyph="&#xE7B5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="22" Foreground="White" HorizontalAlignment="Center" />
+                                            <TextBlock Text="Drag to reposition" FontSize="13" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
                                 </Grid>
 
                                 <!-- Attribution Badge (Bottom Left) -->
@@ -697,8 +725,8 @@
                                          </Button.Flyout>
                                      </Button>
 
-                                     <!-- Adjust Cover Button -->
-                                     <Button x:Name="AdjustHeroButton" CornerRadius="16" Width="32" Height="32" Padding="0" Background="#99000000" BorderThickness="0" ToolTipService.ToolTip="Adjust Cover Effects">
+                                     <!-- Adjust Cover Button — enters drag-to-reposition mode -->
+                                     <Button x:Name="AdjustHeroButton" CornerRadius="16" Width="32" Height="32" Padding="0" Background="#99000000" BorderThickness="0" ToolTipService.ToolTip="Adjust Position, Brightness &amp; Blur" Click="AdjustHeroButton_Click">
                                          <Button.Content>
                                              <FontIcon Glyph="&#xE7AC;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Foreground="White" />
                                          </Button.Content>
@@ -717,18 +745,30 @@
                                                      <!-- Header -->
                                                      <StackPanel Padding="20,16,20,14">
                                                          <TextBlock Text="Adjust Cover Banner" FontSize="14" FontWeight="SemiBold" Foreground="White" />
+                                                         <TextBlock Text="Drag the image to reposition, or use brightness/blur below." FontSize="11" Foreground="#888888" TextWrapping="Wrap" Margin="0,4,0,0" />
                                                      </StackPanel>
                                                      <Border Height="1" Background="#333333" />
 
+                                                     <!-- Reposition action -->
+                                                     <StackPanel Padding="20,12,20,4">
+                                                         <Button x:Name="EnterRepositionModeButton" Click="EnterRepositionMode_Click"
+                                                                 HorizontalAlignment="Stretch" Padding="0,10"
+                                                                 CornerRadius="8" FontSize="12"
+                                                                 Background="#2A2A2A" Foreground="#E0E0E0"
+                                                                 BorderBrush="#444444" BorderThickness="1">
+                                                             <Button.Content>
+                                                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                                                     <FontIcon Glyph="&#xE7B5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="13" />
+                                                                     <TextBlock Text="Drag to Reposition Image" FontSize="12" />
+                                                                 </StackPanel>
+                                                             </Button.Content>
+                                                         </Button>
+                                                     </StackPanel>
+
+                                                     <Border Height="1" Background="#333333" Margin="0,12,0,0" />
+
                                                      <!-- Sliders -->
                                                      <StackPanel Spacing="0" Padding="20,12,20,12">
-                                                         <!-- Vertical Position -->
-                                                         <Grid Margin="0,0,0,2">
-                                                             <TextBlock Text="Vertical Position" FontSize="12" FontWeight="Medium" Foreground="#E0E0E0" VerticalAlignment="Center" />
-                                                             <TextBlock x:Name="OffsetYValueText" Text="150px" FontSize="11" Foreground="#888888" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                                         </Grid>
-                                                         <Slider x:Name="CoverOffsetYSlider" Minimum="-150" Maximum="150" Value="0" StepFrequency="1" ValueChanged="CoverOffsetYSlider_ValueChanged" Foreground="#0078D4" Margin="0,0,0,14" />
-
                                                          <!-- Brightness -->
                                                          <Grid Margin="0,0,0,2">
                                                              <TextBlock Text="Brightness" FontSize="12" FontWeight="Medium" Foreground="#E0E0E0" VerticalAlignment="Center" />
@@ -764,6 +804,26 @@
                                          <Button.Content>
                                              <FontIcon Glyph="&#xE711;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Foreground="White" />
                                          </Button.Content>
+                                     </Button>
+                                 </StackPanel>
+
+                                 <!-- Reposition mode: Done / Cancel pill (shown when dragging is active) -->
+                                 <StackPanel x:Name="RepositionDoneBar"
+                                             Orientation="Horizontal" Spacing="8"
+                                             VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                                             Margin="0,0,0,16" Visibility="Collapsed">
+                                     <Button x:Name="RepositionDoneButton" Click="RepositionDone_Click"
+                                             CornerRadius="16" Padding="16,8"
+                                             Background="#CC0078D4" BorderThickness="0">
+                                         <StackPanel Orientation="Horizontal" Spacing="6">
+                                             <FontIcon Glyph="&#xE73E;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Foreground="White" />
+                                             <TextBlock Text="Done" FontSize="12" FontWeight="SemiBold" Foreground="White" />
+                                         </StackPanel>
+                                     </Button>
+                                     <Button x:Name="RepositionCancelButton" Click="RepositionCancel_Click"
+                                             CornerRadius="16" Padding="16,8"
+                                             Background="#99000000" BorderThickness="0">
+                                         <TextBlock Text="Cancel" FontSize="12" Foreground="White" />
                                      </Button>
                                  </StackPanel>
                             </Grid>
@@ -976,6 +1036,90 @@
                                      <RichTextBlock x:Name="MarkdownPreviewTextBlock" Grid.Column="1" Visibility="Collapsed" MinHeight="500" FontSize="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="20,0,0,0" IsTextSelectionEnabled="True" />
                                  </Grid>
                             </StackPanel>
+
+                            <!-- ══════════════════════════════════════════ -->
+                            <!-- MOMENTS: location · weather · photos        -->
+                            <!-- ══════════════════════════════════════════ -->
+                            <Border Margin="0,24,0,40"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="12" Padding="20,16">
+                                <StackPanel Spacing="16">
+                                    <!-- Header -->
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <FontIcon Glyph="&#xE81D;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                  FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                  VerticalAlignment="Center" />
+                                        <TextBlock Text="Moments" FontSize="15" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                    <!-- Location + Weather chips -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                                        <Button x:Name="LocationChipButton" Click="LocationChip_Click"
+                                                CornerRadius="20" Padding="12,6"
+                                                Background="Transparent"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE707;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                          FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock x:Name="LocationChipText" Text="Add Location"
+                                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="WeatherChipButton"
+                                                CornerRadius="20" Padding="12,6"
+                                                Background="Transparent"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon x:Name="WeatherChipIcon" Glyph="&#xE9CA;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                          FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock x:Name="WeatherChipText" Text="Add Weather"
+                                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Text="&#x2600;&#xFE0F;  Sunny" Tag="Sunny" Click="WeatherOption_Click" />
+                                                    <MenuFlyoutItem Text="&#x26C5;  Partly Cloudy" Tag="PartlyCloudy" Click="WeatherOption_Click" />
+                                                    <MenuFlyoutItem Text="&#x2601;&#xFE0F;  Cloudy" Tag="Cloudy" Click="WeatherOption_Click" />
+                                                    <MenuFlyoutItem Text="&#x1F327;&#xFE0F;  Rainy" Tag="Rainy" Click="WeatherOption_Click" />
+                                                    <MenuFlyoutItem Text="&#x26A1;  Stormy" Tag="Stormy" Click="WeatherOption_Click" />
+                                                    <MenuFlyoutItem Text="&#x2744;&#xFE0F;  Snowy" Tag="Snowy" Click="WeatherOption_Click" />
+                                                    <MenuFlyoutItem Text="&#x1F32B;&#xFE0F;  Foggy" Tag="Foggy" Click="WeatherOption_Click" />
+                                                    <MenuFlyoutSeparator />
+                                                    <MenuFlyoutItem Text="Clear" Tag="" Click="WeatherOption_Click" />
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </StackPanel>
+                                    <!-- Photos strip -->
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Photos" FontSize="12" FontWeight="Medium"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                      VerticalScrollBarVisibility="Disabled"
+                                                      HorizontalScrollMode="Enabled">
+                                            <StackPanel x:Name="MomentPhotosPanel" Orientation="Horizontal"
+                                                        Spacing="8" Padding="0,2">
+                                                <Button x:Name="AddMomentPhotoButton" Click="AddMomentPhoto_Click"
+                                                        Width="100" Height="100" Padding="0" CornerRadius="10"
+                                                        Background="Transparent"
+                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                                        ToolTipService.ToolTip="Attach a photo to this entry">
+                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                                                        <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                  FontSize="22" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                        <TextBlock Text="Add Photo" FontSize="10"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                   HorizontalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
                         </Grid>
                     </ScrollViewer>
 
@@ -1191,6 +1335,7 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                             <Button x:Name="GitHubSyncButton" Content="Sync" Click="GitHubSyncButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                                            <Button x:Name="GitHubPullButton" Content="Pull Backup" Click="GitHubPullButton_Click" Visibility="Collapsed" />
                                             <Button x:Name="GitHubDisconnectButton" Content="Disconnect" Click="GitHubDisconnectButton_Click" Visibility="Collapsed" />
                                         </StackPanel>
                                     </Grid>
@@ -1379,17 +1524,44 @@
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20">
                             <StackPanel Spacing="16">
                                 <TextBlock Text="Commit Activity (Last 7 Days with commits)" FontSize="16" FontWeight="SemiBold" />
-                                
-                                <!-- Bar Chart Container -->
+
+                                <!-- Bar Chart Container — skeleton and real content share same height -->
                                 <Grid Height="150" HorizontalAlignment="Stretch">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    
+
                                     <!-- Y Axis line & bars -->
                                     <Border Grid.Row="0" BorderThickness="0,0,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Margin="0,0,0,8" VerticalAlignment="Stretch">
-                                        <StackPanel x:Name="CommitChartContainer" Orientation="Horizontal" Spacing="24" HorizontalAlignment="Center" Height="130" VerticalAlignment="Bottom" />
+                                        <Grid>
+                                            <!-- Skeleton bars (visible while loading) -->
+                                            <StackPanel x:Name="CommitChartSkeleton"
+                                                        Orientation="Horizontal" Spacing="24"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                                        Height="130" Visibility="Visible">
+                                                <StackPanel.Resources>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="CornerRadius" Value="3" />
+                                                        <Setter Property="Width" Value="32" />
+                                                        <Setter Property="Background" Value="#1AFFFFFF" />
+                                                        <Setter Property="VerticalAlignment" Value="Bottom" />
+                                                    </Style>
+                                                </StackPanel.Resources>
+                                                <Border Height="70" />
+                                                <Border Height="45" />
+                                                <Border Height="90" />
+                                                <Border Height="55" />
+                                                <Border Height="110" />
+                                                <Border Height="40" />
+                                                <Border Height="80" />
+                                            </StackPanel>
+                                            <!-- Real chart bars -->
+                                            <StackPanel x:Name="CommitChartContainer"
+                                                        Orientation="Horizontal" Spacing="24"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                                        Height="130" Visibility="Collapsed" />
+                                        </Grid>
                                     </Border>
                                 </Grid>
                             </StackPanel>
@@ -1397,11 +1569,115 @@
 
                         <!-- Commits List -->
                         <TextBlock Text="Recent Commits" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0" />
-                        
-                        <ProgressBar x:Name="GitHubHistoryProgressBar" IsIndeterminate="True" Visibility="Collapsed" />
+
+                        <!-- Error text -->
                         <TextBlock x:Name="GitHubHistoryErrorText" Foreground="Red" Visibility="Collapsed" TextWrapping="Wrap" />
 
-                        <ListView x:Name="GitHubCommitsListView" SelectionMode="None" Background="Transparent" IsItemClickEnabled="False">
+                        <!-- Container that holds skeleton OR real list at the same position -->
+                        <Grid x:Name="GitHubCommitsContainer">
+                            <!-- Skeleton commit rows (shown while loading) -->
+                            <StackPanel x:Name="GitHubHistoryProgressBar" Spacing="8" Visibility="Visible">
+                                <!-- 6 shimmer rows -->
+                                <Border Height="68" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="16" Margin="16,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="56" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="36" Height="36" Fill="#1AFFFFFF" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                                            <Border Height="12" CornerRadius="6" Width="240" HorizontalAlignment="Left" Background="#1AFFFFFF" />
+                                            <Border Height="10" CornerRadius="5" Width="160" HorizontalAlignment="Left" Background="#0DFFFFFF" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Height="20" CornerRadius="4" Background="#1AFFFFFF" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border Height="68" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="16" Margin="16,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="56" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="36" Height="36" Fill="#1AFFFFFF" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                                            <Border Height="12" CornerRadius="6" Width="180" HorizontalAlignment="Left" Background="#1AFFFFFF" />
+                                            <Border Height="10" CornerRadius="5" Width="130" HorizontalAlignment="Left" Background="#0DFFFFFF" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Height="20" CornerRadius="4" Background="#1AFFFFFF" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border Height="68" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="16" Margin="16,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="56" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="36" Height="36" Fill="#1AFFFFFF" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                                            <Border Height="12" CornerRadius="6" Width="210" HorizontalAlignment="Left" Background="#1AFFFFFF" />
+                                            <Border Height="10" CornerRadius="5" Width="150" HorizontalAlignment="Left" Background="#0DFFFFFF" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Height="20" CornerRadius="4" Background="#1AFFFFFF" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border Height="68" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="16" Margin="16,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="56" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="36" Height="36" Fill="#1AFFFFFF" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                                            <Border Height="12" CornerRadius="6" Width="200" HorizontalAlignment="Left" Background="#1AFFFFFF" />
+                                            <Border Height="10" CornerRadius="5" Width="140" HorizontalAlignment="Left" Background="#0DFFFFFF" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Height="20" CornerRadius="4" Background="#1AFFFFFF" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border Height="68" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="16" Margin="16,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="56" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="36" Height="36" Fill="#1AFFFFFF" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                                            <Border Height="12" CornerRadius="6" Width="190" HorizontalAlignment="Left" Background="#1AFFFFFF" />
+                                            <Border Height="10" CornerRadius="5" Width="120" HorizontalAlignment="Left" Background="#0DFFFFFF" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Height="20" CornerRadius="4" Background="#1AFFFFFF" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border Height="68" CornerRadius="8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="16" Margin="16,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="56" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="36" Height="36" Fill="#1AFFFFFF" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                                            <Border Height="12" CornerRadius="6" Width="220" HorizontalAlignment="Left" Background="#1AFFFFFF" />
+                                            <Border Height="10" CornerRadius="5" Width="170" HorizontalAlignment="Left" Background="#0DFFFFFF" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Height="20" CornerRadius="4" Background="#1AFFFFFF" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Real commits list (hidden until data loads) -->
+                            <ListView x:Name="GitHubCommitsListView" SelectionMode="None" Background="Transparent" IsItemClickEnabled="False" Visibility="Collapsed">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Margin="0,0,0,8" Padding="16,12" HorizontalAlignment="Stretch">
@@ -1436,6 +1712,7 @@
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>
+                        </Grid>
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
@@ -1567,39 +1844,83 @@
 
             <!-- Gallery Grid -->
             <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,24,0,0">
-                <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="900"
-                                HorizontalAlignment="Center"
-                                Padding="40,40,40,40"
-                                Spacing="8">
-                        
-                        <!-- Header inside scroll stack -->
-                        <TextBlock Text="Photo Gallery" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
+                    <StackPanel MaxWidth="900" HorizontalAlignment="Center"
+                                Padding="40,40,40,40" Spacing="16">
 
+                        <!-- Header -->
+                        <TextBlock Text="Photo Gallery" FontSize="28" FontWeight="Bold" />
+
+                        <!-- Empty state -->
+                        <Border x:Name="GalleryEmptyState" Visibility="Collapsed"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1" CornerRadius="12" Padding="40,56"
+                                HorizontalAlignment="Stretch">
+                            <StackPanel HorizontalAlignment="Center" Spacing="14">
+                                <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                          FontSize="52" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                          HorizontalAlignment="Center" />
+                                <TextBlock Text="No photos yet"
+                                           FontSize="20" FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="Add a cover image to a journal entry and it will appear here. Open any note and click the banner area to add a photo."
+                                           FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           TextAlignment="Center" TextWrapping="Wrap" MaxWidth="340"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Photo grid: ItemsWrapGrid with 3 equal columns -->
                         <GridView x:Name="GalleryGridView"
-                              SelectionMode="None"
-                              IsItemClickEnabled="True"
-                              ItemClick="GalleryGridView_ItemClick">
-                        <GridView.ItemTemplate>
-                            <DataTemplate x:DataType="local:JournalNote">
-                                <Grid Width="220" Height="160" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Margin="6">
-                                    <!-- Cover Image -->
-                                    <Image Source="{x:Bind HeroImagePath, Converter={StaticResource ImagePathConverter}, Mode=OneWay}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    <!-- Bottom text overlay -->
-                                    <Border VerticalAlignment="Bottom" Height="50" Background="#AA000000" CornerRadius="0,0,8,8" Padding="8,6">
-                                        <StackPanel Spacing="2">
-                                            <TextBlock Text="{x:Bind Title}" Foreground="White" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{x:Bind DateModifiedFormatted}" Foreground="#CCCCCC" FontSize="10" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                            </DataTemplate>
-                        </GridView.ItemTemplate>
-                    </GridView>
-                </StackPanel>
-            </ScrollViewer>
-        </Grid>
+                                  SelectionMode="None"
+                                  IsItemClickEnabled="True"
+                                  ItemClick="GalleryGridView_ItemClick"
+                                  Visibility="Collapsed"
+                                  HorizontalAlignment="Center">
+                            <GridView.ItemContainerStyle>
+                                <Style TargetType="GridViewItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0" />
+                                </Style>
+                            </GridView.ItemContainerStyle>
+                            <GridView.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="3" />
+                                </ItemsPanelTemplate>
+                            </GridView.ItemsPanel>
+                            <GridView.ItemTemplate>
+                                <DataTemplate x:DataType="local:GalleryItem">
+                                    <Grid Width="250" Height="180" Margin="5"
+                                          Opacity="{x:Bind IsPlaceholder, Converter={StaticResource BoolToOpacityConverter}, Mode=OneTime}"
+                                          IsHitTestVisible="{x:Bind IsPlaceholder, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneTime}">
+                                        <Grid CornerRadius="10"
+                                              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                              BorderThickness="1"
+                                              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                            <Image Source="{x:Bind HeroImagePath, Converter={StaticResource ImagePathConverter}, Mode=OneTime}"
+                                                   Stretch="UniformToFill"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                            <Border VerticalAlignment="Bottom" MinHeight="52"
+                                                    Background="#BB000000" CornerRadius="0,0,10,10" Padding="10,8">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{x:Bind Title, Mode=OneTime}" Foreground="White"
+                                                               FontSize="13" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{x:Bind DateModifiedFormatted, Mode=OneTime}"
+                                                               Foreground="#CCCCCC" FontSize="10" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
+                                </DataTemplate>
+                            </GridView.ItemTemplate>
+                        </GridView>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
         </Grid>
     </NavigationView>
 
