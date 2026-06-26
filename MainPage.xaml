@@ -75,8 +75,15 @@
                         Background="Transparent">
 
             <NavigationView.PaneHeader>
-                <Grid Height="48" Padding="16,0" VerticalAlignment="Center">
+                <Grid Padding="16,8" VerticalAlignment="Center">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
                     <TextBlock Text="Categories" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" />
+                    <TextBlock x:Name="StreakBadgeText" Grid.Row="1" Text="" FontSize="11"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Visibility="Collapsed" Margin="0,2,0,0" />
                 </Grid>
             </NavigationView.PaneHeader>
 
@@ -358,6 +365,7 @@
                 <Grid Grid.Column="2" Background="Transparent">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -527,8 +535,43 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- Find & Replace Bar (Ctrl+F) -->
+                    <Grid x:Name="FindReplaceBar" Grid.Row="1" Visibility="Collapsed"
+                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                          BorderThickness="0,1,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                          Padding="12,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBox x:Name="FindTextBox" PlaceholderText="Find..." Width="180" Height="28"
+                                     FontSize="12" TextChanged="FindTextBox_TextChanged"
+                                     KeyDown="FindTextBox_KeyDown" />
+                            <TextBox x:Name="ReplaceTextBox" PlaceholderText="Replace with..." Width="180" Height="28"
+                                     FontSize="12" />
+                            <Button x:Name="PrevMatchBtn" Content="&#xE972;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    Width="28" Height="28" Padding="0" FontSize="12"
+                                    ToolTipService.ToolTip="Previous match" Click="PrevMatchBtn_Click" />
+                            <Button x:Name="NextMatchBtn" Content="&#xE971;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    Width="28" Height="28" Padding="0" FontSize="12"
+                                    ToolTipService.ToolTip="Next match" Click="NextMatchBtn_Click" />
+                            <Button x:Name="ReplaceOneBtn" Content="Replace" Height="28" Padding="8,0" FontSize="12"
+                                    ToolTipService.ToolTip="Replace current match" Click="ReplaceOneBtn_Click" />
+                            <Button x:Name="ReplaceAllBtn" Content="Replace All" Height="28" Padding="8,0" FontSize="12"
+                                    ToolTipService.ToolTip="Replace all matches" Click="ReplaceAllBtn_Click" />
+                            <TextBlock x:Name="MatchCountText" Text="" FontSize="11"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="4,0" />
+                        </StackPanel>
+                        <Button x:Name="CloseFindBarBtn" Grid.Column="1" Content="&#xE711;"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                Width="28" Height="28" Padding="0" FontSize="12"
+                                ToolTipService.ToolTip="Close (Escape)" Click="CloseFindBarBtn_Click" />
+                    </Grid>
+
                     <!-- Editor Pane ScrollViewer -->
-                    <ScrollViewer x:Name="EditorScrollViewer" Grid.Row="1" Padding="0" VerticalScrollBarVisibility="Auto" Background="Transparent">
+                    <ScrollViewer x:Name="EditorScrollViewer" Grid.Row="2" Padding="0" VerticalScrollBarVisibility="Auto" Background="Transparent">
                         <!-- Redesigned Editor Grid (flush edge-to-edge container) -->
                         <Grid x:Name="EditorStackPanel" 
                               HorizontalAlignment="Stretch" 
@@ -889,7 +932,7 @@
                     </Grid>
 
                     <!-- Status Bar (Only in Editor) -->
-                    <Grid x:Name="EditorStatusBar" Grid.Row="2" Background="Transparent" Height="28" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="16,0" VerticalAlignment="Bottom" Visibility="Collapsed">
+                    <Grid x:Name="EditorStatusBar" Grid.Row="3" Background="Transparent" Height="28" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="16,0" VerticalAlignment="Bottom" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -909,6 +952,24 @@
                         <TextBlock x:Name="WordCountTextBlock" Grid.Column="2" Text="Word Count: 0 | Characters: 0" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </Grid>
                 </Grid>
+
+                <!-- Undo Trash InfoBar overlay (bottom of editor column) -->
+                <InfoBar x:Name="UndoTrashInfoBar"
+                         Grid.Column="2"
+                         IsOpen="False"
+                         Severity="Informational"
+                         Title=""
+                         Message="Moved to Trash"
+                         IsClosable="True"
+                         VerticalAlignment="Bottom"
+                         HorizontalAlignment="Stretch"
+                         Margin="16,0,16,40"
+                         CornerRadius="8">
+                    <InfoBar.ActionButton>
+                        <Button x:Name="UndoTrashButton" Content="Undo" Click="UndoTrashButton_Click"
+                                Style="{StaticResource AccentButtonStyle}" Padding="12,4" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
             </Grid>
             
             <!-- Settings Grid -->

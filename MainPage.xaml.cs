@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Security.Credentials;
 using Span = Microsoft.UI.Xaml.Documents.Span;
 
 namespace JournalApp
@@ -43,8 +44,64 @@ namespace JournalApp
     public sealed partial class MainPage : Page
     {
         public static MainPage Instance { get; private set; }
-        private static readonly HttpClient _httpClient = new HttpClient();
-        private static readonly HttpClient _unsplashHttpClient = new HttpClient();
+
+        // HttpClients with 15-second timeout to prevent hanging on dead requests
+        private static readonly HttpClient _httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(15)
+        };
+        private static readonly HttpClient _unsplashHttpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(15)
+        };
+
+        // ── Secure credential storage (Windows Credential Manager) ────────
+        private const string _vaultResource = "JournalApp_GitHub";
+        private const string _vaultUsername = "GitHubPAT";
+
+        private static string GetSecureToken()
+        {
+            try
+            {
+                var vault = new PasswordVault();
+                var cred = vault.Retrieve(_vaultResource, _vaultUsername);
+                cred.RetrievePassword();
+                return cred.Password;
+            }
+            catch { return string.Empty; }
+        }
+
+        private static void SaveSecureToken(string token)
+        {
+            try
+            {
+                var vault = new PasswordVault();
+                // Remove old entry first to avoid duplicates
+                try { vault.Remove(vault.Retrieve(_vaultResource, _vaultUsername)); } catch { }
+                if (!string.IsNullOrWhiteSpace(token))
+                    vault.Add(new PasswordCredential(_vaultResource, _vaultUsername, token));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SaveSecureToken] Failed: {ex.Message}");
+                // Fallback to LocalSettings if Credential Manager is unavailable
+                SaveSetting("GitHubToken", token);
+            }
+        }
+
+        private static void RemoveSecureToken()
+        {
+            try
+            {
+                var vault = new PasswordVault();
+                try { vault.Remove(vault.Retrieve(_vaultResource, _vaultUsername)); } catch { }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RemoveSecureToken] Failed: {ex.Message}");
+            }
+            RemoveSetting("GitHubToken");
+        }
 
         private static string GetSetting(string key, string defaultValue = "")
         {
@@ -71,7 +128,10 @@ namespace JournalApp
                         }
                     }
                 }
-                catch {}
+                catch (Exception fallbackEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[GetSetting] File fallback failed for key '{key}': {fallbackEx.Message}");
+                }
             }
             return defaultValue;
         }
@@ -98,7 +158,10 @@ namespace JournalApp
                     dict[key] = value;
                     File.WriteAllText(path, JsonSerializer.Serialize(dict));
                 }
-                catch {}
+                catch (Exception fallbackEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SaveSetting] File fallback failed for key '{key}': {fallbackEx.Message}");
+                }
             }
         }
 
@@ -124,7 +187,10 @@ namespace JournalApp
                         }
                     }
                 }
-                catch {}
+                catch (Exception fallbackEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RemoveSetting] File fallback failed for key '{key}': {fallbackEx.Message}");
+                }
             }
         }
 
@@ -263,6 +329,18 @@ namespace JournalApp
         private object _previousSelectedItem;
         private bool _isUpdatingEffectsUI = false;
 
+        // Undo trash
+        private JournalNote _lastSoftDeletedNote;
+        private JournalNote _lastSoftDeletedPreviousSelection;
+        private DispatcherTimer _undoToastTimer;
+
+        // Find & Replace
+        private List<Microsoft.UI.Text.ITextRange> _findMatches = new();
+        private int _findMatchIndex = -1;
+
+        // Full-text search cache (key = note Id, value = stripped plain text)
+        private readonly Dictionary<string, string> _rtfTextCache = new();
+
         public MainPage()
         {
             Instance = this;
@@ -277,13 +355,25 @@ namespace JournalApp
                     string path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JournalApp", "crash.txt");
                     System.IO.File.WriteAllText(path, ex.ToString());
                 }
-                catch {}
+                catch (Exception innerEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[InitializeComponent] Failed: {innerEx.Message}");
+                }
                 throw;
             }
 
             _isPageInitialized = true;
             _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5.0) };
             _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+
+            _undoToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5.0) };
+            _undoToastTimer.Tick += (s, e) =>
+            {
+                _undoToastTimer.Stop();
+                if (UndoTrashInfoBar != null) UndoTrashInfoBar.IsOpen = false;
+                _lastSoftDeletedNote = null;
+                _lastSoftDeletedPreviousSelection = null;
+            };
 
             Loaded += MainPage_Loaded;
 
@@ -364,6 +454,14 @@ namespace JournalApp
                 }
                 UpdateSaveSettingsButtonState();
                 TriggerUpdateCheckStartup();
+                UpdateStreakUI();
+
+                // Save on window close / deactivate (WinUI 3 safe pattern)
+                if (MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.Closed += OnWindowClosed;
+                    MainWindow.Instance.VisibilityChanged += OnWindowVisibilityChanged;
+                }
             }
             catch (Exception ex)
             {
@@ -374,6 +472,26 @@ namespace JournalApp
                 }
                 catch {}
                 throw;
+            }
+        }
+
+        private void OnWindowClosed(object sender, Microsoft.UI.Xaml.WindowEventArgs e)
+        {
+            // Final flush before the process exits
+            try
+            {
+                if (_isDirty && SelectedNote != null)
+                    SaveCurrentNoteContent();
+            }
+            catch { }
+        }
+
+        private void OnWindowVisibilityChanged(object sender, WindowVisibilityChangedEventArgs e)
+        {
+            // Save when the window is hidden (minimized / occluded)
+            if (!e.Visible && _isDirty && SelectedNote != null)
+            {
+                try { SaveCurrentNoteContent(); } catch { }
             }
         }
 
@@ -482,12 +600,11 @@ namespace JournalApp
                 }
             }
 
-            // Apply search query filter
+            // Apply search query filter (full-text: title + snippet + RTF body)
             string search = MainWindow.Instance?.SearchText?.Trim();
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(n => n.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                                         n.Snippet.Contains(search, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(n => NoteMatchesSearch(n, search));
             }
 
             var categoriesList = JournalManager.Instance.Categories;
@@ -678,6 +795,8 @@ namespace JournalApp
             {
                 NotesListView.SelectedItem = SelectedNote;
             }
+
+            UpdateStreakUI();
         }
 
         private void LoadNoteContent()
@@ -766,7 +885,10 @@ namespace JournalApp
                 // Update title & snippet & modified date
                 string plainText;
                 NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out plainText);
-                
+
+                // Invalidate full-text cache so the next search re-reads from file
+                _rtfTextCache.Remove(SelectedNote.Id);
+
                 SelectedNote.Snippet = string.IsNullOrWhiteSpace(plainText) ? "No additional text" :
                     (plainText.Length > 80 ? plainText.Substring(0, 80).Replace("\r", " ").Replace("\n", " ").Trim() : plainText.Replace("\r", " ").Replace("\n", " ").Trim());
 
@@ -912,15 +1034,33 @@ namespace JournalApp
 
         private void Page_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
+            var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+            bool isCtrl = ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+            if (isCtrl && e.Key == Windows.System.VirtualKey.F)
+            {
+                if (SelectedNote != null && FindReplaceBar != null)
+                {
+                    FindReplaceBar.Visibility = Visibility.Visible;
+                    FindTextBox?.Focus(FocusState.Programmatic);
+                    e.Handled = true;
+                }
+                return;
+            }
+
             if (e.Key == Windows.System.VirtualKey.Escape)
             {
+                // Close Find bar first if open
+                if (FindReplaceBar != null && FindReplaceBar.Visibility == Visibility.Visible)
+                {
+                    CloseFindBar();
+                    e.Handled = true;
+                    return;
+                }
                 if (SelectedNote != null)
                 {
                     SelectedNote = null;
-                    if (NotesListView != null)
-                    {
-                        NotesListView.SelectedItem = null;
-                    }
+                    if (NotesListView != null) NotesListView.SelectedItem = null;
                     e.Handled = true;
                 }
             }
@@ -930,6 +1070,123 @@ namespace JournalApp
         public void OnTitleSearchTextChanged()
         {
             RefreshNotesList();
+        }
+
+        // ── Find & Replace ───────────────────────────────────────────────────
+        private void CloseFindBar()
+        {
+            if (FindReplaceBar != null) FindReplaceBar.Visibility = Visibility.Collapsed;
+            _findMatches.Clear();
+            _findMatchIndex = -1;
+            if (MatchCountText != null) MatchCountText.Text = "";
+        }
+
+        private void CloseFindBarBtn_Click(object sender, RoutedEventArgs e) => CloseFindBar();
+
+        private void FindTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            FindInNote();
+        }
+
+        private void FindTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                FindNextMatch();
+                e.Handled = true;
+            }
+        }
+
+        private void PrevMatchBtn_Click(object sender, RoutedEventArgs e) => FindPrevMatch();
+        private void NextMatchBtn_Click(object sender, RoutedEventArgs e) => FindNextMatch();
+
+        private void FindInNote()
+        {
+            _findMatches.Clear();
+            _findMatchIndex = -1;
+
+            string term = FindTextBox?.Text;
+            if (string.IsNullOrEmpty(term) || SelectedNote == null)
+            {
+                if (MatchCountText != null) MatchCountText.Text = "";
+                return;
+            }
+
+            try
+            {
+                NoteRichEditBox.Document.GetText(TextGetOptions.None, out string fullText);
+                int searchFrom = 0;
+                while (searchFrom < fullText.Length)
+                {
+                    int idx = fullText.IndexOf(term, searchFrom, StringComparison.OrdinalIgnoreCase);
+                    if (idx < 0) break;
+                    var range = NoteRichEditBox.Document.GetRange(idx, idx + term.Length);
+                    _findMatches.Add(range);
+                    searchFrom = idx + 1;
+                }
+
+                if (MatchCountText != null)
+                    MatchCountText.Text = _findMatches.Count == 0 ? "No results" : $"1 of {_findMatches.Count}";
+
+                if (_findMatches.Count > 0)
+                {
+                    _findMatchIndex = 0;
+                    HighlightCurrentMatch();
+                }
+            }
+            catch { }
+        }
+
+        private void FindNextMatch()
+        {
+            if (_findMatches.Count == 0) { FindInNote(); return; }
+            _findMatchIndex = (_findMatchIndex + 1) % _findMatches.Count;
+            HighlightCurrentMatch();
+        }
+
+        private void FindPrevMatch()
+        {
+            if (_findMatches.Count == 0) { FindInNote(); return; }
+            _findMatchIndex = (_findMatchIndex - 1 + _findMatches.Count) % _findMatches.Count;
+            HighlightCurrentMatch();
+        }
+
+        private void HighlightCurrentMatch()
+        {
+            if (_findMatchIndex < 0 || _findMatchIndex >= _findMatches.Count) return;
+            var range = _findMatches[_findMatchIndex];
+            NoteRichEditBox.Document.Selection.SetRange(range.StartPosition, range.EndPosition);
+            if (MatchCountText != null)
+                MatchCountText.Text = $"{_findMatchIndex + 1} of {_findMatches.Count}";
+        }
+
+        private void ReplaceOneBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_findMatches.Count == 0 || _findMatchIndex < 0) return;
+            string replacement = ReplaceTextBox?.Text ?? "";
+            var range = _findMatches[_findMatchIndex];
+            range.Text = replacement;
+            MarkDirty();
+            FindInNote(); // re-scan after replacement
+        }
+
+        private void ReplaceAllBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_findMatches.Count == 0) return;
+            string term = FindTextBox?.Text;
+            string replacement = ReplaceTextBox?.Text ?? "";
+            if (string.IsNullOrEmpty(term)) return;
+
+            NoteRichEditBox.Document.GetText(TextGetOptions.None, out string fullText);
+            string newText = System.Text.RegularExpressions.Regex.Replace(
+                fullText, System.Text.RegularExpressions.Regex.Escape(term),
+                replacement, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            // Replace entire document text
+            NoteRichEditBox.Document.SetText(TextSetOptions.None, newText);
+            MarkDirty();
+            FindInNote();
+            ShowStatusMessage($"Replaced all occurrences of \"{term}\"");
         }
 
         // Action Handlers
@@ -949,84 +1206,98 @@ namespace JournalApp
         {
             if (note == null || senderElement == null) return;
 
+            // Soft delete: instant action with 5-second undo toast — no blocking dialog
+            if (!permanentlyDelete)
+            {
+                _lastSoftDeletedNote = note;
+                _lastSoftDeletedPreviousSelection = SelectedNote == note ? null : SelectedNote;
+
+                if (SelectedNote == note)
+                    SelectedNote = null;
+
+                JournalManager.Instance.SoftDeleteNote(note);
+                _rtfTextCache.Remove(note.Id); // invalidate cache entry
+                RefreshNotesList();
+
+                if (UndoTrashInfoBar != null)
+                {
+                    UndoTrashInfoBar.Message = $"\"{note.Title}\" moved to Trash";
+                    UndoTrashInfoBar.IsOpen = true;
+                }
+                _undoToastTimer.Stop();
+                _undoToastTimer.Start();
+                return;
+            }
+
+            // Permanent delete: keep confirmation flyout
             var flyout = new Flyout();
-            
+
             var stackPanel = new StackPanel { Spacing = 12, MaxWidth = 280 };
-            
+
             var textBlock = new TextBlock
             {
-                Text = permanentlyDelete 
-                    ? $"Are you sure you want to permanently delete \"{note.Title}\"? This action cannot be undone."
-                    : $"Are you sure you want to move \"{note.Title}\" to the Trash?",
+                Text = $"Are you sure you want to permanently delete \"{note.Title}\"? This action cannot be undone.",
                 Style = (Style)Application.Current.Resources["BodyTextBlockStyle"],
                 TextWrapping = TextWrapping.Wrap
             };
-            
-            var buttonsPanel = new StackPanel 
-            { 
-                Orientation = Orientation.Horizontal, 
+
+            var buttonsPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
-                Spacing = 8 
+                Spacing = 8
             };
 
-            var cancelButton = new Button
-            {
-                Content = "Cancel"
-            };
+            var cancelButton = new Button { Content = "Cancel" };
             cancelButton.Click += (s, args) => flyout.Hide();
 
             var confirmButton = new Button
             {
-                Content = permanentlyDelete ? "Delete Permanently" : "Move to Trash"
+                Content = "Delete Permanently",
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red)
             };
-
-            if (permanentlyDelete)
-            {
-                confirmButton.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red);
-            }
-            else
-            {
-                confirmButton.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
-            }
 
             confirmButton.Click += (s, args) =>
             {
                 flyout.Hide();
-                
-                if (SelectedNote == note)
-                {
-                    SelectedNote = null; // Unselect first
-                }
-                
-                if (permanentlyDelete)
-                {
-                    JournalManager.Instance.PermanentlyDeleteNote(note);
-                    ShowStatusMessage("Journal entry permanently deleted");
-                }
-                else
-                {
-                    JournalManager.Instance.SoftDeleteNote(note);
-                    ShowStatusMessage("Journal entry moved to Trash");
-                }
+                if (SelectedNote == note) SelectedNote = null;
+                _rtfTextCache.Remove(note.Id);
+                JournalManager.Instance.PermanentlyDeleteNote(note);
+                ShowStatusMessage("Journal entry permanently deleted");
                 RefreshNotesList();
             };
 
             buttonsPanel.Children.Add(cancelButton);
             buttonsPanel.Children.Add(confirmButton);
-
             stackPanel.Children.Add(textBlock);
             stackPanel.Children.Add(buttonsPanel);
-            
             flyout.Content = stackPanel;
 
-            // Determine the best anchor element
             FrameworkElement anchor = senderElement;
             if (senderElement is MenuFlyoutItem)
-            {
                 anchor = NotesListView.ContainerFromItem(note) as FrameworkElement ?? NotesListView;
-            }
 
             flyout.ShowAt(anchor);
+        }
+
+        private void UndoTrashButton_Click(object sender, RoutedEventArgs e)
+        {
+            _undoToastTimer.Stop();
+            if (UndoTrashInfoBar != null) UndoTrashInfoBar.IsOpen = false;
+
+            if (_lastSoftDeletedNote != null)
+            {
+                JournalManager.Instance.RestoreNote(_lastSoftDeletedNote);
+                RefreshNotesList();
+                // Restore the selection that was active before deletion
+                if (_lastSoftDeletedPreviousSelection != null)
+                    NotesListView.SelectedItem = _lastSoftDeletedPreviousSelection;
+                else
+                    NotesListView.SelectedItem = _lastSoftDeletedNote;
+                ShowStatusMessage($"Restored \"{_lastSoftDeletedNote.Title}\"");
+                _lastSoftDeletedNote = null;
+                _lastSoftDeletedPreviousSelection = null;
+            }
         }
 
         private void DeleteNoteButton_Click(object sender, RoutedEventArgs e)
@@ -2199,432 +2470,6 @@ namespace JournalApp
 
         // Photographer attribution is now handled natively via Hyperlink NavigateUri in XAML.
 
-        // Unsplash credentials settings handlers
-        private void SaveUnsplashKeyButton_Click(object sender, RoutedEventArgs e)
-        {
-            SaveSetting("UnsplashAccessKey", UnsplashTokenPasswordBox.Password?.Trim());
-        }
-
-        private void UnsplashTokenPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
-        {
-            // Toggle button label: "Get Key" when empty, "Save Key" when a key is present
-            if (UnsplashKeyButton != null)
-            {
-                bool hasKey = !string.IsNullOrWhiteSpace(UnsplashTokenPasswordBox.Password);
-                UnsplashKeyButton.Content = hasKey ? "Save Key" : "Get Key";
-            }
-            UpdateSaveSettingsButtonState();
-        }
-
-        private async void GetUnsplashKeyButton_Click(object sender, RoutedEventArgs e)
-        {
-            // If a key is already entered, "Save Key" — just confirm it's saved (autosave already did it)
-            if (!string.IsNullOrWhiteSpace(UnsplashTokenPasswordBox?.Password))
-            {
-                if (UnsplashKeyButton != null)
-                {
-                    UnsplashKeyButton.Content = "Saved ✓";
-                    UnsplashKeyButton.IsEnabled = false;
-                    await Task.Delay(1500);
-                    UnsplashKeyButton.Content = "Save Key";
-                    UnsplashKeyButton.IsEnabled = true;
-                }
-                return;
-            }
-            // No key yet — open Unsplash developer page to get one
-            try
-            {
-                var uri = new Uri("https://unsplash.com/developers");
-                await Windows.System.Launcher.LaunchUriAsync(uri);
-            }
-            catch {}
-        }
-
-        // Unsplash search popups and API querying handlers
-        private async void SearchUnsplashHeroImage_Click(object sender, RoutedEventArgs e)
-        {
-            if (SelectedNote == null) return;
-            
-            if (UnsplashSearchDialog != null)
-            {
-                UnsplashSearchTextBox.Text = "";
-                UnsplashResultsGridView.ItemsSource = null;
-                UnsplashProgressRing.IsActive = false;
-                UnsplashProgressRing.Visibility = Visibility.Collapsed;
-                if (UnsplashErrorTextBlock != null)
-                {
-                    UnsplashErrorTextBlock.Text = "";
-                    UnsplashErrorTextBlock.Visibility = Visibility.Collapsed;
-                }
-                
-                UnsplashSearchDialog.XamlRoot = this.XamlRoot;
-                await UnsplashSearchDialog.ShowAsync();
-            }
-        }
-
-        private void UnsplashSearchButton_Click(object sender, RoutedEventArgs e)
-        {
-            PerformUnsplashSearch();
-        }
-
-        private void UnsplashSearchTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
-        {
-            if (e.Key == Windows.System.VirtualKey.Enter)
-            {
-                PerformUnsplashSearch();
-                e.Handled = true;
-            }
-        }
-
-        private async void PerformUnsplashSearch()
-        {
-            string query = UnsplashSearchTextBox.Text?.Trim();
-            if (string.IsNullOrEmpty(query)) return;
-
-            UnsplashProgressRing.Visibility = Visibility.Visible;
-            UnsplashProgressRing.IsActive = true;
-            UnsplashResultsGridView.ItemsSource = null;
-            if (UnsplashErrorTextBlock != null)
-            {
-                UnsplashErrorTextBlock.Text = "";
-                UnsplashErrorTextBlock.Visibility = Visibility.Collapsed;
-            }
-
-            try
-            {
-                string apiKey = UnsplashTokenPasswordBox?.Password?.Trim();
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    apiKey = GetSetting("UnsplashAccessKey");
-                }
-                
-                // Fallback to a demo developer key
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    apiKey = "DFCwWNM7UGoROD84mWytKM5lZdNbAhulz6_lYPJui7g"; 
-                }
-
-                // Official Search Endpoint: GET /search/photos
-                string url = $"https://api.unsplash.com/search/photos?query={Uri.EscapeDataString(query)}&per_page=30";
-                
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                // Authentication via header: Authorization: Client-ID YOUR_ACCESS_KEY
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Client-ID", apiKey);
-                // Versioning via header: Accept-Version: v1
-                request.Headers.Add("Accept-Version", "v1");
-                request.Headers.UserAgent.TryParseAdd("JournalApp");
-                
-                var response = await _unsplashHttpClient.SendAsync(request);
-                if (response.IsSuccessStatusCode)
-                {
-                    string json = await response.Content.ReadAsStringAsync();
-                    using (var doc = JsonDocument.Parse(json))
-                    {
-                        var root = doc.RootElement;
-                        if (root.TryGetProperty("results", out var resultsArray) && resultsArray.ValueKind == JsonValueKind.Array)
-                        {
-                            var list = new List<UnsplashResult>();
-                            foreach (var item in resultsArray.EnumerateArray())
-                            {
-                                var id = item.GetProperty("id").GetString();
-                                var urls = item.GetProperty("urls");
-                                var thumbUrl = urls.GetProperty("small").GetString();
-                                var fullUrl = urls.GetProperty("regular").GetString();
-                                
-                                var user = item.GetProperty("user");
-                                var photographer = user.GetProperty("name").GetString();
-                                var photographerUsername = user.GetProperty("username").GetString();
-                                var photographerUrl = $"https://unsplash.com/@{photographerUsername}?utm_source=JournalApp&utm_medium=referral";
-                                
-                                // Retrieve the download tracking endpoint as mandated by Unsplash API guidelines
-                                string downloadTrackUrl = null;
-                                if (item.TryGetProperty("links", out var linksElement))
-                                {
-                                    if (linksElement.TryGetProperty("download_location", out var dlElement))
-                                    {
-                                        downloadTrackUrl = dlElement.GetString();
-                                    }
-                                    else if (linksElement.TryGetProperty("download", out var dElement))
-                                    {
-                                        downloadTrackUrl = dElement.GetString();
-                                    }
-                                }
-                                if (string.IsNullOrEmpty(downloadTrackUrl))
-                                {
-                                    downloadTrackUrl = $"https://api.unsplash.com/photos/{id}/download";
-                                }
-
-                                list.Add(new UnsplashResult
-                                {
-                                    Id = id,
-                                    ThumbUrl = thumbUrl,
-                                    FullUrl = fullUrl,
-                                    Photographer = photographer,
-                                    PhotographerUrl = photographerUrl,
-                                    DownloadTrackUrl = downloadTrackUrl
-                                });
-                            }
-                            UnsplashResultsGridView.ItemsSource = list;
-                        }
-                    }
-                }
-                else
-                {
-                    if (UnsplashErrorTextBlock != null)
-                    {
-                        UnsplashErrorTextBlock.Text = "Could not complete search. Please verify your Unsplash Access Key in Settings.";
-                        UnsplashErrorTextBlock.Visibility = Visibility.Visible;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                if (UnsplashErrorTextBlock != null)
-                {
-                    UnsplashErrorTextBlock.Text = $"Search failed: {ex.Message}";
-                    UnsplashErrorTextBlock.Visibility = Visibility.Visible;
-                }
-            }
-            finally
-            {
-                UnsplashProgressRing.IsActive = false;
-                UnsplashProgressRing.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        // Asynchronously reports a photo download event to Unsplash to comply with API guidelines
-        private async Task TrackUnsplashDownloadAsync(string photoId, string trackUrl, string apiKey)
-        {
-            if (string.IsNullOrEmpty(trackUrl)) return;
-
-            try
-            {
-                var request = new HttpRequestMessage(HttpMethod.Get, trackUrl);
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Client-ID", apiKey);
-                request.Headers.Add("Accept-Version", "v1");
-                request.Headers.UserAgent.TryParseAdd("JournalApp");
-
-                var response = await _unsplashHttpClient.SendAsync(request);
-                if (!response.IsSuccessStatusCode)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Unsplash download tracking failed with status: {response.StatusCode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error tracking Unsplash download: {ex.Message}");
-            }
-        }
-
-        private async void UnsplashResultsGridView_ItemClick(object sender, ItemClickEventArgs e)
-        {
-            if (e.ClickedItem is UnsplashResult result && SelectedNote != null)
-            {
-                if (UnsplashSearchDialog != null)
-                {
-                    UnsplashSearchDialog.Hide();
-                }
-
-                ShowLoadingRing(true);
-                ShowStatusMessage("Downloading Unsplash banner...");
-
-                // Retrieve api key for download tracking
-                string apiKey = UnsplashTokenPasswordBox?.Password?.Trim();
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    apiKey = GetSetting("UnsplashAccessKey");
-                }
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    apiKey = "L-m_xJkH8Z5_2Wv-34e8H9hD3y8U-48hU438e83u"; 
-                }
-
-                // Trigger download event in the background as required by Unsplash API guidelines
-                _ = TrackUnsplashDownloadAsync(result.Id, result.DownloadTrackUrl, apiKey);
-
-                try
-                {
-                    string localName = await DownloadImageToLocalMediaAsync(result.FullUrl);
-                    if (!string.IsNullOrEmpty(localName))
-                    {
-                        SelectedNote.HeroImagePath = localName;
-                        SelectedNote.CoverAttributionText = result.Photographer;
-                        SelectedNote.CoverAttributionUrl = result.PhotographerUrl;
-                        
-                        SelectedNote.CoverOffsetY = 0;
-                        SelectedNote.CoverBrightness = 100;
-                        SelectedNote.CoverBlur = 0;
-
-                        JournalManager.Instance.SaveNotesMetadata();
-                        UpdateHeroImageUI();
-                        RefreshNotesList();
-                        ShowStatusMessage("Unsplash banner applied successfully");
-                    }
-                    else
-                    {
-                        await ShowAlertAsync("Error", "Could not download the selected cover banner.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await ShowAlertAsync("Error", $"Failed to download banner: {ex.Message}");
-                }
-                finally
-                {
-                    ShowLoadingRing(false);
-                }
-            }
-        }
-
-        private async void SetLocalHeroImage_Click(object sender, RoutedEventArgs e)
-        {
-            if (SelectedNote == null) return;
-
-            var picker = CreatePicker();
-            StorageFile file = await picker.PickSingleFileAsync();
-            if (file != null)
-            {
-                string localName = JournalManager.Instance.CopyImageToLocalMedia(file.Path);
-                if (!string.IsNullOrEmpty(localName))
-                {
-                    SelectedNote.HeroImagePath = localName;
-                    JournalManager.Instance.SaveNotesMetadata();
-                    UpdateHeroImageUI();
-                    RefreshNotesList();
-                }
-            }
-        }
-
-        private async void SetUrlHeroImage_Click(object sender, RoutedEventArgs e)
-        {
-            if (SelectedNote == null) return;
-
-            string url = await PromptForTextInputAsync("Set Hero Image", "Enter the cover image URL:", "https://images.unsplash.com/photo-1507842217343-583bb7270b66");
-            if (string.IsNullOrEmpty(url)) return;
-
-            ShowLoadingRing(true);
-            string localName = await DownloadImageToLocalMediaAsync(url);
-            ShowLoadingRing(false);
-
-            if (!string.IsNullOrEmpty(localName))
-            {
-                SelectedNote.HeroImagePath = localName;
-                JournalManager.Instance.SaveNotesMetadata();
-                UpdateHeroImageUI();
-                RefreshNotesList();
-            }
-            else
-            {
-                await ShowAlertAsync("Error", "Could not download image banner. Please verify the URL.");
-            }
-        }
-
-        private void ResetHeroImage_Click(object sender, RoutedEventArgs e)
-        {
-            if (SelectedNote != null)
-            {
-                SelectedNote.HeroImagePath = null; // Reverts to Picsum fallback
-                JournalManager.Instance.SaveNotesMetadata();
-                UpdateHeroImageUI();
-                RefreshNotesList();
-                ShowStatusMessage("Cover banner reset to default");
-            }
-        }
-
-        private void RemoveHeroImage_Click(object sender, RoutedEventArgs e)
-        {
-            if (SelectedNote != null)
-            {
-                SelectedNote.HeroImagePath = "None"; // Hides the banner
-                JournalManager.Instance.SaveNotesMetadata();
-                UpdateHeroImageUI();
-                RefreshNotesList();
-                ShowStatusMessage("Cover banner hidden");
-            }
-        }
-
-        private void UpdateEditorHeaderUI()
-        {
-            if (SelectedNote == null) return;
-
-            // Set Date Text
-            DateDayTextBlock.Text = SelectedNote.DateCreated.ToString("dd");
-            DateMonthYearTextBlock.Text = SelectedNote.DateCreated.ToString("MMMM yyyy");
-            if (SelectedNote.HasTime)
-            {
-                DateTimeTextBlock.Text = SelectedNote.DateCreated.ToString("ddd, h:mm tt");
-            }
-            else
-            {
-                DateTimeTextBlock.Text = SelectedNote.DateCreated.ToString("dddd");
-            }
-
-            // Update editor toolbar actions based on Trash state
-            if (SelectedNote.IsDeleted)
-            {
-                FavoriteToggle.Visibility = Visibility.Collapsed;
-                MoveCategoryButton.Visibility = Visibility.Collapsed;
-                DeleteNoteButton.Visibility = Visibility.Collapsed;
-                RestoreNoteButton.Visibility = Visibility.Visible;
-                PermanentlyDeleteNoteButton.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                FavoriteToggle.Visibility = Visibility.Visible;
-                MoveCategoryButton.Visibility = Visibility.Visible;
-                DeleteNoteButton.Visibility = Visibility.Visible;
-                RestoreNoteButton.Visibility = Visibility.Collapsed;
-                PermanentlyDeleteNoteButton.Visibility = Visibility.Collapsed;
-            }
-
-            // Look up Category Details
-            var category = JournalManager.Instance.Categories.FirstOrDefault(c => c.Name == SelectedNote.Category);
-            if (category != null)
-            {
-                CategoryBadgeIcon.Glyph = category.Icon;
-                CategoryBadgeIcon.Foreground = GetBrushFromHex(category.Color);
-                CategoryBadgeText.Text = category.Name;
-            }
-            else
-            {
-                CategoryBadgeIcon.Glyph = "\uE8B7"; // Default folder icon
-                CategoryBadgeIcon.Foreground = GetBrushFromHex("#8A8886"); // Default gray color
-                CategoryBadgeText.Text = SelectedNote.Category;
-            }
-        }
-
-        private Microsoft.UI.Xaml.Media.Brush GetBrushFromHex(string hex)
-        {
-            if (string.IsNullOrEmpty(hex)) return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
-            try
-            {
-                if (hex.StartsWith("#"))
-                    hex = hex.Substring(1);
-
-                byte a = 255;
-                byte r = 0, g = 0, b = 0;
-
-                if (hex.Length == 6)
-                {
-                    r = Convert.ToByte(hex.Substring(0, 2), 16);
-                    g = Convert.ToByte(hex.Substring(2, 2), 16);
-                    b = Convert.ToByte(hex.Substring(4, 2), 16);
-                }
-                else if (hex.Length == 8)
-                {
-                    a = Convert.ToByte(hex.Substring(0, 2), 16);
-                    r = Convert.ToByte(hex.Substring(2, 2), 16);
-                    g = Convert.ToByte(hex.Substring(4, 2), 16);
-                    b = Convert.ToByte(hex.Substring(6, 2), 16);
-                }
-                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
-            }
-            catch
-            {
-                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
-            }
-        }
-
         // Helper Dialogs
         private async Task<string> PromptForTextInputAsync(string title, string instruction, string placeholder)
         {
@@ -2749,6 +2594,86 @@ namespace JournalApp
                 System.Diagnostics.Debug.WriteLine($"Failed to download image: {ex.Message}");
                 return null;
             }
+        }
+
+        // ── Full-text search ────────────────────────────────────────────────
+        private bool NoteMatchesSearch(JournalNote note, string search)
+        {
+            if (note.Title.Contains(search, StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (note.Snippet.Contains(search, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Fall back to full RTF file content (cached)
+            try
+            {
+                if (!_rtfTextCache.TryGetValue(note.Id, out string cachedText))
+                {
+                    string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(note.RtfFileName);
+                    if (!string.IsNullOrEmpty(rtfPath) && File.Exists(rtfPath))
+                    {
+                        string raw = File.ReadAllText(rtfPath);
+                        // Strip RTF control words with a lightweight regex
+                        cachedText = System.Text.RegularExpressions.Regex.Replace(raw, @"\\[a-z]+\-?\d*\s?|[{}]", " ");
+                        cachedText = System.Text.RegularExpressions.Regex.Replace(cachedText, @"\s+", " ").Trim();
+                        _rtfTextCache[note.Id] = cachedText;
+                    }
+                    else
+                    {
+                        _rtfTextCache[note.Id] = string.Empty;
+                        cachedText = string.Empty;
+                    }
+                }
+                return !string.IsNullOrEmpty(cachedText) &&
+                       cachedText.Contains(search, StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
+        // ── Writing streak ──────────────────────────────────────────────────
+        private void UpdateStreakUI()
+        {
+            try
+            {
+                int streak = ComputeWritingStreak();
+                if (StreakBadgeText != null)
+                {
+                    if (streak > 0)
+                    {
+                        StreakBadgeText.Text = streak == 1
+                            ? "🔥 1 day streak"
+                            : $"🔥 {streak} day streak";
+                        StreakBadgeText.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        StreakBadgeText.Visibility = Visibility.Collapsed;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private int ComputeWritingStreak()
+        {
+            var activityDates = JournalManager.Instance.Notes
+                .Where(n => !n.IsDeleted)
+                .SelectMany(n => new[] { n.DateCreated.Date, n.DateModified.Date })
+                .Distinct()
+                .ToHashSet();
+
+            var today = DateTime.Today;
+            int streak = 0;
+            // Allow today OR yesterday as a starting point (so opening the app doesn't reset a streak)
+            var check = activityDates.Contains(today) ? today : today.AddDays(-1);
+            if (!activityDates.Contains(check)) return 0;
+
+            while (activityDates.Contains(check))
+            {
+                streak++;
+                check = check.AddDays(-1);
+            }
+            return streak;
         }
 
         private void UpdateWordCount()
@@ -3163,1057 +3088,6 @@ namespace JournalApp
                 versionStr = versionStr.Substring(0, dashIndex);
             }
             return versionStr.Trim();
-        }
-
-        private async Task DownloadAndInstallUpdate(string downloadUrl, string assetName)
-        {
-            if (UpdateStatusTextBlock != null)
-                UpdateStatusTextBlock.Text = "Downloading update...";
-
-            var mainWindow = MainWindow.Instance;
-            if (mainWindow != null)
-            {
-                mainWindow.ShowTitleBarDownloadState(true);
-            }
-
-            try
-            {
-                string tempPath = Path.Combine(Path.GetTempPath(), assetName);
-                Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
-                
-                if (File.Exists(tempPath))
-                {
-                    File.Delete(tempPath);
-                }
-
-                using (var downloadResponse = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
-                {
-                    downloadResponse.EnsureSuccessStatusCode();
-                    var totalBytes = downloadResponse.Content.Headers.ContentLength ?? -1L;
-                    
-                    using (var contentStream = await downloadResponse.Content.ReadAsStreamAsync())
-                    using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
-                    {
-                        var buffer = new byte[8192];
-                        var totalRead = 0L;
-                        int read;
-                        while ((read = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                        {
-                            await fileStream.WriteAsync(buffer, 0, read);
-                            totalRead += read;
-                            
-                            if (totalBytes > 0)
-                            {
-                                int pct = (int)((double)totalRead / totalBytes * 100);
-                                DispatcherQueue.TryEnqueue(() =>
-                                {
-                                    if (UpdateStatusTextBlock != null)
-                                    {
-                                        UpdateStatusTextBlock.Text = $"Downloading: {pct}%";
-                                    }
-                                    if (mainWindow != null)
-                                    {
-                                        mainWindow.UpdateTitleBarDownloadProgress(pct);
-                                    }
-                                });
-                            }
-                        }
-                    }
-                }
-
-                if (UpdateStatusTextBlock != null)
-                    UpdateStatusTextBlock.Text = "Launching installer...";
-
-                if (mainWindow != null)
-                {
-                    mainWindow.UpdateTitleBarDownloadText("Installing...");
-                }
-
-                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(tempPath);
-                await Windows.System.Launcher.LaunchFileAsync(file);
-
-                await Task.Delay(1000);
-                Microsoft.UI.Xaml.Application.Current.Exit();
-            }
-            catch (Exception ex)
-            {
-                if (UpdateStatusTextBlock != null)
-                    UpdateStatusTextBlock.Text = "Check failed";
-                if (mainWindow != null)
-                {
-                    mainWindow.ShowTitleBarDownloadState(false);
-                    mainWindow.UpdateTitleBarDownloadText("Update Failed");
-                }
-                await ShowAlertAsync("Update Failed", $"Could not download or launch update: {ex.Message}");
-            }
-        }
-
-        public async Task StartUpdateDownloadFromTitleBar(string downloadUrl, string assetName)
-        {
-            await DownloadAndInstallUpdate(downloadUrl, assetName);
-        }
-
-        private async void TriggerUpdateCheckStartup()
-        {
-            try
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/ShadowAmitendu/JournalApp/releases/latest");
-                request.Headers.UserAgent.TryParseAdd("JournalApp");
-                
-                string savedToken = GetSetting("GitHubToken");
-                if (!string.IsNullOrEmpty(savedToken))
-                {
-                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", savedToken);
-                }
-
-                var response = await _httpClient.SendAsync(request);
-                if (!response.IsSuccessStatusCode) return;
-
-                string json = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                string latestTag = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "1.0.0" : "1.0.0";
-                
-                string downloadUrl = "";
-                string assetName = "";
-                if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var asset in assetsEl.EnumerateArray())
-                    {
-                        string name = asset.GetProperty("name").GetString() ?? "";
-                        if (name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase) || 
-                            name.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase) ||
-                            name.EndsWith(".appxbundle", StringComparison.OrdinalIgnoreCase))
-                        {
-                            downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-                            assetName = name;
-                            break;
-                        }
-                    }
-                }
-
-                var currentVersion = GetAppVersion();
-                var cleanLatest = NormalizeVersionString(latestTag);
-                var cleanCurrent = NormalizeVersionString(currentVersion);
-
-                bool hasNewUpdate = false;
-                if (Version.TryParse(cleanLatest, out Version? remote) && Version.TryParse(cleanCurrent, out Version? local))
-                {
-                    if (remote > local)
-                    {
-                        hasNewUpdate = true;
-                    }
-                }
-
-                if (hasNewUpdate && MainWindow.Instance != null)
-                {
-                    MainWindow.Instance.ShowUpdateAvailable(downloadUrl, assetName, latestTag);
-                }
-            }
-            catch {}
-        }
-
-        private async void LoadGitHubCommitsAndHistory()
-        {
-            if (GitHubGrid == null || GitHubCommitsListView == null || GitHubHistoryProgressBar == null || GitHubHistoryErrorText == null) return;
-
-            GitHubHistoryProgressBar.Visibility = Visibility.Visible;
-            GitHubHistoryErrorText.Visibility = Visibility.Collapsed;
-            GitHubCommitsListView.ItemsSource = null;
-            CommitChartContainer.Children.Clear();
-
-            string token = GetSetting("GitHubToken");
-            string repoName = GetSetting("GitHubRepo");
-
-            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName))
-            {
-                GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
-                GitHubHistoryErrorText.Visibility = Visibility.Visible;
-                GitHubHistoryErrorText.Text = "Please set up your GitHub Personal Access Token (PAT) and Repository name in the Settings tab first to view sync history.";
-                return;
-            }
-
-            try
-            {
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
-                _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-                var userResponse = await _httpClient.GetAsync("https://api.github.com/user");
-                if (!userResponse.IsSuccessStatusCode)
-                {
-                    throw new Exception("Failed to authenticate with GitHub. Check your token in Settings.");
-                }
-
-                using var userDoc = JsonDocument.Parse(await userResponse.Content.ReadAsStringAsync());
-                string username = userDoc.RootElement.GetProperty("login").GetString();
-
-                var commitsResponse = await _httpClient.GetAsync($"https://api.github.com/repos/{username}/{repoName}/commits");
-                if (!commitsResponse.IsSuccessStatusCode)
-                {
-                    string errContent = await commitsResponse.Content.ReadAsStringAsync();
-                    throw new Exception($"Failed to fetch repository commits: {commitsResponse.ReasonPhrase}. Details: {errContent}");
-                }
-
-                string commitsJson = await commitsResponse.Content.ReadAsStringAsync();
-                using var commitsDoc = JsonDocument.Parse(commitsJson);
-                
-                var commitList = new List<GitHubCommitViewModel>();
-                var commitDates = new Dictionary<string, int>();
-
-                for (int i = 6; i >= 0; i--)
-                {
-                    string dateKey = DateTime.Today.AddDays(-i).ToString("yyyy-MM-dd");
-                    commitDates[dateKey] = 0;
-                }
-
-                foreach (var commitObj in commitsDoc.RootElement.EnumerateArray())
-                {
-                    string sha = commitObj.GetProperty("sha").GetString() ?? "";
-                    string shortSha = sha.Length > 7 ? sha.Substring(0, 7) : sha;
-
-                    var commitInfo = commitObj.GetProperty("commit");
-                    string message = commitInfo.GetProperty("message").GetString() ?? "";
-                    
-                    var authorInfo = commitInfo.GetProperty("author");
-                    string authorName = authorInfo.GetProperty("name").GetString() ?? "";
-                    string dateStr = authorInfo.GetProperty("date").GetString() ?? "";
-
-                    DateTime commitDate = DateTime.TryParse(dateStr, out var d) ? d.ToLocalTime() : DateTime.Now;
-                    
-                    commitList.Add(new GitHubCommitViewModel
-                    {
-                        Message = message,
-                        Author = authorName,
-                        DateFormatted = commitDate.ToString("g"),
-                        ShortSha = shortSha
-                    });
-
-                    string commitDateKey = commitDate.ToString("yyyy-MM-dd");
-                    if (commitDates.ContainsKey(commitDateKey))
-                    {
-                        commitDates[commitDateKey]++;
-                    }
-                }
-
-                RenderCommitActivityChart(commitDates);
-                GitHubCommitsListView.ItemsSource = commitList;
-                GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
-            }
-            catch (Exception ex)
-            {
-                GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
-                GitHubHistoryErrorText.Visibility = Visibility.Visible;
-                GitHubHistoryErrorText.Text = $"Error: {ex.Message}";
-            }
-        }
-
-        private void RenderCommitActivityChart(Dictionary<string, int> commitDates)
-        {
-            if (CommitChartContainer == null) return;
-            CommitChartContainer.Children.Clear();
-
-            int maxCommits = commitDates.Values.Max();
-            if (maxCommits == 0) maxCommits = 1;
-
-            var accentBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
-            var textBrushSecondary = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
-
-            foreach (var kvp in commitDates)
-            {
-                string dateStr = kvp.Key;
-                int count = kvp.Value;
-                
-                DateTime dt = DateTime.Parse(dateStr);
-                string label = dt.ToString("dd MMM");
-
-                var barStack = new StackPanel
-                {
-                    Width = 60,
-                    Spacing = 4,
-                    VerticalAlignment = VerticalAlignment.Bottom
-                };
-
-                var countText = new TextBlock
-                {
-                    Text = $"{count}",
-                    FontSize = 10,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Foreground = textBrushSecondary
-                };
-
-                double maxHeight = 80;
-                double calculatedHeight = ((double)count / maxCommits) * maxHeight;
-                if (calculatedHeight < 3) calculatedHeight = 3;
-
-                var bar = new Border
-                {
-                    Height = calculatedHeight,
-                    Width = 20,
-                    Background = accentBrush,
-                    CornerRadius = new CornerRadius(4, 4, 0, 0),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                };
-
-                var labelText = new TextBlock
-                {
-                    Text = label,
-                    FontSize = 10,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Foreground = textBrushSecondary
-                };
-
-                barStack.Children.Add(countText);
-                barStack.Children.Add(bar);
-                barStack.Children.Add(labelText);
-
-                CommitChartContainer.Children.Add(barStack);
-            }
-        }
-
-        private void RefreshGitHubHistoryBtn_Click(object sender, RoutedEventArgs e)
-        {
-            LoadGitHubCommitsAndHistory();
-        }
-
-        public class GitHubCommitViewModel
-        {
-            public string Message { get; set; }
-            public string Author { get; set; }
-            public string DateFormatted { get; set; }
-            public string ShortSha { get; set; }
-        }
-
-        // Trigger update checking
-        private async void TriggerUpdateCheck()
-        {
-            if (UpdateStatusTextBlock != null)
-                UpdateStatusTextBlock.Text = "Checking for updates...";
-            if (LastCheckedTextBlock != null)
-                LastCheckedTextBlock.Text = "Connecting to GitHub...";
-
-            // Show spinner in button
-            if (CheckUpdatesButton != null)
-            {
-                CheckUpdatesButton.IsEnabled = false;
-                CheckUpdatesButton.Content = new Microsoft.UI.Xaml.Controls.StackPanel
-                {
-                    Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
-                    Spacing = 8,
-                    Children =
-                    {
-                        new Microsoft.UI.Xaml.Controls.ProgressRing { IsActive = true, Width = 16, Height = 16, VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center },
-                        new Microsoft.UI.Xaml.Controls.TextBlock { Text = "Checking...", VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center }
-                    }
-                };
-            }
-
-            try
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/ShadowAmitendu/JournalApp/releases/latest");
-                request.Headers.UserAgent.TryParseAdd("JournalApp");
-                
-                string savedToken = GetSetting("GitHubToken");
-                if (!string.IsNullOrEmpty(savedToken))
-                {
-                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", savedToken);
-                }
-
-                var response = await _httpClient.SendAsync(request);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                    {
-                        if (UpdateStatusTextBlock != null)
-                            UpdateStatusTextBlock.Text = "No releases found";
-                        if (LastCheckedTextBlock != null)
-                            LastCheckedTextBlock.Text = "Create a release on GitHub first to enable updates.";
-                        return;
-                    }
-                    throw new Exception($"GitHub API returned: {response.ReasonPhrase} ({response.StatusCode})");
-                }
-
-                string json = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                string latestTag = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "1.0.0" : "1.0.0";
-                string changelog = root.TryGetProperty("body", out var bodyEl) ? bodyEl.GetString() ?? "" : "";
-                string releaseHtmlUrl = root.TryGetProperty("html_url", out var urlEl) ? urlEl.GetString() ?? "" : "";
-
-                // Find MSIX/Appx asset
-                string downloadUrl = "";
-                string assetName = "";
-                if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var asset in assetsEl.EnumerateArray())
-                    {
-                        string name = asset.GetProperty("name").GetString() ?? "";
-                        if (name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase) || 
-                            name.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase) ||
-                            name.EndsWith(".appxbundle", StringComparison.OrdinalIgnoreCase))
-                        {
-                            downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-                            assetName = name;
-                            break;
-                        }
-                    }
-                }
-
-                var currentVersion = GetAppVersion();
-                var cleanLatest = NormalizeVersionString(latestTag);
-                var cleanCurrent = NormalizeVersionString(currentVersion);
-
-                bool hasNewUpdate = false;
-                if (Version.TryParse(cleanLatest, out Version? remote) && Version.TryParse(cleanCurrent, out Version? local))
-                {
-                    if (remote > local)
-                    {
-                        hasNewUpdate = true;
-                    }
-                }
-
-                if (hasNewUpdate)
-                {
-                    if (UpdateStatusTextBlock != null)
-                        UpdateStatusTextBlock.Text = $"Update available: {latestTag}";
-                    if (LastCheckedTextBlock != null)
-                        LastCheckedTextBlock.Text = $"Current version: {currentVersion}";
-
-                    var dialog = new ContentDialog
-                    {
-                        Title = "Update Available",
-                        Content = new ScrollViewer
-                        {
-                            MaxHeight = 300,
-                            Content = new TextBlock
-                            {
-                                Text = $"A new version ({latestTag}) is available. Would you like to update now?\n\nRelease Notes:\n{changelog}",
-                                TextWrapping = TextWrapping.Wrap
-                            }
-                        },
-                        PrimaryButtonText = !string.IsNullOrEmpty(downloadUrl) ? "Install Update" : "View Release",
-                        CloseButtonText = "Later",
-                        DefaultButton = ContentDialogButton.Primary,
-                        XamlRoot = this.XamlRoot
-                    };
-
-                    var result = await dialog.ShowAsync();
-                    if (result == ContentDialogResult.Primary)
-                    {
-                        if (string.IsNullOrEmpty(downloadUrl))
-                        {
-                            if (!string.IsNullOrEmpty(releaseHtmlUrl))
-                            {
-                                await Windows.System.Launcher.LaunchUriAsync(new Uri(releaseHtmlUrl));
-                            }
-                        }
-                        else
-                        {
-                            await DownloadAndInstallUpdate(downloadUrl, assetName);
-                        }
-                    }
-                }
-                else
-                {
-                    if (UpdateStatusTextBlock != null)
-                        UpdateStatusTextBlock.Text = "You're up to date!";
-                    if (LastCheckedTextBlock != null)
-                        LastCheckedTextBlock.Text = $"Last checked: {DateTime.Now:h:mm:ss tt} (Version: {currentVersion})";
-                }
-            }
-            catch (Exception ex)
-            {
-                if (UpdateStatusTextBlock != null)
-                    UpdateStatusTextBlock.Text = "Check failed";
-                if (LastCheckedTextBlock != null)
-                    LastCheckedTextBlock.Text = $"Error: {ex.Message}";
-            }
-            finally
-            {
-                if (CheckUpdatesButton != null)
-                {
-                    CheckUpdatesButton.Content = new Microsoft.UI.Xaml.Controls.StackPanel
-                    {
-                        Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
-                        Spacing = 8,
-                        Children =
-                        {
-                            new Microsoft.UI.Xaml.Controls.TextBlock { Text = "Check Now", VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center }
-                        }
-                    };
-                    CheckUpdatesButton.IsEnabled = true;
-                }
-            }
-        }
-
-        // Check for updates click handler
-        private void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
-        {
-            TriggerUpdateCheck();
-        }
-
-        // Save all settings with visual confirmation
-        private async void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (SaveSettingsButton == null) return;
-
-            // Show saving state
-            SaveSettingsButton.IsEnabled = false;
-            if (SaveSettingsIcon != null) SaveSettingsIcon.Glyph = "\uE895"; // sync icon
-            if (SaveSettingsText != null) SaveSettingsText.Text = "Saving...";
-
-            await Task.Delay(600);
-
-            // Persist all settings explicitly
-            try
-            {
-                // Theme
-                if (ThemeComboBox?.SelectedItem is ComboBoxItem themeItem)
-                    SaveSetting("AppTheme", themeItem.Tag?.ToString());
-
-
-                // Editor font
-                if (EditorFontComboBox?.SelectedItem is ComboBoxItem editorFontItem)
-                    SaveSetting("EditorFontFamily", editorFontItem.Tag?.ToString());
-
-                // Auto-save
-                if (AutoSaveSlider != null)
-                    SaveSetting("AutoSaveIntervalSeconds", AutoSaveSlider.Value.ToString());
-
-                // Unsplash key
-                if (UnsplashTokenPasswordBox != null)
-                    SaveSetting("UnsplashAccessKey", UnsplashTokenPasswordBox.Password?.Trim());
-
-                // GitHub
-                if (GitHubTokenPasswordBox != null)
-                    SaveSetting("GitHubToken", GitHubTokenPasswordBox.Password?.Trim());
-                if (GitHubRepoTextBox != null)
-                    SaveSetting("GitHubRepo", GitHubRepoTextBox.Text?.Trim());
-            }
-            catch { }
-
-            // Show success
-            if (SaveSettingsIcon != null) SaveSettingsIcon.Glyph = "\uE73E"; // checkmark
-            if (SaveSettingsText != null) SaveSettingsText.Text = "Saved!";
-
-            await Task.Delay(1500);
-
-            // Restore
-            if (SaveSettingsIcon != null) SaveSettingsIcon.Glyph = "\uE74E"; // save icon
-            if (SaveSettingsText != null) SaveSettingsText.Text = "Save Settings";
-            UpdateSaveSettingsButtonState();
-        }
-
-        private void UpdateSaveSettingsButtonState()
-        {
-            if (SaveSettingsButton == null) return;
-
-            bool isDirty = false;
-
-            // Check Theme
-            string savedTheme = GetSetting("AppTheme", "Default");
-            string currentTheme = "Default";
-            if (ThemeComboBox?.SelectedItem is ComboBoxItem themeItem)
-            {
-                currentTheme = themeItem.Tag?.ToString() ?? "Default";
-            }
-            if (currentTheme != savedTheme) isDirty = true;
-
-            // Check Editor Font
-            string savedFont = GetSetting("EditorFontFamily", "Segoe UI");
-            string currentFont = "Segoe UI";
-            if (EditorFontComboBox?.SelectedItem is ComboBoxItem fontItem)
-            {
-                currentFont = fontItem.Tag?.ToString() ?? "Segoe UI";
-            }
-            if (currentFont != savedFont) isDirty = true;
-
-            // Check Auto-Save Interval
-            string savedIntervalStr = GetSetting("AutoSaveIntervalSeconds", "5.0");
-            double savedInterval = 5.0;
-            double.TryParse(savedIntervalStr, out savedInterval);
-            double currentInterval = AutoSaveSlider != null ? AutoSaveSlider.Value : 5.0;
-            if (Math.Abs(currentInterval - savedInterval) > 0.01) isDirty = true;
-
-            // Check Unsplash API Key
-            string savedUnsplashKey = GetSetting("UnsplashAccessKey", "");
-            string currentUnsplashKey = UnsplashTokenPasswordBox != null ? UnsplashTokenPasswordBox.Password?.Trim() : "";
-            if (currentUnsplashKey != savedUnsplashKey) isDirty = true;
-
-            // Check GitHub Token
-            string savedGitHubToken = GetSetting("GitHubToken", "");
-            string currentGitHubToken = GitHubTokenPasswordBox != null ? GitHubTokenPasswordBox.Password?.Trim() : "";
-            if (currentGitHubToken != savedGitHubToken) isDirty = true;
-
-            // Check GitHub Repo
-            string savedGitHubRepo = GetSetting("GitHubRepo", "My-JournalApp-Backup");
-            string currentGitHubRepo = GitHubRepoTextBox != null ? GitHubRepoTextBox.Text?.Trim() : "My-JournalApp-Backup";
-            if (currentGitHubRepo != savedGitHubRepo) isDirty = true;
-
-            SaveSettingsButton.IsEnabled = isDirty;
-        }
-
-        private void GitHubTokenPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
-        {
-            UpdateSaveSettingsButtonState();
-        }
-
-        private void GitHubRepoTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            UpdateSaveSettingsButtonState();
-        }
-
-        private void LoadSavedGitHubSettings()
-        {
-            try
-            {
-                string savedToken = GetSetting("GitHubToken");
-                if (!string.IsNullOrEmpty(savedToken))
-                {
-                    GitHubTokenPasswordBox.Password = savedToken;
-                    GitHubDisconnectButton.Visibility = Visibility.Visible;
-                    GitHubStatusPanel.Visibility = Visibility.Visible;
-                    GitHubStatusTitle.Text = "Status: Connected";
-                    
-                    string lastSyncStr = GetSetting("GitHubLastSynced");
-                    if (!string.IsNullOrEmpty(lastSyncStr))
-                    {
-                        GitHubStatusDetails.Text = $"Last synced: {lastSyncStr}";
-                    }
-                    else
-                    {
-                        GitHubStatusDetails.Text = "Last synced: Never";
-                    }
-                }
-                string savedRepo = GetSetting("GitHubRepo");
-                if (!string.IsNullOrEmpty(savedRepo))
-                {
-                    GitHubRepoTextBox.Text = savedRepo;
-                }
-                string savedUnsplashKey = GetSetting("UnsplashAccessKey");
-                if (!string.IsNullOrEmpty(savedUnsplashKey))
-                {
-                    UnsplashTokenPasswordBox.Password = savedUnsplashKey;
-                    // Reflect that a key is already saved
-                    if (UnsplashKeyButton != null)
-                        UnsplashKeyButton.Content = "Save Key";
-                }
-
-                // Load and apply Theme on startup
-                string savedTheme = GetSetting("AppTheme");
-                if (!string.IsNullOrEmpty(savedTheme))
-                {
-                    var window = MainWindow.Instance;
-                    if (window != null && window.Content is FrameworkElement rootElement)
-                    {
-                        if (savedTheme == "Light")
-                            rootElement.RequestedTheme = ElementTheme.Light;
-                        else if (savedTheme == "Dark")
-                            rootElement.RequestedTheme = ElementTheme.Dark;
-                        else
-                            rootElement.RequestedTheme = ElementTheme.Default;
-                    }
-
-                    if (ThemeComboBox != null)
-                    {
-                        foreach (object itemObj in ThemeComboBox.Items)
-                        {
-                            if (itemObj is ComboBoxItem item && item.Tag?.ToString() == savedTheme)
-                            {
-                                ThemeComboBox.SelectedItem = item;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // Load and apply Auto-Save Interval on startup
-                string savedAutoSave = GetSetting("AutoSaveIntervalSeconds");
-                if (!string.IsNullOrEmpty(savedAutoSave) && double.TryParse(savedAutoSave, out double interval))
-                {
-                    if (AutoSaveSlider != null)
-                    {
-                        AutoSaveSlider.Value = interval;
-                    }
-                    if (_autoSaveTimer != null)
-                    {
-                        _autoSaveTimer.Interval = TimeSpan.FromSeconds(interval);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
-            }
-        }
-
-        private async void RestoreToDefaultButton_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = "Restore to Default",
-                Content = "Are you sure you want to restore all settings, categories, and entries to their default values? This will reset the app theme, auto-save settings, and clear custom data.",
-                PrimaryButtonText = "Restore",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
-            {
-                SelectedNote = null;
-                
-                // 1. Reset Settings UI
-                if (ThemeComboBox != null) ThemeComboBox.SelectedIndex = 0; // Default
-                if (AutoSaveSlider != null) AutoSaveSlider.Value = 5.0; // 5.0s
-                if (UnsplashTokenPasswordBox != null) UnsplashTokenPasswordBox.Password = "";
-                
-                // 2. Reset GitHub sync UI and fields
-                if (GitHubTokenPasswordBox != null) GitHubTokenPasswordBox.Password = "";
-                if (GitHubRepoTextBox != null) GitHubRepoTextBox.Text = "My-JournalApp-Backup";
-                if (GitHubStatusPanel != null) GitHubStatusPanel.Visibility = Visibility.Collapsed;
-                if (GitHubDisconnectButton != null) GitHubDisconnectButton.Visibility = Visibility.Collapsed;
-                
-                // 3. Clear settings in ApplicationData
-                RemoveSetting("GitHubToken");
-                RemoveSetting("GitHubRepo");
-                RemoveSetting("GitHubLastSynced");
-                RemoveSetting("UnsplashAccessKey");
-
-                // 4. Clear Notes and create a Welcome Note
-                JournalManager.Instance.Notes.Clear();
-                
-                // Keep only default categories
-                JournalManager.Instance.Categories.Clear();
-                JournalManager.Instance.AddCategory("All Entries", "\uE80F", "#0078D4");
-                JournalManager.Instance.AddCategory("Personal", "\uE77B", "#E3008C");
-                JournalManager.Instance.AddCategory("Work", "\uE821", "#107C41");
-                JournalManager.Instance.AddCategory("Ideas", "\uEA80", "#FFB900");
-
-                // Clear RTF files on disk
-                try
-                {
-                    foreach (var file in Directory.GetFiles(JournalManager.Instance.NotesDir, "*.rtf"))
-                    {
-                        File.Delete(file);
-                    }
-                }
-                catch {}
-
-                // Create a welcome note
-                var welcomeNote = JournalManager.Instance.CreateNote("Personal");
-                welcomeNote.Title = "Welcome to JournalApp!";
-                welcomeNote.Snippet = "This is your new premium journaling workspace. Start writing here!";
-                welcomeNote.HeroImagePath = "ms-appx:///Assets/Square150x150Logo.scale-200.png";
-                JournalManager.Instance.SaveNotesMetadata();
-
-                // Write default content into the welcome note RTF file
-                try
-                {
-                    string welcomeRtfPath = JournalManager.Instance.GetAbsoluteRtfPath(welcomeNote.RtfFileName);
-                    string defaultRtf = @"{\rtf1\ansi\deff0{\fonttbl{\f0\fnil\fcharset0 Segoe UI;}} \viewkind4\uc1\pard\lang1033\f0\fs20 This is a premium, distraction-free digital journal designed for Windows 11.\par\par Key features include:\par\bullet  \b Real-time Auto-saving\b0\par\bullet  \b Custom Categories\b0 with icons and colors\par\bullet  \b Cloud Sync\b0 via GitHub Private Repositories\par\bullet  \b Trash Bin\b0 to restore deleted entries\par\bullet  \b Mica & Acrylic visual design\b0\par\par Happy writing!\par}";
-                    File.WriteAllText(welcomeRtfPath, defaultRtf);
-                }
-                catch {}
-
-                JournalManager.Instance.SaveCategories();
-                
-                LoadCategoriesList();
-                RefreshNotesList();
-                UpdateSaveSettingsButtonState();
-                await ShowAlertAsync("Defaults Restored", "Application settings and default data have been successfully restored.");
-            }
-        }
-
-        private async void GitHubSyncButton_Click(object sender, RoutedEventArgs e)
-        {
-            string token = GitHubTokenPasswordBox.Password?.Trim();
-            string repoName = GitHubRepoTextBox.Text?.Trim();
-
-            if (string.IsNullOrEmpty(token))
-            {
-                await ShowAlertAsync("Authentication Required", "Please enter a valid GitHub Personal Access Token (PAT) first.");
-                return;
-            }
-            if (string.IsNullOrEmpty(repoName))
-            {
-                await ShowAlertAsync("Repository Required", "Please enter a repository name for your backup.");
-                return;
-            }
-
-            // Slugify repository name to match GitHub rules
-            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
-            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
-
-            if (string.IsNullOrEmpty(repoName))
-            {
-                await ShowAlertAsync("Invalid Repository Name", "The repository name must contain valid alphanumeric characters, hyphens, underscores, or periods.");
-                return;
-            }
-
-            // Update textbox to show cleaned name
-            GitHubRepoTextBox.Text = repoName;
-
-            // Disable buttons during sync
-            GitHubSyncButton.IsEnabled = false;
-            GitHubDisconnectButton.IsEnabled = false;
-            GitHubStatusPanel.Visibility = Visibility.Visible;
-            GitHubSyncProgressBar.Visibility = Visibility.Visible;
-            GitHubSyncProgressBar.IsIndeterminate = true;
-            GitHubStatusTitle.Text = "Connecting...";
-            GitHubStatusDetails.Text = "Establishing connection with GitHub API...";
-
-            try
-            {
-                // Set up HTTP client headers
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
-                _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-                // 1. Get username
-                var userResponse = await _httpClient.GetAsync("https://api.github.com/user");
-                if (!userResponse.IsSuccessStatusCode)
-                {
-                    throw new Exception("Authentication failed. Make sure your token is valid and has 'repo' permissions.");
-                }
-
-                using var userDoc = System.Text.Json.JsonDocument.Parse(await userResponse.Content.ReadAsStringAsync());
-                string username = userDoc.RootElement.GetProperty("login").GetString();
-
-                GitHubStatusTitle.Text = $"Authenticated as {username}";
-                GitHubStatusDetails.Text = $"Checking if repository '{repoName}' exists...";
-
-                // 2. Check if repository exists
-                var repoResponse = await _httpClient.GetAsync($"https://api.github.com/repos/{username}/{repoName}");
-                if (repoResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    GitHubStatusDetails.Text = $"Creating private repository '{repoName}' on your GitHub...";
-                    
-                    var repoData = new { name = repoName, description = "Secure private backup for my JournalApp entries", @private = true };
-                    string repoJson = System.Text.Json.JsonSerializer.Serialize(repoData);
-                    var createContent = new StringContent(repoJson, System.Text.Encoding.UTF8, "application/json");
-                    
-                    var createResponse = await _httpClient.PostAsync("https://api.github.com/user/repos", createContent);
-                    if (!createResponse.IsSuccessStatusCode)
-                    {
-                        string errorResponse = await createResponse.Content.ReadAsStringAsync();
-                        throw new Exception($"Failed to create repository: {createResponse.ReasonPhrase}. Details: {errorResponse}");
-                    }
-                }
-                else if (!repoResponse.IsSuccessStatusCode)
-                {
-                    string errorResponse = await repoResponse.Content.ReadAsStringAsync();
-                    throw new Exception($"Failed to access repository: {repoResponse.ReasonPhrase}. Details: {errorResponse}");
-                }
-
-                // 3. Gather files to sync
-                var filesToSync = new List<(string LocalPath, string GitHubPath, string Message)>();
-                
-                // Add metadata
-                string notesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "notes.json");
-                if (File.Exists(notesMetaPath))
-                {
-                    filesToSync.Add((notesMetaPath, "notes.json", "Update notes metadata"));
-                }
-
-                string categoriesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "categories.json");
-                if (File.Exists(categoriesMetaPath))
-                {
-                    filesToSync.Add((categoriesMetaPath, "categories.json", "Update categories metadata"));
-                }
-
-                // Add all RTF note files
-                foreach (var rtfFile in Directory.GetFiles(JournalManager.Instance.NotesDir, "*.rtf"))
-                {
-                    filesToSync.Add((rtfFile, $"Notes/{Path.GetFileName(rtfFile)}", $"Backup note {Path.GetFileNameWithoutExtension(rtfFile)}"));
-                }
-
-                // Update Progress Bar settings
-                GitHubSyncProgressBar.IsIndeterminate = false;
-                GitHubSyncProgressBar.Maximum = filesToSync.Count;
-                GitHubSyncProgressBar.Value = 0;
-
-                // 4. Sync files sequentially
-                for (int i = 0; i < filesToSync.Count; i++)
-                {
-                    var file = filesToSync[i];
-                    GitHubStatusDetails.Text = $"Syncing file {i + 1} of {filesToSync.Count}: {Path.GetFileName(file.GitHubPath)}...";
-                    
-                    await SyncFileToGitHub(username, repoName, file.LocalPath, file.GitHubPath, file.Message);
-                    
-                    GitHubSyncProgressBar.Value = i + 1;
-                }
-
-                // Save credentials and last sync time on success
-                SaveSetting("GitHubToken", token);
-                SaveSetting("GitHubRepo", repoName);
-                
-                string syncTime = DateTime.Now.ToString("g");
-                SaveSetting("GitHubLastSynced", syncTime);
-
-                GitHubStatusTitle.Text = "Status: Connected & Synced";
-                GitHubStatusDetails.Text = $"Last synced: {syncTime}";
-                GitHubDisconnectButton.Visibility = Visibility.Visible;
-
-                await ShowAlertAsync("Synchronization Complete", $"Successfully backed up {filesToSync.Count} files to your private GitHub repository '{repoName}'!");
-            }
-            catch (Exception ex)
-            {
-                GitHubStatusTitle.Text = "Status: Connection Error";
-                GitHubStatusDetails.Text = ex.Message;
-                await ShowAlertAsync("Sync Failed", $"An error occurred during synchronization:\n{ex.Message}");
-            }
-            finally
-            {
-                GitHubSyncButton.IsEnabled = true;
-                GitHubDisconnectButton.IsEnabled = true;
-                GitHubSyncProgressBar.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        private async Task SyncFileToGitHub(string username, string repoName, string localPath, string githubPath, string commitMessage)
-        {
-            if (!File.Exists(localPath)) return;
-
-            string base64Content = Convert.ToBase64String(File.ReadAllBytes(localPath));
-            
-            // Check if file exists on GitHub to obtain its SHA (required for updating files in Git)
-            string sha = null;
-            var fileResponse = await _httpClient.GetAsync($"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}");
-            if (fileResponse.IsSuccessStatusCode)
-            {
-                using var fileDoc = System.Text.Json.JsonDocument.Parse(await fileResponse.Content.ReadAsStringAsync());
-                if (fileDoc.RootElement.TryGetProperty("sha", out var shaProp))
-                {
-                    sha = shaProp.GetString();
-                }
-            }
-
-            // Create put request body
-            var putData = new 
-            {
-                message = commitMessage,
-                content = base64Content,
-                sha = sha
-            };
-            string putJson = System.Text.Json.JsonSerializer.Serialize(putData);
-            var putContent = new StringContent(putJson, System.Text.Encoding.UTF8, "application/json");
-
-            var putResponse = await _httpClient.PutAsync($"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}", putContent);
-            if (!putResponse.IsSuccessStatusCode)
-            {
-                string errorResponse = await putResponse.Content.ReadAsStringAsync();
-                throw new Exception($"Failed to upload {githubPath}: {putResponse.ReasonPhrase}. Details: {errorResponse}");
-            }
-        }
-
-        private async void GitHubDisconnectButton_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = "Disconnect GitHub",
-                Content = "Are you sure you want to disconnect and clear your GitHub credentials from this device?",
-                PrimaryButtonText = "Disconnect",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
-            {
-                RemoveSetting("GitHubToken");
-                RemoveSetting("GitHubRepo");
-                RemoveSetting("GitHubLastSynced");
-
-                GitHubTokenPasswordBox.Password = "";
-                GitHubRepoTextBox.Text = "My-JournalApp-Backup";
-                GitHubStatusPanel.Visibility = Visibility.Collapsed;
-                GitHubDisconnectButton.Visibility = Visibility.Collapsed;
-
-                await ShowAlertAsync("Disconnected", "GitHub credentials have been removed from this device.");
-            }
-        }
-
-        private bool _isResizing = false;
-        private double _originalWidth = 300;
-        private double _pointerStartX = 0;
-
-        private void ColumnSplitter_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            this.ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
-            if (ColumnSplitter != null)
-            {
-                ColumnSplitter.Background = GetBrushFromHex("#400078D4"); // Accent color with opacity
-            }
-        }
-
-        private void ColumnSplitter_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (!_isResizing)
-            {
-                this.ProtectedCursor = null;
-                if (ColumnSplitter != null)
-                {
-                    ColumnSplitter.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                }
-            }
-        }
-
-        private void ColumnSplitter_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (sender is UIElement element)
-            {
-                _isResizing = true;
-                element.CapturePointer(e.Pointer);
-                
-                var pt = e.GetCurrentPoint(this);
-                _pointerStartX = pt.Position.X;
-                _originalWidth = NotesListColumn.Width.Value;
-                
-                this.ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
-                if (ColumnSplitter != null)
-                {
-                    ColumnSplitter.Background = GetBrushFromHex("#600078D4"); // Darker accent highlight during drag
-                }
-                e.Handled = true;
-            }
-        }
-
-        private void ColumnSplitter_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (_isResizing && sender is UIElement element)
-            {
-                var pt = e.GetCurrentPoint(this);
-                double deltaX = pt.Position.X - _pointerStartX;
-                double newWidth = _originalWidth + deltaX;
-
-                // Clamp within MinWidth and MaxWidth
-                if (newWidth < 200) newWidth = 200;
-                if (newWidth > 500) newWidth = 500;
-
-                NotesListColumn.Width = new GridLength(newWidth);
-                e.Handled = true;
-            }
-        }
-
-        private void ColumnSplitter_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (_isResizing && sender is UIElement element)
-            {
-                _isResizing = false;
-                element.ReleasePointerCapture(e.Pointer);
-                this.ProtectedCursor = null;
-                if (ColumnSplitter != null)
-                {
-                    ColumnSplitter.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                }
-                e.Handled = true;
-            }
         }
 
         // Date/Time Editor Event Handlers
