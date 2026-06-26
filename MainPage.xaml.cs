@@ -246,6 +246,7 @@ namespace JournalApp
 
                         TitleTextBox.Text = _selectedNote.Title;
                         FavoriteToggle.IsChecked = _selectedNote.IsFavorite;
+                        PinToggle.IsChecked = _selectedNote.IsPinned;
 
                         // Load Hero Image
                         UpdateHeroImageUI();
@@ -340,6 +341,11 @@ namespace JournalApp
 
         // Full-text search cache (key = note Id, value = stripped plain text)
         private readonly Dictionary<string, string> _rtfTextCache = new();
+
+        // Security & Locking
+        private readonly List<string> _unlockedCategories = new();
+        private readonly List<string> _lockedCategories = new();
+        private string _masterPassword = "";
 
         public MainPage()
         {
@@ -538,6 +544,46 @@ namespace JournalApp
                 Tag = "AddCategory"
             };
             CategoriesNavView.MenuItems.Add(addCategoryItem);
+
+            // Gather all tags from notes
+            var uniqueTags = new HashSet<string>();
+            if (JournalManager.Instance.Notes != null)
+            {
+                foreach (var note in JournalManager.Instance.Notes)
+                {
+                    if (note.IsDeleted) continue;
+                    if (note.Tags != null)
+                    {
+                        foreach (var tag in note.Tags)
+                        {
+                            uniqueTags.Add(tag.ToLowerInvariant());
+                        }
+                    }
+                }
+            }
+
+            if (uniqueTags.Count > 0)
+            {
+                CategoriesNavView.MenuItems.Add(new NavigationViewItemSeparator());
+                
+                var tagsHeader = new NavigationViewItemHeader
+                {
+                    Content = "Tags"
+                };
+                CategoriesNavView.MenuItems.Add(tagsHeader);
+
+                foreach (var tag in uniqueTags)
+                {
+                    int count = JournalManager.Instance.Notes.Count(n => !n.IsDeleted && n.Tags != null && n.Tags.Contains(tag));
+                    var navItem = new NavigationViewItem
+                    {
+                        Content = $"#{tag} ({count})",
+                        Tag = $"Tag:{tag}",
+                        Icon = new FontIcon { Glyph = "\uE1CB", FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] }
+                    };
+                    CategoriesNavView.MenuItems.Add(navItem);
+                }
+            }
         }
 
         private MenuFlyout CreateCategoryMenuFlyout()
@@ -590,6 +636,11 @@ namespace JournalApp
             else if (_selectedCategory == "Favorites")
             {
                 query = query.Where(n => !n.IsDeleted && n.IsFavorite);
+            }
+            else if (_selectedCategory != null && _selectedCategory.StartsWith("Tag:"))
+            {
+                string tag = _selectedCategory.Substring(4).ToLowerInvariant();
+                query = query.Where(n => !n.IsDeleted && n.Tags != null && n.Tags.Contains(tag));
             }
             else
             {
@@ -731,7 +782,13 @@ namespace JournalApp
                 
                 string color = "#808080";
                 string icon = "\uE889";
-                if (catInfo != null)
+                if (groupKey != null && groupKey.StartsWith("Tag:"))
+                {
+                    groupKey = $"#{groupKey.Substring(4)}";
+                    color = "#FF8C00"; // Dark Orange for tags
+                    icon = "\uE1CB";   // Tag icon
+                }
+                else if (catInfo != null)
                 {
                     color = catInfo.Color ?? "#808080";
                     icon = catInfo.Icon ?? "\uE889";
@@ -808,9 +865,35 @@ namespace JournalApp
                 string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(SelectedNote.RtfFileName);
                 if (File.Exists(rtfPath))
                 {
-                    using (var stream = File.OpenRead(rtfPath))
+                    byte[] fileBytes = File.ReadAllBytes(rtfPath);
+                    bool isEncrypted = true;
+                    if (fileBytes.Length >= 5)
                     {
-                        var winrtStream = stream.AsRandomAccessStream();
+                        // Check if it starts with "{\rtf" (ASCII: 123, 92, 114, 116, 102)
+                        if (fileBytes[0] == 123 && fileBytes[1] == 92 && fileBytes[2] == 114 && fileBytes[3] == 116 && fileBytes[4] == 102)
+                        {
+                            isEncrypted = false;
+                        }
+                    }
+
+                    byte[] loadedBytes = fileBytes;
+                    if (isEncrypted && _lockedCategories.Contains(SelectedNote.Category) && !string.IsNullOrEmpty(_masterPassword))
+                    {
+                        try
+                        {
+                            loadedBytes = EncryptionHelper.Decrypt(fileBytes, _masterPassword);
+                        }
+                        catch (Exception decryptEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[LoadNoteContent] Decryption failed: {decryptEx.Message}");
+                            NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Decryption Failed]");
+                            return;
+                        }
+                    }
+
+                    using (var ms = new MemoryStream(loadedBytes))
+                    {
+                        var winrtStream = ms.AsRandomAccessStream();
                         NoteRichEditBox.Document.LoadFromStream(TextSetOptions.FormatRtf, winrtStream);
                     }
 
@@ -874,17 +957,42 @@ namespace JournalApp
 
             try
             {
-                // Save rich text file
-                string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(SelectedNote.RtfFileName);
-                using (var stream = File.Create(rtfPath))
-                {
-                    var winrtStream = stream.AsRandomAccessStream();
-                    NoteRichEditBox.Document.SaveToStream(TextGetOptions.FormatRtf, winrtStream);
-                }
-
-                // Update title & snippet & modified date
+                // Retrieve plain text first for tags and snippet
                 string plainText;
                 NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out plainText);
+
+                // Save rich text file
+                string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(SelectedNote.RtfFileName);
+                byte[] rtfBytes;
+                using (var ms = new MemoryStream())
+                {
+                    var winrtStream = ms.AsRandomAccessStream();
+                    NoteRichEditBox.Document.SaveToStream(TextGetOptions.FormatRtf, winrtStream);
+                    rtfBytes = ms.ToArray();
+                }
+
+                if (_lockedCategories.Contains(SelectedNote.Category) && !string.IsNullOrEmpty(_masterPassword))
+                {
+                    rtfBytes = EncryptionHelper.Encrypt(rtfBytes, _masterPassword);
+                }
+
+                File.WriteAllBytes(rtfPath, rtfBytes);
+
+                // Extract hashtags
+                var tags = new List<string>();
+                if (!string.IsNullOrEmpty(plainText))
+                {
+                    var matches = System.Text.RegularExpressions.Regex.Matches(plainText, @"\B#([a-zA-Z0-9_]+)");
+                    foreach (System.Text.RegularExpressions.Match match in matches)
+                    {
+                        string tag = match.Groups[1].Value.ToLowerInvariant();
+                        if (!tags.Contains(tag))
+                        {
+                            tags.Add(tag);
+                        }
+                    }
+                }
+                SelectedNote.Tags = tags;
 
                 // Invalidate full-text cache so the next search re-reads from file
                 _rtfTextCache.Remove(SelectedNote.Id);
@@ -899,6 +1007,7 @@ namespace JournalApp
                 
                 // Refresh list visually (but don't reset selection to avoid focus jumping)
                 var currentSelection = SelectedNote;
+                LoadCategoriesList(); // Re-populate tags list in case tags changed
                 RefreshNotesList();
                 SelectedNote = currentSelection;
                 
@@ -936,7 +1045,7 @@ namespace JournalApp
         }
 
         // Selection Handlers
-        private void CategoriesNavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+        private async void CategoriesNavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
         {
             JournalCategory category = null;
             NavigationViewItem navItem = null;
@@ -963,11 +1072,70 @@ namespace JournalApp
 
             if (category != null)
             {
-                // Show Main Editor Layout
-                if (MainEditorGrid != null) MainEditorGrid.Visibility = Visibility.Visible;
-                if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
-                if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
+                // Accessing a locked category requires password unlock
+                if (_lockedCategories.Contains(category.Name) && !_unlockedCategories.Contains(category.Name))
+                {
+                    if (string.IsNullOrEmpty(_masterPassword))
+                    {
+                        var noPassDialog = new ContentDialog
+                        {
+                            Title = "Security Warning",
+                            Content = "This category is marked as locked, but no Master Password is set in Settings. Please set a Master Password first.",
+                            CloseButtonText = "OK",
+                            XamlRoot = this.XamlRoot
+                        };
+                        await noPassDialog.ShowAsync();
+                        if (_previousSelectedItem != null)
+                        {
+                            CategoriesNavView.SelectedItem = _previousSelectedItem;
+                        }
+                        return;
+                    }
 
+                    var passwordBox = new PasswordBox
+                    {
+                        Header = "Enter Master Password",
+                        PlaceholderText = "Password",
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+                    var challengeDialog = new ContentDialog
+                    {
+                        Title = $"Unlock Category: {category.Name}",
+                        Content = passwordBox,
+                        PrimaryButtonText = "Unlock",
+                        CloseButtonText = "Cancel",
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = this.XamlRoot
+                    };
+                    challengeDialog.Opened += (s, e) => passwordBox.Focus(FocusState.Programmatic);
+
+                    var result = await challengeDialog.ShowAsync();
+                    if (result == ContentDialogResult.Primary && passwordBox.Password == _masterPassword)
+                    {
+                        _unlockedCategories.Add(category.Name);
+                    }
+                    else
+                    {
+                        if (result == ContentDialogResult.Primary)
+                        {
+                            var errorDialog = new ContentDialog
+                            {
+                                Title = "Access Denied",
+                                Content = "Incorrect master password. Access denied.",
+                                CloseButtonText = "OK",
+                                XamlRoot = this.XamlRoot
+                            };
+                            await errorDialog.ShowAsync();
+                        }
+                        if (_previousSelectedItem != null)
+                        {
+                            CategoriesNavView.SelectedItem = _previousSelectedItem;
+                        }
+                        return;
+                    }
+                }
+
+                ShowGrid(MainEditorGrid);
                 _selectedCategory = category.Name;
                 if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = category.Name;
                 RefreshNotesList();
@@ -976,41 +1144,47 @@ namespace JournalApp
             {
                 if (navItem == TrashNavItem)
                 {
-                    if (MainEditorGrid != null) MainEditorGrid.Visibility = Visibility.Visible;
-                    if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
-                    if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
-
+                    ShowGrid(MainEditorGrid);
                     _selectedCategory = "Trash";
                     if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Trash";
                     RefreshNotesList();
                 }
                 else if (navItem == FavoritesNavItem)
                 {
-                    if (MainEditorGrid != null) MainEditorGrid.Visibility = Visibility.Visible;
-                    if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
-                    if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
-
+                    ShowGrid(MainEditorGrid);
                     _selectedCategory = "Favorites";
                     if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Favorites";
                     RefreshNotesList();
                 }
-                else
+                else if (navItem.Tag is string tagStr && tagStr.StartsWith("Tag:"))
                 {
-                    // Hide Main Editor Layout
-                    if (MainEditorGrid != null) MainEditorGrid.Visibility = Visibility.Collapsed;
-
-                    if (navItem == SettingsNavItem && SettingsGrid != null)
-                    {
-                        if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
-                        SettingsGrid.Visibility = Visibility.Visible;
-                        TriggerUpdateCheck();
-                    }
-                    else if (navItem == GitHubNavItem && GitHubGrid != null)
-                    {
-                        if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
-                        GitHubGrid.Visibility = Visibility.Visible;
-                        LoadGitHubCommitsAndHistory();
-                    }
+                    ShowGrid(MainEditorGrid);
+                    string tagName = tagStr.Substring(4);
+                    _selectedCategory = tagStr;
+                    if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = $"#{tagName}";
+                    RefreshNotesList();
+                }
+                else if (navItem == SettingsNavItem)
+                {
+                    ShowGrid(SettingsGrid);
+                    PopulateLockedCategoriesSettings();
+                    TriggerUpdateCheck();
+                }
+                else if (navItem == GitHubNavItem)
+                {
+                    ShowGrid(GitHubGrid);
+                    LoadGitHubCommitsAndHistory();
+                }
+                else if (navItem == StatsNavItem)
+                {
+                    ShowGrid(StatsGrid);
+                    PopulateMoodStats();
+                    PopulateContributionGraph();
+                }
+                else if (navItem == GalleryNavItem)
+                {
+                    ShowGrid(GalleryGrid);
+                    PopulateGallery();
                 }
             }
         }
@@ -1439,6 +1613,36 @@ namespace JournalApp
                 JournalManager.Instance.SaveNotesMetadata();
                 RefreshNotesList();
             }
+        }
+
+        private void PinToggle_Checked(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote != null)
+            {
+                SelectedNote.IsPinned = true;
+                JournalManager.Instance.SaveNotesMetadata();
+                RefreshNotesList();
+            }
+        }
+
+        private void PinToggle_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote != null)
+            {
+                SelectedNote.IsPinned = false;
+                JournalManager.Instance.SaveNotesMetadata();
+                RefreshNotesList();
+            }
+        }
+
+        private void MoodItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null || sender is not MenuFlyoutItem item) return;
+            string mood = item.Tag?.ToString() ?? "None";
+            SelectedNote.Mood = mood;
+            JournalManager.Instance.SaveNotesMetadata();
+            UpdateEditorHeaderUI();
+            RefreshNotesList();
         }
 
         // Categories creation
@@ -2722,6 +2926,10 @@ namespace JournalApp
             {
                 note.IsPinned = !note.IsPinned;
                 JournalManager.Instance.SaveNotesMetadata();
+                if (SelectedNote == note)
+                {
+                    PinToggle.IsChecked = note.IsPinned;
+                }
                 RefreshNotesList();
             }
         }
@@ -2853,6 +3061,16 @@ namespace JournalApp
             UpdateSaveSettingsButtonState();
         }
 
+        private void EditorFontSizeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            if (NoteRichEditBox != null)
+            {
+                NoteRichEditBox.FontSize = e.NewValue;
+            }
+            UpdateSaveSettingsButtonState();
+        }
+
         private void ApplyAppFont(string fontName)
         {
             var fontFamily = new Microsoft.UI.Xaml.Media.FontFamily(fontName);
@@ -2886,6 +3104,14 @@ namespace JournalApp
 
                 // 2. Load Editor Font
                 string editorFont = GetSetting("EditorFontFamily");
+
+                // 3. Load Editor Font Size
+                string savedFontSizeStr = GetSetting("EditorFontSize", "14.0");
+                if (double.TryParse(savedFontSizeStr, out double fontSize))
+                {
+                    if (NoteRichEditBox != null) NoteRichEditBox.FontSize = fontSize;
+                    if (EditorFontSizeSlider != null) EditorFontSizeSlider.Value = fontSize;
+                }
                 if (!string.IsNullOrEmpty(editorFont))
                 {
                     ApplyEditorFont(editorFont);
@@ -3615,15 +3841,80 @@ namespace JournalApp
             string dateString = note.DateCreated.ToString("MMMM d, yyyy h:mm tt");
             string category = note.Category;
 
+            // Resolve Cover Image URL (supporting ms-appx URLs directly for printing browser compatibility)
+            string imageSrc = "";
+            if (!string.IsNullOrEmpty(note.HeroImagePath))
+            {
+                try
+                {
+                    string path = note.HeroImagePath;
+                    if (path.StartsWith("ms-appx://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string subPath = path.Replace("ms-appx:///", "").Replace("ms-appx://", "").Replace('/', '\\');
+                        string baseDir = Windows.ApplicationModel.Package.Current.InstalledLocation.Path;
+                        string absolutePath = Path.Combine(baseDir, subPath);
+                        imageSrc = new Uri(absolutePath).AbsoluteUri;
+                    }
+                    else
+                    {
+                        string absolutePath = JournalManager.Instance.GetAbsoluteMediaPath(path);
+                        if (absolutePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                            absolutePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                        {
+                            imageSrc = absolutePath;
+                        }
+                        else
+                        {
+                            imageSrc = new Uri(absolutePath).AbsoluteUri;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[GenerateNoteHtml] Image path conversion failed: {ex.Message}");
+                }
+            }
+
+            // Resolve Category Details
+            var catInfo = JournalManager.Instance.Categories.FirstOrDefault(c => c.Name.Equals(category, StringComparison.OrdinalIgnoreCase));
+            string badgeColor = catInfo?.Color ?? "#808080";
+
+            // Resolve Mood Badge
+            string moodBadgeHtml = "";
+            if (!string.IsNullOrEmpty(note.Mood) && note.Mood != "None")
+            {
+                moodBadgeHtml = $"<span class=\"mood-badge\">{System.Net.WebUtility.HtmlEncode(note.Mood)}</span>";
+            }
+
+            // Resolve Tag Badges
+            string tagsHtml = "";
+            if (note.Tags != null && note.Tags.Count > 0)
+            {
+                foreach (var tag in note.Tags)
+                {
+                    if (!string.IsNullOrWhiteSpace(tag))
+                    {
+                        tagsHtml += $"<span class=\"tag-badge\">#{System.Net.WebUtility.HtmlEncode(tag.TrimStart('#'))}</span>";
+                    }
+                }
+            }
+
             string[] rawLines = plainText.Split(new[] { "\n", "\r" }, StringSplitOptions.None);
             string bodyHtml = "";
             bool inPre = false;
+            bool inUl = false;
+            bool inBlockquote = false;
 
             foreach (var line in rawLines)
             {
                 string trimmed = line.Trim();
+                
+                // Handle code blocks
                 if (trimmed.StartsWith("```"))
                 {
+                    if (inUl) { bodyHtml += "</ul>"; inUl = false; }
+                    if (inBlockquote) { bodyHtml += "</blockquote>"; inBlockquote = false; }
+
                     if (inPre)
                     {
                         bodyHtml += "</pre>";
@@ -3640,133 +3931,320 @@ namespace JournalApp
                 if (inPre)
                 {
                     bodyHtml += System.Net.WebUtility.HtmlEncode(line) + "\n";
+                    continue;
+                }
+
+                // Handle blockquotes
+                if (trimmed.StartsWith(">"))
+                {
+                    if (inUl) { bodyHtml += "</ul>"; inUl = false; }
+
+                    string quoteContent = trimmed.Substring(1).TrimStart();
+                    string parsedContent = ProcessInlineMarkdown(System.Net.WebUtility.HtmlEncode(quoteContent));
+
+                    if (!inBlockquote)
+                    {
+                        bodyHtml += "<blockquote>";
+                        inBlockquote = true;
+                    }
+                    bodyHtml += $"<p>{parsedContent}</p>";
+                    continue;
+                }
+                else if (inBlockquote)
+                {
+                    bodyHtml += "</blockquote>";
+                    inBlockquote = false;
+                }
+
+                // Handle lists
+                if (trimmed.StartsWith("- ") || trimmed.StartsWith("* "))
+                {
+                    string itemContent = trimmed.Substring(2);
+                    string parsedContent = ProcessInlineMarkdown(System.Net.WebUtility.HtmlEncode(itemContent));
+
+                    if (!inUl)
+                    {
+                        bodyHtml += "<ul>";
+                        inUl = true;
+                    }
+                    bodyHtml += $"<li>{parsedContent}</li>";
+                    continue;
+                }
+                else if (inUl)
+                {
+                    bodyHtml += "</ul>";
+                    inUl = false;
+                }
+
+                // Handle headers, dividers, blank lines, and normal text paragraphs
+                if (trimmed.StartsWith("# "))
+                {
+                    string headerVal = trimmed.Substring(2);
+                    bodyHtml += $"<h1>{ProcessInlineMarkdown(System.Net.WebUtility.HtmlEncode(headerVal))}</h1>";
+                }
+                else if (trimmed.StartsWith("## "))
+                {
+                    string headerVal = trimmed.Substring(3);
+                    bodyHtml += $"<h2>{ProcessInlineMarkdown(System.Net.WebUtility.HtmlEncode(headerVal))}</h2>";
+                }
+                else if (trimmed.StartsWith("### "))
+                {
+                    string headerVal = trimmed.Substring(4);
+                    bodyHtml += $"<h3>{ProcessInlineMarkdown(System.Net.WebUtility.HtmlEncode(headerVal))}</h3>";
+                }
+                else if (trimmed == "---")
+                {
+                    bodyHtml += "<hr>";
+                }
+                else if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    bodyHtml += "<br>";
                 }
                 else
                 {
-                    if (trimmed.StartsWith("# "))
-                    {
-                        bodyHtml += $"<h1>{System.Net.WebUtility.HtmlEncode(trimmed.Substring(2))}</h1>";
-                    }
-                    else if (trimmed.StartsWith("## "))
-                    {
-                        bodyHtml += $"<h2>{System.Net.WebUtility.HtmlEncode(trimmed.Substring(3))}</h2>";
-                    }
-                    else if (trimmed.StartsWith("### "))
-                    {
-                        bodyHtml += $"<h3>{System.Net.WebUtility.HtmlEncode(trimmed.Substring(4))}</h3>";
-                    }
-                    else if (trimmed.StartsWith("- ") || trimmed.StartsWith("* "))
-                    {
-                        bodyHtml += $"<ul><li>{System.Net.WebUtility.HtmlEncode(trimmed.Substring(2))}</li></ul>";
-                    }
-                    else if (trimmed == "---")
-                    {
-                        bodyHtml += "<hr>";
-                    }
-                    else if (string.IsNullOrWhiteSpace(trimmed))
-                    {
-                        bodyHtml += "<br>";
-                    }
-                    else
-                    {
-                        bodyHtml += $"<p>{System.Net.WebUtility.HtmlEncode(line)}</p>";
-                    }
+                    bodyHtml += $"<p>{ProcessInlineMarkdown(System.Net.WebUtility.HtmlEncode(line))}</p>";
                 }
             }
 
-            if (inPre)
-            {
-                bodyHtml += "</pre>";
-            }
+            if (inPre) bodyHtml += "</pre>";
+            if (inUl) bodyHtml += "</ul>";
+            if (inBlockquote) bodyHtml += "</blockquote>";
 
             string html = $@"<!DOCTYPE html>
 <html>
 <head>
     <meta charset=""utf-8"">
     <title>{System.Net.WebUtility.HtmlEncode(title)}</title>
+    <link rel=""preconnect"" href=""https://fonts.googleapis.com"">
+    <link rel=""preconnect"" href=""https://fonts.gstatic.com"" crossorigin>
+    <link href=""https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"" rel=""stylesheet"">
     <style>
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 0 20px;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.8;
+            color: #2d3748;
+            max-width: 760px;
+            margin: 50px auto;
+            padding: 0 32px;
+            background-color: #ffffff;
         }}
+        
+        .header {{
+            margin-bottom: 40px;
+        }}
+
         h1 {{
-            font-size: 2.2em;
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 2.8em;
             font-weight: 700;
-            margin-bottom: 5px;
-            color: #111;
+            line-height: 1.25;
+            margin: 0 0 16px 0;
+            color: #1a202c;
+            letter-spacing: -0.02em;
         }}
+
         .meta-info {{
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
             font-size: 0.9em;
-            color: #666;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 15px;
+            color: #718096;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
         }}
+
+        .meta-date {{
+            font-weight: 500;
+        }}
+
         .category-badge {{
             display: inline-block;
-            background-color: #f0f0f0;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.85em;
+            background-color: {badgeColor}12;
+            color: {badgeColor};
+            border: 1px solid {badgeColor}25;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }}
+
+        .mood-badge {{
+            display: inline-block;
+            background-color: #fefaf0;
+            color: #b7791f;
+            border: 1px solid #fbecb2;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }}
+
+        .tag-badge {{
+            display: inline-block;
+            background-color: #f7fafc;
+            color: #4a5568;
+            border: 1px solid #e2e8f0;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
             font-weight: 500;
-            margin-left: 10px;
+            letter-spacing: 0.03em;
         }}
+
+        .cover-image {{
+            width: 100%;
+            height: 380px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 36px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }}
+
+        .content {{
+            font-size: 1.125em;
+            color: #2d3748;
+        }}
+
         p {{
-            margin-bottom: 1.2em;
-            font-size: 1.1em;
+            margin: 0 0 1.6em 0;
         }}
+
+        h2, h3, h4 {{
+            font-family: 'Playfair Display', Georgia, serif;
+            color: #1a202c;
+            margin-top: 1.8em;
+            margin-bottom: 0.6em;
+            font-weight: 700;
+        }}
+
+        h2 {{
+            font-size: 1.8em;
+            border-bottom: 1px solid #edf2f7;
+            padding-bottom: 8px;
+        }}
+
+        h3 {{
+            font-size: 1.4em;
+        }}
+
+        ul, ol {{
+            margin: 0 0 1.6em 0;
+            padding-left: 24px;
+        }}
+
+        li {{
+            margin-bottom: 0.6em;
+        }}
+
         pre {{
-            background-color: #f8f8f8;
-            padding: 15px;
-            border-radius: 6px;
+            background-color: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
             overflow-x: auto;
             font-family: Consolas, Monaco, monospace;
-            border: 1px solid #e1e1e1;
+            font-size: 0.9em;
+            border: 1px solid #e2e8f0;
+            line-height: 1.5;
+            margin: 0 0 1.6em 0;
         }}
+
         code {{
             font-family: Consolas, Monaco, monospace;
-            background-color: #f1f1f1;
-            padding: 2px 4px;
+            background-color: #f7fafc;
+            padding: 2px 6px;
             border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            font-size: 0.9em;
+            color: #c53030;
         }}
+
+        pre code {{
+            background-color: transparent;
+            padding: 0;
+            border: none;
+            font-size: inherit;
+            color: inherit;
+        }}
+
         blockquote {{
-            border-left: 4px solid #ccc;
-            margin: 0;
-            padding-left: 15px;
-            color: #666;
+            border-left: 4px solid {badgeColor};
+            background-color: {badgeColor}08;
+            margin: 0 0 1.6em 0;
+            padding: 16px 20px;
+            color: #4a5568;
             font-style: italic;
+            border-radius: 0 8px 8px 0;
         }}
-        ul {{
-            margin-bottom: 1.2em;
-            padding-left: 20px;
-        }}
+
         hr {{
             border: 0;
-            border-top: 1px solid #eee;
-            margin: 20px 0;
-            padding: 0;
+            height: 1px;
+            background: #e2e8f0;
+            margin: 40px 0;
+            position: relative;
         }}
+
+        hr::after {{
+            content: ""✦"";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 0 10px;
+            color: #cbd5e0;
+            font-size: 0.9em;
+        }}
+
         @media print {{
             body {{
-                margin: 20mm;
+                margin: 15mm 20mm;
                 max-width: 100%;
+                font-size: 11pt;
+                color: #000;
             }}
-            button {{
-                display: none;
+            .cover-image {{
+                max-height: 280px;
+                box-shadow: none;
+                page-break-inside: avoid;
+            }}
+            .meta-info {{
+                border-bottom: 1px solid #000;
+            }}
+            blockquote {{
+                background-color: #fff;
+                border-left: 3pt solid #000;
+                page-break-inside: avoid;
+            }}
+            pre {{
+                background-color: #fff;
+                border: 1pt solid #000;
+                page-break-inside: avoid;
+            }}
+            a {{
+                text-decoration: underline;
+                color: #000;
             }}
         }}
     </style>
 </head>
 <body>
-    <h1>{System.Net.WebUtility.HtmlEncode(title)}</h1>
-    <div class=""meta-info"">
-        <span>{System.Net.WebUtility.HtmlEncode(dateString)}</span>
-        <span class=""category-badge"">{System.Net.WebUtility.HtmlEncode(category)}</span>
+    <div class=""header"">
+        <h1>{System.Net.WebUtility.HtmlEncode(title)}</h1>
+        <div class=""meta-info"">
+            <span class=""meta-date"">{System.Net.WebUtility.HtmlEncode(dateString)}</span>
+            <span class=""category-badge"">{System.Net.WebUtility.HtmlEncode(category)}</span>
+            {moodBadgeHtml}
+            {tagsHtml}
+        </div>
     </div>
+    {(!string.IsNullOrEmpty(imageSrc) ? $"<img class=\"cover-image\" src=\"{imageSrc}\" />" : "")}
     <div class=""content"">
         {bodyHtml}
     </div>
@@ -3786,6 +4264,24 @@ namespace JournalApp
 </html>";
 
             return html;
+        }
+
+        private string ProcessInlineMarkdown(string encodedText)
+        {
+            if (string.IsNullOrEmpty(encodedText)) return string.Empty;
+
+            // Bold: **text** or __text__
+            encodedText = System.Text.RegularExpressions.Regex.Replace(encodedText, @"\*\*(.*?)\*\*", "<strong>$1</strong>");
+            encodedText = System.Text.RegularExpressions.Regex.Replace(encodedText, @"__(.*?)__", "<strong>$1</strong>");
+
+            // Italic: *text* or _text_
+            encodedText = System.Text.RegularExpressions.Regex.Replace(encodedText, @"\*(.*?)\*", "<em>$1</em>");
+            encodedText = System.Text.RegularExpressions.Regex.Replace(encodedText, @"_(.*?)_", "<em>$1</em>");
+
+            // Inline code: `code`
+            encodedText = System.Text.RegularExpressions.Regex.Replace(encodedText, @"`(.*?)`", "<code>$1</code>");
+
+            return encodedText;
         }
 
         // Context menu right-click select and opening handlers
@@ -3933,6 +4429,480 @@ namespace JournalApp
                 Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height)
             };
             HeroImageContainer.Clip = clipGeometry;
+        }
+
+        // ── Feature Additions Partials ──
+
+        private void ShowGrid(Grid gridToShow)
+        {
+            if (MainEditorGrid != null) MainEditorGrid.Visibility = (gridToShow == MainEditorGrid) ? Visibility.Visible : Visibility.Collapsed;
+            if (SettingsGrid != null) SettingsGrid.Visibility = (gridToShow == SettingsGrid) ? Visibility.Visible : Visibility.Collapsed;
+            if (GitHubGrid != null) GitHubGrid.Visibility = (gridToShow == GitHubGrid) ? Visibility.Visible : Visibility.Collapsed;
+            if (StatsGrid != null) StatsGrid.Visibility = (gridToShow == StatsGrid) ? Visibility.Visible : Visibility.Collapsed;
+            if (GalleryGrid != null) GalleryGrid.Visibility = (gridToShow == GalleryGrid) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void PopulateMoodStats()
+        {
+            var notes = JournalManager.Instance.Notes.Where(n => !n.IsDeleted).ToList();
+            int total = notes.Count;
+
+            int happy = notes.Count(n => n.Mood == "😊 Happy");
+            int neutral = notes.Count(n => n.Mood == "😐 Neutral");
+            int sad = notes.Count(n => n.Mood == "😢 Sad");
+            int stressed = notes.Count(n => n.Mood == "😫 Stressed");
+            int angry = notes.Count(n => n.Mood == "😡 Angry");
+            int none = notes.Count(n => string.IsNullOrEmpty(n.Mood) || n.Mood == "None");
+
+            if (total == 0)
+            {
+                if (MoodHappyCountText != null) MoodHappyCountText.Text = "0 entries (0%)";
+                if (MoodHappyProgress != null) MoodHappyProgress.Value = 0;
+                
+                if (MoodNeutralCountText != null) MoodNeutralCountText.Text = "0 entries (0%)";
+                if (MoodNeutralProgress != null) MoodNeutralProgress.Value = 0;
+
+                if (MoodSadCountText != null) MoodSadCountText.Text = "0 entries (0%)";
+                if (MoodSadProgress != null) MoodSadProgress.Value = 0;
+
+                if (MoodStressedCountText != null) MoodStressedCountText.Text = "0 entries (0%)";
+                if (MoodStressedProgress != null) MoodStressedProgress.Value = 0;
+
+                if (MoodAngryCountText != null) MoodAngryCountText.Text = "0 entries (0%)";
+                if (MoodAngryProgress != null) MoodAngryProgress.Value = 0;
+
+                if (MoodNoneCountText != null) MoodNoneCountText.Text = "0 entries (0%)";
+                if (MoodNoneProgress != null) MoodNoneProgress.Value = 0;
+                return;
+            }
+
+            double p(int c) => (double)c / total * 100;
+
+            if (MoodHappyCountText != null) MoodHappyCountText.Text = $"{happy} entries ({p(happy):F0}%)";
+            if (MoodHappyProgress != null) MoodHappyProgress.Value = p(happy);
+
+            if (MoodNeutralCountText != null) MoodNeutralCountText.Text = $"{neutral} entries ({p(neutral):F0}%)";
+            if (MoodNeutralProgress != null) MoodNeutralProgress.Value = p(neutral);
+
+            if (MoodSadCountText != null) MoodSadCountText.Text = $"{sad} entries ({p(sad):F0}%)";
+            if (MoodSadProgress != null) MoodSadProgress.Value = p(sad);
+
+            if (MoodStressedCountText != null) MoodStressedCountText.Text = $"{stressed} entries ({p(stressed):F0}%)";
+            if (MoodStressedProgress != null) MoodStressedProgress.Value = p(stressed);
+
+            if (MoodAngryCountText != null) MoodAngryCountText.Text = $"{angry} entries ({p(angry):F0}%)";
+            if (MoodAngryProgress != null) MoodAngryProgress.Value = p(angry);
+
+            if (MoodNoneCountText != null) MoodNoneCountText.Text = $"{none} entries ({p(none):F0}%)";
+            if (MoodNoneProgress != null) MoodNoneProgress.Value = p(none);
+        }
+
+        private int ComputeLongestWritingStreak()
+        {
+            var activityDates = JournalManager.Instance.Notes
+                .Where(n => !n.IsDeleted)
+                .SelectMany(n => new[] { n.DateCreated.Date, n.DateModified.Date })
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
+
+            if (activityDates.Count == 0) return 0;
+
+            int maxStreak = 0;
+            int currentStreak = 1;
+
+            for (int i = 1; i < activityDates.Count; i++)
+            {
+                if (activityDates[i] == activityDates[i - 1].AddDays(1))
+                {
+                    currentStreak++;
+                }
+                else if (activityDates[i] != activityDates[i - 1])
+                {
+                    maxStreak = Math.Max(maxStreak, currentStreak);
+                    currentStreak = 1;
+                }
+            }
+
+            maxStreak = Math.Max(maxStreak, currentStreak);
+            return maxStreak;
+        }
+
+        private void PopulateContributionGraph()
+        {
+            if (ContributionGrid == null) return;
+
+            ContributionGrid.Children.Clear();
+            ContributionGrid.RowDefinitions.Clear();
+            ContributionGrid.ColumnDefinitions.Clear();
+
+            for (int r = 0; r < 7; r++)
+            {
+                ContributionGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            }
+            for (int c = 0; c < 53; c++)
+            {
+                ContributionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
+
+            var noteCounts = JournalManager.Instance.Notes
+                .Where(n => !n.IsDeleted)
+                .GroupBy(n => n.DateCreated.Date)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            DateTime today = DateTime.Today;
+            DateTime startDate = today.AddDays(-370);
+            int startDayOfWeek = (int)startDate.DayOfWeek;
+            DateTime gridStartDate = startDate.AddDays(-startDayOfWeek);
+
+            for (int col = 0; col < 53; col++)
+            {
+                for (int row = 0; row < 7; row++)
+                {
+                    DateTime cellDate = gridStartDate.AddDays(col * 7 + row);
+                    
+                    bool isFuture = cellDate > today;
+                    bool isBeforeRange = cellDate < startDate;
+                    
+                    int count = 0;
+                    if (!isFuture && !isBeforeRange)
+                    {
+                        noteCounts.TryGetValue(cellDate, out count);
+                    }
+
+                    string hexColor = "#15FFFFFF";
+                    if (this.ActualTheme == ElementTheme.Light)
+                    {
+                        hexColor = "#F0F0F0";
+                    }
+
+                    if (!isFuture && !isBeforeRange)
+                    {
+                        if (count == 1) hexColor = "#FF1b4c2b";
+                        else if (count == 2) hexColor = "#FF2e6930";
+                        else if (count == 3) hexColor = "#FF398b3f";
+                        else if (count >= 4) hexColor = "#FF4dca57";
+                    }
+
+                    var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
+                    {
+                        Width = 10,
+                        Height = 10,
+                        RadiusX = 2,
+                        RadiusY = 2,
+                        Fill = GetBrushFromHex(hexColor),
+                        Opacity = (isFuture || isBeforeRange) ? 0.0 : 1.0
+                    };
+
+                    if (!isFuture && !isBeforeRange)
+                    {
+                        var toolTipText = $"{cellDate.ToString("MMMM d, yyyy")}: {count} {(count == 1 ? "entry" : "entries")}";
+                        ToolTipService.SetToolTip(rect, toolTipText);
+                    }
+
+                    Grid.SetRow(rect, row);
+                    Grid.SetColumn(rect, col);
+                    ContributionGrid.Children.Add(rect);
+                }
+            }
+
+            if (CurrentStreakStatsText != null)
+            {
+                CurrentStreakStatsText.Text = $"{ComputeWritingStreak()} days";
+            }
+            if (LongestStreakStatsText != null)
+            {
+                LongestStreakStatsText.Text = $"{ComputeLongestWritingStreak()} days";
+            }
+            if (TotalEntriesStatsText != null)
+            {
+                TotalEntriesStatsText.Text = JournalManager.Instance.Notes.Count(n => !n.IsDeleted).ToString();
+            }
+        }
+
+        private void PopulateGallery()
+        {
+            if (GalleryGridView == null) return;
+
+            var photoNotes = JournalManager.Instance.Notes
+                .Where(n => !n.IsDeleted && !string.IsNullOrEmpty(n.HeroImagePath))
+                .OrderByDescending(n => n.DateCreated)
+                .ToList();
+
+            GalleryGridView.ItemsSource = photoNotes;
+        }
+
+        private void GalleryGridView_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            if (e.ClickedItem is JournalNote clickedNote)
+            {
+                ShowGrid(MainEditorGrid);
+                
+                _selectedCategory = "All Entries";
+                if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "All Entries";
+                
+                var allEntriesItem = CategoriesNavView.MenuItems
+                    .OfType<NavigationViewItem>()
+                    .FirstOrDefault(item => item.Content?.ToString() == "All Entries" || (item.Tag is JournalCategory cat && cat.Name == "All Entries"));
+                if (allEntriesItem != null)
+                {
+                    CategoriesNavView.SelectedItem = allEntriesItem;
+                    _previousSelectedItem = allEntriesItem;
+                }
+
+                RefreshNotesList();
+                NotesListView.SelectedItem = clickedNote;
+                SelectedNote = clickedNote;
+            }
+        }
+
+        private async void ContextMenuExportMarkdown_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+
+            string plainText;
+            NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out plainText);
+
+            try
+            {
+                var savePicker = CreateSavePicker();
+                savePicker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+                savePicker.FileTypeChoices.Add("Markdown Document", new List<string>() { ".md" });
+                
+                string safeTitle = string.IsNullOrWhiteSpace(SelectedNote.Title) ? "Untitled" : SelectedNote.Title;
+                foreach (char c in Path.GetInvalidFileNameChars())
+                {
+                    safeTitle = safeTitle.Replace(c, '_');
+                }
+                savePicker.SuggestedFileName = safeTitle;
+
+                StorageFile file = await savePicker.PickSaveFileAsync();
+                if (file != null)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.AppendLine("---");
+                    sb.AppendLine($"title: \"{SelectedNote.Title.Replace("\"", "\\\"")}\"");
+                    sb.AppendLine($"date: {SelectedNote.DateCreated.ToString("yyyy-MM-dd HH:mm:ss")}");
+                    sb.AppendLine($"category: \"{SelectedNote.Category.Replace("\"", "\\\"")}\"");
+                    if (!string.IsNullOrEmpty(SelectedNote.Mood) && SelectedNote.Mood != "None")
+                    {
+                        sb.AppendLine($"mood: \"{SelectedNote.Mood.Replace("\"", "\\\"")}\"");
+                    }
+                    if (SelectedNote.Tags != null && SelectedNote.Tags.Count > 0)
+                    {
+                        sb.AppendLine("tags:");
+                        foreach (var tag in SelectedNote.Tags)
+                        {
+                            sb.AppendLine($"  - {tag}");
+                        }
+                    }
+                    sb.AppendLine("---");
+                    sb.AppendLine();
+                    sb.AppendLine(plainText);
+
+                    await File.WriteAllTextAsync(file.Path, sb.ToString());
+                    ShowStatusMessage("Exported as Markdown successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync("Export Failed", $"Failed to save Markdown file: {ex.Message}");
+            }
+        }
+
+        private async void ImportNoteButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var picker = new FileOpenPicker();
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance);
+                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+                picker.ViewMode = PickerViewMode.List;
+                picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+                picker.FileTypeFilter.Add(".md");
+                picker.FileTypeFilter.Add(".txt");
+                picker.FileTypeFilter.Add(".rtf");
+
+                StorageFile file = await picker.PickSingleFileAsync();
+                if (file == null) return;
+
+                string extension = Path.GetExtension(file.Path).ToLowerInvariant();
+                string title = Path.GetFileNameWithoutExtension(file.Name);
+                string category = (_selectedCategory == "All Entries" || _selectedCategory == "Favorites" || _selectedCategory == "Trash") 
+                    ? "Personal" 
+                    : _selectedCategory;
+                if (_selectedCategory.StartsWith("Tag:")) category = "Personal";
+
+                string plainText = "";
+                string rtfContent = "";
+                List<string> tags = new List<string>();
+                string mood = "None";
+                DateTime dateCreated = DateTime.Now;
+
+                if (extension == ".rtf")
+                {
+                    rtfContent = await File.ReadAllTextAsync(file.Path);
+                }
+                else
+                {
+                    plainText = await File.ReadAllTextAsync(file.Path);
+
+                    if (plainText.StartsWith("---"))
+                    {
+                        int nextDash = plainText.IndexOf("---", 3);
+                        if (nextDash > 0)
+                        {
+                            string frontmatter = plainText.Substring(3, nextDash - 3);
+                            plainText = plainText.Substring(nextDash + 3).TrimStart();
+
+                            var lines = frontmatter.Split('\n');
+                            string currentKey = "";
+                            foreach (var line in lines)
+                            {
+                                string trimmed = line.Trim();
+                                if (string.IsNullOrEmpty(trimmed)) continue;
+
+                                if (trimmed.StartsWith("-") && currentKey == "tags")
+                                {
+                                    string tagVal = trimmed.Substring(1).Trim().Trim('"').ToLowerInvariant();
+                                    if (!tags.Contains(tagVal)) tags.Add(tagVal);
+                                    continue;
+                                }
+
+                                int colon = trimmed.IndexOf(':');
+                                if (colon > 0)
+                                {
+                                    string key = trimmed.Substring(0, colon).Trim().ToLowerInvariant();
+                                    string val = trimmed.Substring(colon + 1).Trim().Trim('"');
+                                    currentKey = key;
+
+                                    if (key == "title" && !string.IsNullOrEmpty(val))
+                                    {
+                                        title = val;
+                                    }
+                                    else if (key == "category" && !string.IsNullOrEmpty(val))
+                                    {
+                                        category = val;
+                                    }
+                                    else if (key == "mood" && !string.IsNullOrEmpty(val))
+                                    {
+                                        mood = val;
+                                    }
+                                    else if (key == "date")
+                                    {
+                                        if (DateTime.TryParse(val, out DateTime parsedDate))
+                                        {
+                                            dateCreated = parsedDate;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                var existingCategory = JournalManager.Instance.Categories.FirstOrDefault(c => c.Name.Equals(category, StringComparison.OrdinalIgnoreCase));
+                if (existingCategory == null)
+                {
+                    JournalManager.Instance.AddCategory(category, "\uE889", "#808080");
+                }
+
+                var note = JournalManager.Instance.CreateNote(category);
+                note.Title = title;
+                note.DateCreated = dateCreated;
+                note.DateModified = DateTime.Now;
+                note.Mood = mood;
+
+                if (!string.IsNullOrEmpty(plainText))
+                {
+                    var matches = System.Text.RegularExpressions.Regex.Matches(plainText, @"\B#([a-zA-Z0-9_]+)");
+                    foreach (System.Text.RegularExpressions.Match match in matches)
+                    {
+                        string tag = match.Groups[1].Value.ToLowerInvariant();
+                        if (!tags.Contains(tag)) tags.Add(tag);
+                    }
+                }
+                note.Tags = tags;
+
+                string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(note.RtfFileName);
+                if (extension == ".rtf")
+                {
+                    await File.WriteAllTextAsync(rtfPath, rtfContent);
+                }
+                else
+                {
+                    string escapedText = plainText.Replace("\\", "\\\\").Replace("{", "\\{").Replace("}", "\\}");
+                    escapedText = escapedText.Replace("\r\n", "\\line\n").Replace("\n", "\\line\n");
+                    string rtfEnvelope = "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0\\fnil\\fcharset0 Segoe UI;}}\\viewkind4\\uc1\\pard\\lang1033\\f0\\fs28 " + escapedText + "}";
+                    
+                    byte[] rtfBytes = System.Text.Encoding.ASCII.GetBytes(rtfEnvelope);
+                    if (_lockedCategories.Contains(note.Category) && !string.IsNullOrEmpty(_masterPassword))
+                    {
+                        rtfBytes = EncryptionHelper.Encrypt(rtfBytes, _masterPassword);
+                    }
+                    await File.WriteAllBytesAsync(rtfPath, rtfBytes);
+                }
+
+                _rtfTextCache.Remove(note.Id);
+                note.Snippet = string.IsNullOrWhiteSpace(plainText) ? "No additional text" :
+                    (plainText.Length > 80 ? plainText.Substring(0, 80).Replace("\r", " ").Replace("\n", " ").Trim() : plainText.Replace("\r", " ").Replace("\n", " ").Trim());
+
+                JournalManager.Instance.SaveNotesMetadata();
+                
+                LoadCategoriesList();
+                RefreshNotesList();
+                NotesListView.SelectedItem = note;
+                SelectedNote = note;
+
+                ShowStatusMessage("Note imported successfully");
+            }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync("Import Failed", $"Failed to import note: {ex.Message}");
+            }
+        }
+
+        private void PopulateLockedCategoriesSettings()
+        {
+            if (LockedCategoriesStackPanel == null) return;
+            LockedCategoriesStackPanel.Children.Clear();
+
+            var categories = JournalManager.Instance.Categories;
+            foreach (var cat in categories)
+            {
+                if (cat.Name == "All Entries" || cat.Name == "Favorites" || cat.Name == "Trash")
+                    continue;
+
+                var cb = new CheckBox
+                {
+                    Content = cat.Name,
+                    IsChecked = _lockedCategories.Contains(cat.Name),
+                    Margin = new Thickness(0, 2, 0, 2)
+                };
+                cb.Checked += (s, e) =>
+                {
+                    if (!_lockedCategories.Contains(cat.Name))
+                    {
+                        _lockedCategories.Add(cat.Name);
+                        UpdateSaveSettingsButtonState();
+                    }
+                };
+                cb.Unchecked += (s, e) =>
+                {
+                    if (_lockedCategories.Contains(cat.Name))
+                    {
+                        _lockedCategories.Remove(cat.Name);
+                        UpdateSaveSettingsButtonState();
+                    }
+                };
+
+                LockedCategoriesStackPanel.Children.Add(cb);
+            }
+        }
+
+        private void MasterPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateSaveSettingsButtonState();
         }
     }
 }

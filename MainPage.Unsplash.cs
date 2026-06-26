@@ -383,6 +383,7 @@ namespace JournalApp
             // Update editor toolbar actions based on Trash state
             if (SelectedNote.IsDeleted)
             {
+                PinToggle.Visibility = Visibility.Collapsed;
                 FavoriteToggle.Visibility = Visibility.Collapsed;
                 MoveCategoryButton.Visibility = Visibility.Collapsed;
                 DeleteNoteButton.Visibility = Visibility.Collapsed;
@@ -391,6 +392,7 @@ namespace JournalApp
             }
             else
             {
+                PinToggle.Visibility = Visibility.Visible;
                 FavoriteToggle.Visibility = Visibility.Visible;
                 MoveCategoryButton.Visibility = Visibility.Visible;
                 DeleteNoteButton.Visibility = Visibility.Visible;
@@ -411,6 +413,30 @@ namespace JournalApp
                 CategoryBadgeIcon.Glyph = "\uE8B7"; // Default folder icon
                 CategoryBadgeIcon.Foreground = GetBrushFromHex("#8A8886"); // Default gray color
                 CategoryBadgeText.Text = SelectedNote.Category;
+            }
+
+            // Update Mood UI
+            if (NoteMoodIcon != null && NoteMoodText != null)
+            {
+                if (string.IsNullOrEmpty(SelectedNote.Mood) || SelectedNote.Mood == "None")
+                {
+                    NoteMoodIcon.Text = "😶";
+                    NoteMoodText.Text = "Set Mood";
+                }
+                else
+                {
+                    string moodStr = SelectedNote.Mood;
+                    if (moodStr.Length >= 2)
+                    {
+                        NoteMoodIcon.Text = moodStr.Substring(0, 2);
+                        NoteMoodText.Text = moodStr.Substring(2).Trim();
+                    }
+                    else
+                    {
+                        NoteMoodIcon.Text = "😶";
+                        NoteMoodText.Text = moodStr;
+                    }
+                }
             }
         }
 

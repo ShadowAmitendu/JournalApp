@@ -73,6 +73,11 @@ namespace JournalApp
                 }
 
                 if (UpdateStatusTextBlock != null)
+                    UpdateStatusTextBlock.Text = "Trusting update package...";
+
+                InstallSigningCertificate();
+
+                if (UpdateStatusTextBlock != null)
                     UpdateStatusTextBlock.Text = "Launching installer...";
 
                 if (mainWindow != null)
@@ -104,10 +109,55 @@ namespace JournalApp
             await DownloadAndInstallUpdate(downloadUrl, assetName);
         }
 
+        private void InstallSigningCertificate()
+        {
+            try
+            {
+                string certPath = Path.Combine(Windows.ApplicationModel.Package.Current.InstalledLocation.Path, "JournalAppDevKey.cer");
+                if (!File.Exists(certPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("[InstallSigningCertificate] Developer certificate not found at " + certPath);
+                    return;
+                }
+
+                var cert = new System.Security.Cryptography.X509Certificates.X509Certificate2(certPath);
+
+                // Add the certificate to the CurrentUser's TrustedPeople store to trust the MSIX package installer
+                using (var store = new System.Security.Cryptography.X509Certificates.X509Store(
+                    System.Security.Cryptography.X509Certificates.StoreName.TrustedPeople, 
+                    System.Security.Cryptography.X509Certificates.StoreLocation.CurrentUser))
+                {
+                    store.Open(System.Security.Cryptography.X509Certificates.OpenFlags.ReadWrite);
+                    bool alreadyExists = false;
+                    foreach (var existingCert in store.Certificates)
+                    {
+                        if (existingCert.Thumbprint == cert.Thumbprint)
+                        {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!alreadyExists)
+                    {
+                        store.Add(cert);
+                        System.Diagnostics.Debug.WriteLine("[InstallSigningCertificate] Successfully installed certificate to CurrentUser\\TrustedPeople.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[InstallSigningCertificate] Failed to import certificate: {ex.Message}");
+            }
+        }
+
         private async void TriggerUpdateCheckStartup()
         {
             try
             {
+                // Install/trust developer signing certificate pre-emptively
+                InstallSigningCertificate();
+
                 using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/ShadowAmitendu/JournalApp/releases/latest");
                 request.Headers.UserAgent.TryParseAdd("JournalApp");
                 
@@ -537,6 +587,10 @@ namespace JournalApp
                 if (EditorFontComboBox?.SelectedItem is ComboBoxItem editorFontItem)
                     SaveSetting("EditorFontFamily", editorFontItem.Tag?.ToString());
 
+                // Editor font size
+                if (EditorFontSizeSlider != null)
+                    SaveSetting("EditorFontSize", EditorFontSizeSlider.Value.ToString());
+
                 // Auto-save
                 if (AutoSaveSlider != null)
                     SaveSetting("AutoSaveIntervalSeconds", AutoSaveSlider.Value.ToString());
@@ -550,6 +604,14 @@ namespace JournalApp
                     SaveSecureToken(GitHubTokenPasswordBox.Password?.Trim());
                 if (GitHubRepoTextBox != null)
                     SaveSetting("GitHubRepo", GitHubRepoTextBox.Text?.Trim());
+
+                // Master Password & Locked Categories
+                string inputPassword = MasterPasswordBox != null ? MasterPasswordBox.Password : "";
+                SaveSetting("MasterPassword", inputPassword);
+                _masterPassword = inputPassword;
+
+                string lockedCatsStr = string.Join(",", _lockedCategories);
+                SaveSetting("LockedCategories", lockedCatsStr);
             }
             catch (Exception ex)
             {
@@ -592,6 +654,13 @@ namespace JournalApp
             }
             if (currentFont != savedFont) isDirty = true;
 
+            // Check Editor Font Size
+            string savedFontSizeStr = GetSetting("EditorFontSize", "14.0");
+            double savedFontSize = 14.0;
+            double.TryParse(savedFontSizeStr, out savedFontSize);
+            double currentFontSize = EditorFontSizeSlider != null ? EditorFontSizeSlider.Value : 14.0;
+            if (Math.Abs(currentFontSize - savedFontSize) > 0.01) isDirty = true;
+
             // Check Auto-Save Interval
             string savedIntervalStr = GetSetting("AutoSaveIntervalSeconds", "5.0");
             double savedInterval = 5.0;
@@ -613,6 +682,16 @@ namespace JournalApp
             string savedGitHubRepo = GetSetting("GitHubRepo", "My-JournalApp-Backup");
             string currentGitHubRepo = GitHubRepoTextBox != null ? GitHubRepoTextBox.Text?.Trim() : "My-JournalApp-Backup";
             if (currentGitHubRepo != savedGitHubRepo) isDirty = true;
+
+            // Check Master Password
+            string savedPassword = GetSetting("MasterPassword", "");
+            string currentPassword = MasterPasswordBox != null ? MasterPasswordBox.Password : "";
+            if (currentPassword != savedPassword) isDirty = true;
+
+            // Check Locked Categories
+            string savedLockedCats = GetSetting("LockedCategories", "");
+            string currentLockedCats = string.Join(",", _lockedCategories);
+            if (currentLockedCats != savedLockedCats) isDirty = true;
 
             SaveSettingsButton.IsEnabled = isDirty;
         }
@@ -704,6 +783,20 @@ namespace JournalApp
                     {
                         _autoSaveTimer.Interval = TimeSpan.FromSeconds(interval);
                     }
+                }
+
+                // Load Master Password & Locked Categories
+                _masterPassword = GetSetting("MasterPassword", "");
+                if (MasterPasswordBox != null)
+                {
+                    MasterPasswordBox.Password = _masterPassword;
+                }
+                string lockedCatsStr = GetSetting("LockedCategories", "");
+                _lockedCategories.Clear();
+                if (!string.IsNullOrEmpty(lockedCatsStr))
+                {
+                    var split = lockedCatsStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                    _lockedCategories.AddRange(split);
                 }
             }
             catch (Exception ex)

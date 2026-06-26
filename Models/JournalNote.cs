@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace JournalApp
 {
@@ -19,6 +20,8 @@ namespace JournalApp
         public bool IsFavorite { get; set; }
         public bool IsDeleted { get; set; }
         public bool IsPinned { get; set; }
+        public string Mood { get; set; } = "None";
+        public List<string> Tags { get; set; } = new List<string>();
         public bool HasTime { get; set; } = true;
         public string EditorWidth { get; set; } = "Medium";
         public string AvatarImagePath => !string.IsNullOrEmpty(HeroImagePath) 

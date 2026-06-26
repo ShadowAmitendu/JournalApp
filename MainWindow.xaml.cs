@@ -52,6 +52,9 @@ public sealed partial class MainWindow : Window
 
         this.Activated += MainWindow_Activated;
 
+        // Size and center the window before activation to avoid visual jumps
+        CenterWindow();
+
         // Navigate the root frame to the main page on startup.
         RootFrame.Navigate(typeof(MainPage));
     }
@@ -76,7 +79,7 @@ public sealed partial class MainWindow : Window
                 if (displayArea != null)
                 {
                     var workArea = displayArea.WorkArea;
-                    int width = 1200;
+                    int width = 1480;
                     int height = 800;
                     appWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
 

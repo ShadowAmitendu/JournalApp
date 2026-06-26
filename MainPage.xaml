@@ -46,6 +46,11 @@
                         <FontIcon Glyph="&#xE943;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
                     </MenuFlyoutItem.Icon>
                 </MenuFlyoutItem>
+                <MenuFlyoutItem Text="Export as Markdown (.md)..." Click="ContextMenuExportMarkdown_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE70F;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
                 <MenuFlyoutItem Text="Print or Save as PDF..." Click="ContextMenuPrint_Click">
                     <MenuFlyoutItem.Icon>
                         <FontIcon Glyph="&#xE749;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
@@ -105,7 +110,17 @@
                 </NavigationViewItem>
                 <NavigationViewItem x:Name="GitHubNavItem" Content="GitHub History" ToolTipService.ToolTip="GitHub History">
                     <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE150;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="StatsNavItem" Content="Stats" ToolTipService.ToolTip="Writing Stats &amp; Insights">
+                    <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE9D2;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="GalleryNavItem" Content="Gallery" ToolTipService.ToolTip="Photo Diary Gallery">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem x:Name="SettingsNavItem" Content="Settings" ToolTipService.ToolTip="Settings">
@@ -172,6 +187,13 @@
                                         <FontIcon Glyph="&#xE74D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Foreground="Red" />
                                         <TextBlock Text="Empty Trash" FontSize="11" Foreground="Red" FontWeight="Medium" VerticalAlignment="Center"/>
                                     </StackPanel>
+                                </Button.Content>
+                            </Button>
+                            
+                            <!-- Import Entry Button -->
+                            <Button x:Name="ImportNoteButton" ToolTipService.ToolTip="Import Entry (.md, .rtf, .txt)" Click="ImportNoteButton_Click" Width="32" Height="32" CornerRadius="16" Padding="0">
+                                <Button.Content>
+                                    <FontIcon Glyph="&#xE8B5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
                                 </Button.Content>
                             </Button>
                             
@@ -497,6 +519,11 @@
 
                         <!-- Actions Controls -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <ToggleButton x:Name="PinToggle" ToolTipService.ToolTip="Pin to Top" Checked="PinToggle_Checked" Unchecked="PinToggle_Unchecked" Width="36" Height="32" Padding="0">
+                                <ToggleButton.Content>
+                                    <FontIcon Glyph="&#xE718;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                </ToggleButton.Content>
+                            </ToggleButton>
                             <ToggleButton x:Name="FavoriteToggle" ToolTipService.ToolTip="Favorite" Checked="FavoriteToggle_Checked" Unchecked="FavoriteToggle_Unchecked" Width="36" Height="32" Padding="0">
                                 <ToggleButton.Content>
                                     <FontIcon Glyph="&#xE734;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
@@ -827,6 +854,28 @@
                                             </Button.Flyout>
                                         </Button>
 
+                                        <!-- Mood Selector Button -->
+                                        <Button x:Name="NoteMoodButton" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="10,6" CornerRadius="12" ToolTipService.ToolTip="How are you feeling?">
+                                            <Button.Content>
+                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="NoteMoodIcon" Text="😐" FontSize="14" />
+                                                    <TextBlock x:Name="NoteMoodText" Text="Neutral" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                    <FontIcon Glyph="&#xE972;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="8" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="2,0,0,0" />
+                                                </StackPanel>
+                                            </Button.Content>
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Text="😊 Happy" Click="MoodItem_Click" Tag="😊 Happy" />
+                                                    <MenuFlyoutItem Text="😐 Neutral" Click="MoodItem_Click" Tag="😐 Neutral" />
+                                                    <MenuFlyoutItem Text="😢 Sad" Click="MoodItem_Click" Tag="😢 Sad" />
+                                                    <MenuFlyoutItem Text="😫 Stressed" Click="MoodItem_Click" Tag="😫 Stressed" />
+                                                    <MenuFlyoutItem Text="😡 Angry" Click="MoodItem_Click" Tag="😡 Angry" />
+                                                    <MenuFlyoutSeparator />
+                                                    <MenuFlyoutItem Text="None (Clear)" Click="MoodItem_Click" Tag="None" />
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+
                                         <!-- Category Badge Button -->
                                         <Button x:Name="ChangeCategoryButton" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="10,6" CornerRadius="12" ToolTipService.ToolTip="Change Category">
                                             <Button.Content>
@@ -1042,6 +1091,23 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Editor Default Font Size -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE8E9;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Editor Default Font Size" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Select the default font size (px) for writing journal entries" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <Slider x:Name="EditorFontSizeSlider" Grid.Column="2" Width="180" VerticalAlignment="Center" Minimum="10" Maximum="28" Value="14.0" StepFrequency="1" ValueChanged="EditorFontSizeSlider_ValueChanged" />
+                                </Grid>
+                            </Border>
+
                             <!-- Auto-Save Interval -->
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
                                 <Grid ColumnSpacing="32">
@@ -1119,6 +1185,38 @@
                                         <TextBlock x:Name="GitHubStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
                                         <TextBlock x:Name="GitHubStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         <ProgressBar x:Name="GitHubSyncProgressBar" IsIndeterminate="False" Height="4" Value="0" Margin="0,4,0,0" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+
+                        <!-- ── Security & Privacy ── -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Security &amp; Privacy" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Margin="4,8,0,8" CharacterSpacing="50" />
+
+                            <!-- Master Password & Category Locking -->
+                            <Expander IsExpanded="False" ExpandDirection="Down" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <Grid ColumnSpacing="32" Padding="4,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE727;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="Category Encryption &amp; Password Locking" FontSize="14" FontWeight="Medium" />
+                                            <TextBlock Text="Secure private journal categories using AES-256 password protection" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+                                <StackPanel Spacing="12" Margin="40,0,0,8">
+                                    <PasswordBox x:Name="MasterPasswordBox" Header="Set Master Password" PlaceholderText="Enter password..." PasswordRevealMode="Hidden" PasswordChanged="MasterPasswordBox_PasswordChanged" />
+                                    
+                                    <TextBlock Text="Select categories to encrypt and lock:" FontSize="13" FontWeight="Medium" Margin="0,4,0,0" />
+                                    <StackPanel x:Name="LockedCategoriesStackPanel" Spacing="6">
+                                        <!-- Checkboxes will be dynamically loaded here in C# -->
                                     </StackPanel>
                                 </StackPanel>
                             </Expander>
@@ -1319,6 +1417,174 @@
                             </ListView.ItemTemplate>
                         </ListView>
                     </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- Stats Grid -->
+            <Grid x:Name="StatsGrid" Visibility="Collapsed" Padding="0,36,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MaxWidth="1200" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Header -->
+                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="56,0,56,24">
+                    <TextBlock Text="Writing Stats &amp; Insights" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Scrollable Content -->
+                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="56,0,56,48">
+                    <StackPanel Spacing="24" HorizontalAlignment="Stretch">
+                        <!-- Contribution Graph Card -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20">
+                            <StackPanel Spacing="16">
+                                <TextBlock Text="Writing Activity" FontSize="16" FontWeight="SemiBold" />
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Padding="0,0,0,8">
+                                    <Grid x:Name="ContributionGrid" ColumnSpacing="3" RowSpacing="3" HorizontalAlignment="Left" />
+                                </ScrollViewer>
+                                <!-- Legend and Streaks -->
+                                <Grid ColumnSpacing="20">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <TextBlock Text="Less" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                        <Rectangle Width="10" Height="10" Fill="#15FFFFFF" RadiusX="2" RadiusY="2" />
+                                        <Rectangle Width="10" Height="10" Fill="#FF1b4c2b" RadiusX="2" RadiusY="2" />
+                                        <Rectangle Width="10" Height="10" Fill="#FF2e6930" RadiusX="2" RadiusY="2" />
+                                        <Rectangle Width="10" Height="10" Fill="#FF398b3f" RadiusX="2" RadiusY="2" />
+                                        <Rectangle Width="10" Height="10" Fill="#FF4dca57" RadiusX="2" RadiusY="2" />
+                                        <TextBlock Text="More" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="24" HorizontalAlignment="Right">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="🔥" FontSize="16" />
+                                            <TextBlock Text="Current Streak:" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="CurrentStreakStatsText" Text="0 days" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="⚡" FontSize="16" />
+                                            <TextBlock Text="Longest Streak:" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="LongestStreakStatsText" Text="0 days" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="✍️" FontSize="16" />
+                                            <TextBlock Text="Total Entries:" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="TotalEntriesStatsText" Text="0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Mood Statistics Card -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20">
+                            <StackPanel Spacing="16">
+                                <TextBlock Text="Mood Distribution" FontSize="16" FontWeight="SemiBold" />
+                                <Grid ColumnSpacing="24" RowSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Left Column: Happy, Neutral, Sad -->
+                                    <StackPanel Grid.Column="0" Spacing="12">
+                                        <StackPanel Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="😊 Happy" FontSize="13" FontWeight="Medium" />
+                                                <TextBlock x:Name="MoodHappyCountText" Text="0 entries (0%)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <ProgressBar x:Name="MoodHappyProgress" Minimum="0" Maximum="100" Value="0" Foreground="#FFD700" Height="8" CornerRadius="4" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="😐 Neutral" FontSize="13" FontWeight="Medium" />
+                                                <TextBlock x:Name="MoodNeutralCountText" Text="0 entries (0%)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <ProgressBar x:Name="MoodNeutralProgress" Minimum="0" Maximum="100" Value="0" Foreground="#808080" Height="8" CornerRadius="4" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="😢 Sad" FontSize="13" FontWeight="Medium" />
+                                                <TextBlock x:Name="MoodSadCountText" Text="0 entries (0%)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <ProgressBar x:Name="MoodSadProgress" Minimum="0" Maximum="100" Value="0" Foreground="#1E90FF" Height="8" CornerRadius="4" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Right Column: Stressed, Angry, Unspecified -->
+                                    <StackPanel Grid.Column="1" Spacing="12">
+                                        <StackPanel Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="😫 Stressed" FontSize="13" FontWeight="Medium" />
+                                                <TextBlock x:Name="MoodStressedCountText" Text="0 entries (0%)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <ProgressBar x:Name="MoodStressedProgress" Minimum="0" Maximum="100" Value="0" Foreground="#9370DB" Height="8" CornerRadius="4" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="😡 Angry" FontSize="13" FontWeight="Medium" />
+                                                <TextBlock x:Name="MoodAngryCountText" Text="0 entries (0%)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <ProgressBar x:Name="MoodAngryProgress" Minimum="0" Maximum="100" Value="0" Foreground="#FF4500" Height="8" CornerRadius="4" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="4">
+                                            <Grid>
+                                                <TextBlock Text="📝 Unspecified" FontSize="13" FontWeight="Medium" />
+                                                <TextBlock x:Name="MoodNoneCountText" Text="0 entries (0%)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <ProgressBar x:Name="MoodNoneProgress" Minimum="0" Maximum="100" Value="0" Foreground="#A9A9A9" Height="8" CornerRadius="4" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- Gallery Grid -->
+            <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,36,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MaxWidth="1200" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Header -->
+                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="56,0,56,24">
+                    <TextBlock Text="Photo Gallery" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Scrollable Content -->
+                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="56,0,56,48">
+                    <GridView x:Name="GalleryGridView"
+                              SelectionMode="None"
+                              IsItemClickEnabled="True"
+                              ItemClick="GalleryGridView_ItemClick">
+                        <GridView.ItemTemplate>
+                            <DataTemplate x:DataType="local:JournalNote">
+                                <Grid Width="220" Height="160" CornerRadius="8" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Margin="6">
+                                    <!-- Cover Image -->
+                                    <Image Source="{x:Bind HeroImagePath, Converter={StaticResource ImagePathConverter}, Mode=OneWay}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <!-- Bottom text overlay -->
+                                    <Border VerticalAlignment="Bottom" Height="50" Background="#AA000000" CornerRadius="0,0,8,8" Padding="8,6">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{x:Bind Title}" Foreground="White" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{x:Bind DateModifiedFormatted}" Foreground="#CCCCCC" FontSize="10" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
                 </ScrollViewer>
             </Grid>
         </Grid>
