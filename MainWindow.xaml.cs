@@ -55,6 +55,14 @@ public sealed partial class MainWindow : Window
         // Size and center the window before activation to avoid visual jumps
         CenterWindow();
 
+        // Apply saved backdrop style
+        try
+        {
+            string savedBackdrop = GetSetting("AppBackdrop", "MicaAlt");
+            SetBackdrop(savedBackdrop);
+        }
+        catch {}
+
         // Navigate the root frame to the main page on startup.
         RootFrame.Navigate(typeof(MainPage));
     }
@@ -178,5 +186,42 @@ public sealed partial class MainWindow : Window
         {
             await MainPage.Instance.StartUpdateDownloadFromTitleBar(_updateDownloadUrl, _updateAssetName);
         }
+    }
+
+    public void SetBackdrop(string backdropType)
+    {
+        try
+        {
+            if (string.Equals(backdropType, "Mica", StringComparison.OrdinalIgnoreCase))
+            {
+                this.SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop { Kind = Microsoft.UI.Composition.SystemBackdrops.MicaKind.Base };
+            }
+            else if (string.Equals(backdropType, "MicaAlt", StringComparison.OrdinalIgnoreCase))
+            {
+                this.SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop { Kind = Microsoft.UI.Composition.SystemBackdrops.MicaKind.BaseAlt };
+            }
+            else if (string.Equals(backdropType, "Acrylic", StringComparison.OrdinalIgnoreCase))
+            {
+                this.SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to set backdrop: {ex.Message}");
+        }
+    }
+
+    private string GetSetting(string key, string defaultValue = "")
+    {
+        try
+        {
+            var localSettings = Windows.Storage.ApplicationData.Current.LocalSettings;
+            if (localSettings.Values.TryGetValue(key, out object val))
+            {
+                return val?.ToString() ?? defaultValue;
+            }
+        }
+        catch {}
+        return defaultValue;
     }
 }

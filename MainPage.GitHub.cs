@@ -582,6 +582,10 @@ namespace JournalApp
                 if (ThemeComboBox?.SelectedItem is ComboBoxItem themeItem)
                     SaveSetting("AppTheme", themeItem.Tag?.ToString());
 
+                // Window backdrop
+                if (BackdropComboBox?.SelectedItem is ComboBoxItem backdropItem)
+                    SaveSetting("AppBackdrop", backdropItem.Tag?.ToString());
+
 
                 // Editor font
                 if (EditorFontComboBox?.SelectedItem is ComboBoxItem editorFontItem)
@@ -644,6 +648,15 @@ namespace JournalApp
                 currentTheme = themeItem.Tag?.ToString() ?? "Default";
             }
             if (currentTheme != savedTheme) isDirty = true;
+
+            // Check Backdrop
+            string savedBackdrop = GetSetting("AppBackdrop", "MicaAlt");
+            string currentBackdrop = "MicaAlt";
+            if (BackdropComboBox?.SelectedItem is ComboBoxItem backdropItem)
+            {
+                currentBackdrop = backdropItem.Tag?.ToString() ?? "MicaAlt";
+            }
+            if (currentBackdrop != savedBackdrop) isDirty = true;
 
             // Check Editor Font
             string savedFont = GetSetting("EditorFontFamily", "Segoe UI");

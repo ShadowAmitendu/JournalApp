@@ -1030,23 +1030,19 @@
             </Grid>
             
             <!-- Settings Grid -->
-            <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,36,0,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <!-- Fixed Settings Header (Always Visible) -->
-                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
-                    <TextBlock Text="Settings" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
-                </Grid>
-
+            <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Settings Content -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
-                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
-                        <StackPanel Spacing="4" HorizontalAlignment="Stretch" Margin="0,0,0,24">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
+                    <StackPanel MaxWidth="900"
+                                HorizontalAlignment="Center"
+                                Padding="40,40,40,40"
+                                Spacing="8">
+                        
+                        <!-- Settings Header -->
+                        <TextBlock Text="Settings" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
+
                         <!-- ── Appearance & behavior ── -->
-                        <StackPanel Spacing="2">
+                        <StackPanel Spacing="4" HorizontalAlignment="Stretch">
                             <TextBlock Text="Appearance &amp; behavior" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        Margin="4,0,0,8" CharacterSpacing="50" />
@@ -1068,6 +1064,27 @@
                                         <ComboBoxItem Content="Default" Tag="Default" IsSelected="True" />
                                         <ComboBoxItem Content="Light" Tag="Light" />
                                         <ComboBoxItem Content="Dark" Tag="Dark" />
+                                    </ComboBox>
+                                </Grid>
+                            </Border>
+
+                            <!-- Window Backdrop -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE7F4;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Window backdrop" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Select the material type for the app backdrop" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="BackdropComboBox" Grid.Column="2" Width="150" VerticalAlignment="Center" SelectionChanged="BackdropComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="Mica Alt" Tag="MicaAlt" />
+                                        <ComboBoxItem Content="Mica" Tag="Mica" />
+                                        <ComboBoxItem Content="Acrylic" Tag="Acrylic" />
                                     </ComboBox>
                                 </Grid>
                             </Border>
@@ -1300,7 +1317,7 @@
                                             <TextBlock Text="JournalApp" FontSize="14" FontWeight="Medium" />
                                             <TextBlock Text="© 2026 JournalApp. All rights reserved." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
-                                        <TextBlock x:Name="AboutVersionTextBlock" Grid.Column="2" Text="1.2.0" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="AboutVersionTextBlock" Grid.Column="2" Text="1.0.5.0" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </Grid>
                                 </Expander.Header>
                                 <StackPanel x:Name="AboutDetailsPanel" Spacing="8" Margin="44,0,0,8">
@@ -1329,35 +1346,33 @@
                         </Border>
                         <Border Height="32" />
                     </StackPanel>
-                </Grid>
-            </ScrollViewer>
-        </Grid>
+                </ScrollViewer>
+            </Grid>
 
             <!-- GitHub Commit History Grid -->
-            <Grid x:Name="GitHubGrid" Visibility="Collapsed" Padding="0,36,0,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+            <Grid x:Name="GitHubGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <!-- Scrollable Content -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
+                    <StackPanel MaxWidth="900"
+                                HorizontalAlignment="Center"
+                                Padding="40,40,40,40"
+                                Spacing="8">
+                        
+                        <!-- Header inside the scroll stack -->
+                        <Grid Margin="0,0,0,16" HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="GitHub Sync History" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
+                            <Button x:Name="RefreshGitHubHistoryBtn" Grid.Column="1" Click="RefreshGitHubHistoryBtn_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,6" CornerRadius="4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE72C;" FontSize="13" />
+                                    <TextBlock Text="Refresh History" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
 
-                <!-- Header -->
-                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="GitHub Sync History" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
-                    <Button x:Name="RefreshGitHubHistoryBtn" Grid.Column="1" Click="RefreshGitHubHistoryBtn_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,6" CornerRadius="4">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE72C;" FontSize="13" />
-                            <TextBlock Text="Refresh History" />
-                        </StackPanel>
-                    </Button>
-                </Grid>
-
-                <!-- Content -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
-                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
                         <StackPanel Spacing="24" HorizontalAlignment="Stretch">
                         
                         <!-- Commit Graph Card -->
@@ -1422,25 +1437,22 @@
                             </ListView.ItemTemplate>
                         </ListView>
                     </StackPanel>
-                </Grid>
+                </StackPanel>
             </ScrollViewer>
         </Grid>
 
             <!-- Stats Grid -->
-            <Grid x:Name="StatsGrid" Visibility="Collapsed" Padding="0,36,0,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <!-- Header -->
-                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
-                    <TextBlock Text="Writing Stats &amp; Insights" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
-                </Grid>
-
+            <Grid x:Name="StatsGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Content -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
-                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
+                    <StackPanel MaxWidth="900"
+                                HorizontalAlignment="Center"
+                                Padding="40,40,40,40"
+                                Spacing="8">
+                        
+                        <!-- Header inside scroll stack -->
+                        <TextBlock Text="Writing Stats &amp; Insights" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
+
                         <StackPanel Spacing="24" HorizontalAlignment="Stretch">
                         <!-- Contribution Graph Card -->
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20">
@@ -1549,25 +1561,22 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                </Grid>
+                </StackPanel>
             </ScrollViewer>
         </Grid>
 
             <!-- Gallery Grid -->
-            <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,36,0,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <!-- Header -->
-                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
-                    <TextBlock Text="Photo Gallery" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
-                </Grid>
-
+            <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Content -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
-                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
+                    <StackPanel MaxWidth="900"
+                                HorizontalAlignment="Center"
+                                Padding="40,40,40,40"
+                                Spacing="8">
+                        
+                        <!-- Header inside scroll stack -->
+                        <TextBlock Text="Photo Gallery" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
+
                         <GridView x:Name="GalleryGridView"
                               SelectionMode="None"
                               IsItemClickEnabled="True"
@@ -1588,7 +1597,7 @@
                             </DataTemplate>
                         </GridView.ItemTemplate>
                     </GridView>
-                </Grid>
+                </StackPanel>
             </ScrollViewer>
         </Grid>
         </Grid>

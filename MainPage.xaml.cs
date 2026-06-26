@@ -9,6 +9,8 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -3012,6 +3014,25 @@ namespace JournalApp
             UpdateSaveSettingsButtonState();
         }
 
+        private void BackdropComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            if (BackdropComboBox == null) return;
+
+            if (BackdropComboBox.SelectedItem is ComboBoxItem selectedItem)
+            {
+                string backdropTag = selectedItem.Tag?.ToString();
+                if (!string.IsNullOrEmpty(backdropTag))
+                {
+                    if (MainWindow.Instance != null)
+                    {
+                        MainWindow.Instance.SetBackdrop(backdropTag);
+                    }
+                }
+            }
+            UpdateSaveSettingsButtonState();
+        }
+
         private void AboutCard_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             // Expand/collapse is now handled natively by the Expander control
@@ -3105,6 +3126,20 @@ namespace JournalApp
             {
                 // Always apply Segoe UI Variable as the application-wide font
                 ApplyAppFont("Segoe UI Variable");
+
+                // Load and select saved window backdrop
+                string savedBackdrop = GetSetting("AppBackdrop", "MicaAlt");
+                if (BackdropComboBox != null)
+                {
+                    foreach (object itemObj in BackdropComboBox.Items)
+                    {
+                        if (itemObj is ComboBoxItem item && item.Tag?.ToString() == savedBackdrop)
+                        {
+                            BackdropComboBox.SelectedItem = item;
+                            break;
+                        }
+                    }
+                }
 
                 // 2. Load Editor Font
                 string editorFont = GetSetting("EditorFontFamily");
@@ -4439,11 +4474,60 @@ namespace JournalApp
 
         private void ShowGrid(Grid gridToShow)
         {
-            if (MainEditorGrid != null) MainEditorGrid.Visibility = (gridToShow == MainEditorGrid) ? Visibility.Visible : Visibility.Collapsed;
-            if (SettingsGrid != null) SettingsGrid.Visibility = (gridToShow == SettingsGrid) ? Visibility.Visible : Visibility.Collapsed;
-            if (GitHubGrid != null) GitHubGrid.Visibility = (gridToShow == GitHubGrid) ? Visibility.Visible : Visibility.Collapsed;
-            if (StatsGrid != null) StatsGrid.Visibility = (gridToShow == StatsGrid) ? Visibility.Visible : Visibility.Collapsed;
-            if (GalleryGrid != null) GalleryGrid.Visibility = (gridToShow == GalleryGrid) ? Visibility.Visible : Visibility.Collapsed;
+            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid };
+            foreach (var g in allGrids)
+            {
+                if (g == null) continue;
+                if (g == gridToShow)
+                {
+                    g.Visibility = Visibility.Visible;
+                    AnimateGridIn(g);
+                }
+                else
+                {
+                    g.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void AnimateGridIn(Grid target)
+        {
+            // Ensure a CompositeTransform is available for translate animation
+            if (target.RenderTransform is not CompositeTransform)
+                target.RenderTransform = new CompositeTransform();
+            target.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+
+            var ct = (CompositeTransform)target.RenderTransform;
+            ct.TranslateY = 18;
+            target.Opacity = 0;
+
+            var sb = new Storyboard();
+
+            // Fade in
+            var fadeAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = new Duration(TimeSpan.FromMilliseconds(240)),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(fadeAnim, target);
+            Storyboard.SetTargetProperty(fadeAnim, "Opacity");
+            sb.Children.Add(fadeAnim);
+
+            // Slide up
+            var slideAnim = new DoubleAnimation
+            {
+                From = 18,
+                To = 0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(300)),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(slideAnim, target);
+            Storyboard.SetTargetProperty(slideAnim, "(UIElement.RenderTransform).(CompositeTransform.TranslateY)");
+            sb.Children.Add(slideAnim);
+
+            sb.Begin();
         }
 
         private void PopulateMoodStats()
