@@ -1617,6 +1617,176 @@ namespace JournalApp
             }
         }
 
+        private void EditorContextFlyout_Opening(object sender, object e)
+        {
+            if (NoteRichEditBox == null || ContextResizeImage == null || EditorContextSeparator == null) return;
+            NoteRichEditBox.Document.Selection.GetText(Microsoft.UI.Text.TextGetOptions.None, out string selectedText);
+            bool isImage = (selectedText == "\xFFFC");
+            ContextResizeImage.Visibility = isImage ? Visibility.Visible : Visibility.Collapsed;
+            EditorContextSeparator.Visibility = isImage ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ContextCut_Click(object sender, RoutedEventArgs e)
+        {
+            NoteRichEditBox?.Document.Selection.Cut();
+        }
+
+        private void ContextCopy_Click(object sender, RoutedEventArgs e)
+        {
+            NoteRichEditBox?.Document.Selection.Copy();
+        }
+
+        private void ContextPaste_Click(object sender, RoutedEventArgs e)
+        {
+            NoteRichEditBox?.Document.Selection.Paste(0);
+        }
+
+        private async void ContextResizeImage_Click(object sender, RoutedEventArgs e)
+        {
+            await ResizeSelectedImageAsync();
+        }
+
+        private async void NoteRichEditBox_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+        {
+            if (NoteRichEditBox == null) return;
+            NoteRichEditBox.Document.Selection.GetText(Microsoft.UI.Text.TextGetOptions.None, out string selectedText);
+            if (selectedText == "\xFFFC")
+            {
+                e.Handled = true;
+                await ResizeSelectedImageAsync();
+            }
+        }
+
+        private async Task ResizeSelectedImageAsync()
+        {
+            if (NoteRichEditBox == null) return;
+            try
+            {
+                NoteRichEditBox.Document.Selection.GetText(Microsoft.UI.Text.TextGetOptions.FormatRtf, out string rtf);
+                
+                int currentWidth = 300;
+                int currentHeight = 300;
+                
+                var currentDims = GetImageDimensionsFromRtf(rtf);
+                if (currentDims != null)
+                {
+                    currentWidth = currentDims.Value.width;
+                    currentHeight = currentDims.Value.height;
+                }
+                
+                var newDims = await PromptForImageSizeWithDefaultsAsync(currentWidth, currentHeight);
+                if (newDims == null) return;
+                
+                string newRtf = SetImageDimensionsInRtf(rtf, newDims.Value.width, newDims.Value.height);
+                NoteRichEditBox.Document.Selection.SetText(Microsoft.UI.Text.TextSetOptions.FormatRtf, newRtf);
+                MarkDirty();
+            }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync("Error", $"Could not resize image: {ex.Message}");
+            }
+        }
+
+        private async Task<(int width, int height)?> PromptForImageSizeWithDefaultsAsync(int defaultWidth, int defaultHeight)
+        {
+            var widthBox = new TextBox
+            {
+                Header = "Width (pixels)",
+                Text = defaultWidth.ToString(),
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
+            var heightBox = new TextBox
+            {
+                Header = "Height (pixels)",
+                Text = defaultHeight.ToString(),
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
+            var panel = new StackPanel { Spacing = 12, Width = 260 };
+            panel.Children.Add(new TextBlock { 
+                Text = "Specify the display dimensions for the selected image.",
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 13,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+            });
+            
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            
+            Grid.SetColumn(widthBox, 0);
+            Grid.SetColumn(heightBox, 2);
+            grid.Children.Add(widthBox);
+            grid.Children.Add(heightBox);
+            
+            panel.Children.Add(grid);
+
+            var dialog = new ContentDialog
+            {
+                Title = "Resize Image",
+                Content = panel,
+                PrimaryButtonText = "Resize",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                if (!int.TryParse(widthBox.Text?.Trim(), out int w) || w <= 0) w = defaultWidth;
+                if (!int.TryParse(heightBox.Text?.Trim(), out int h) || h <= 0) h = defaultHeight;
+                return (w, h);
+            }
+            return null;
+        }
+
+        private (int width, int height)? GetImageDimensionsFromRtf(string rtf)
+        {
+            var wMatch = System.Text.RegularExpressions.Regex.Match(rtf, @"\\picwgoal(?<val>\d+)");
+            var hMatch = System.Text.RegularExpressions.Regex.Match(rtf, @"\\pichgoal(?<val>\d+)");
+            if (wMatch.Success && hMatch.Success)
+            {
+                if (int.TryParse(wMatch.Groups["val"].Value, out int wTwips) &&
+                    int.TryParse(hMatch.Groups["val"].Value, out int hTwips))
+                {
+                    return (wTwips / 15, hTwips / 15);
+                }
+            }
+            return null;
+        }
+
+        private string SetImageDimensionsInRtf(string rtf, int newWidth, int newHeight)
+        {
+            int newWTwips = newWidth * 15;
+            int newHTwips = newHeight * 15;
+
+            if (rtf.Contains("\\picwgoal"))
+            {
+                rtf = System.Text.RegularExpressions.Regex.Replace(rtf, @"\\picwgoal\d+", $"\\picwgoal{newWTwips}");
+            }
+            else
+            {
+                rtf = rtf.Replace("\\pict", $"\\pict\\picwgoal{newWTwips}");
+            }
+
+            if (rtf.Contains("\\pichgoal"))
+            {
+                rtf = System.Text.RegularExpressions.Regex.Replace(rtf, @"\\pichgoal\d+", $"\\pichgoal{newHTwips}");
+            }
+            else
+            {
+                rtf = rtf.Replace("\\pict", $"\\pict\\pichgoal{newHTwips}");
+            }
+
+            rtf = System.Text.RegularExpressions.Regex.Replace(rtf, @"\\picw\d+", $"\\picw{newWTwips}");
+            rtf = System.Text.RegularExpressions.Regex.Replace(rtf, @"\\pich\d+", $"\\pich{newHTwips}");
+
+            return rtf;
+        }
+
         // Hero Image Management
         private void UpdateHeroImageUI()
         {
