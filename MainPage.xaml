@@ -1027,18 +1027,16 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MaxWidth="1200" />
-                </Grid.ColumnDefinitions>
 
                 <!-- Fixed Settings Header (Always Visible) -->
-                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="56,0,56,24">
+                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
                     <TextBlock Text="Settings" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
                 </Grid>
 
                 <!-- Scrollable Settings Content -->
-                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="56,0,56,48">
-                    <StackPanel Spacing="4" HorizontalAlignment="Stretch" Margin="0,0,0,24">
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
+                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
+                        <StackPanel Spacing="4" HorizontalAlignment="Stretch" Margin="0,0,0,24">
                         <!-- ── Appearance & behavior ── -->
                         <StackPanel Spacing="2">
                             <TextBlock Text="Appearance &amp; behavior" FontSize="12" FontWeight="SemiBold"
@@ -1323,8 +1321,9 @@
                         </Border>
                         <Border Height="32" />
                     </StackPanel>
-                </ScrollViewer>
-            </Grid>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
 
             <!-- GitHub Commit History Grid -->
             <Grid x:Name="GitHubGrid" Visibility="Collapsed" Padding="0,36,0,0">
@@ -1332,12 +1331,9 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MaxWidth="1200" />
-                </Grid.ColumnDefinitions>
 
                 <!-- Header -->
-                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="56,0,56,24">
+                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -1352,8 +1348,9 @@
                 </Grid>
 
                 <!-- Content -->
-                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="56,0,56,48">
-                    <StackPanel Spacing="24" HorizontalAlignment="Stretch">
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
+                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
+                        <StackPanel Spacing="24" HorizontalAlignment="Stretch">
                         
                         <!-- Commit Graph Card -->
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20">
@@ -1417,8 +1414,9 @@
                             </ListView.ItemTemplate>
                         </ListView>
                     </StackPanel>
-                </ScrollViewer>
-            </Grid>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
 
             <!-- Stats Grid -->
             <Grid x:Name="StatsGrid" Visibility="Collapsed" Padding="0,36,0,0">
@@ -1426,18 +1424,16 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MaxWidth="1200" />
-                </Grid.ColumnDefinitions>
 
                 <!-- Header -->
-                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="56,0,56,24">
+                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
                     <TextBlock Text="Writing Stats &amp; Insights" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
                 </Grid>
 
                 <!-- Scrollable Content -->
-                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="56,0,56,48">
-                    <StackPanel Spacing="24" HorizontalAlignment="Stretch">
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
+                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
+                        <StackPanel Spacing="24" HorizontalAlignment="Stretch">
                         <!-- Contribution Graph Card -->
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20">
                             <StackPanel Spacing="16">
@@ -1545,8 +1541,9 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                </ScrollViewer>
-            </Grid>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
 
             <!-- Gallery Grid -->
             <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,36,0,0">
@@ -1554,18 +1551,16 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MaxWidth="1200" />
-                </Grid.ColumnDefinitions>
 
                 <!-- Header -->
-                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="56,0,56,24">
+                <Grid Grid.Row="0" HorizontalAlignment="Stretch" MaxWidth="1100" Padding="16,0,16,24">
                     <TextBlock Text="Photo Gallery" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
                 </Grid>
 
                 <!-- Scrollable Content -->
-                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="56,0,56,48">
-                    <GridView x:Name="GalleryGridView"
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="0,0,0,48">
+                    <Grid MaxWidth="1100" HorizontalAlignment="Stretch" Padding="16,0">
+                        <GridView x:Name="GalleryGridView"
                               SelectionMode="None"
                               IsItemClickEnabled="True"
                               ItemClick="GalleryGridView_ItemClick">
@@ -1585,8 +1580,9 @@
                             </DataTemplate>
                         </GridView.ItemTemplate>
                     </GridView>
-                </ScrollViewer>
-            </Grid>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
         </Grid>
     </NavigationView>
 
