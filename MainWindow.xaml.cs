@@ -113,4 +113,67 @@ public sealed partial class MainWindow : Window
         }
         catch {}
     }
+
+    private string _updateDownloadUrl;
+    private string _updateAssetName;
+
+    public void ShowUpdateAvailable(string downloadUrl, string assetName, string version)
+    {
+        _updateDownloadUrl = downloadUrl;
+        _updateAssetName = assetName;
+        
+        if (TitleBarUpdateBtn != null)
+        {
+            TitleBarUpdateBtn.Visibility = Visibility.Visible;
+            if (TitleBarUpdateText != null)
+            {
+                TitleBarUpdateText.Text = $"Update to {version}";
+            }
+        }
+    }
+
+    public void ShowTitleBarDownloadState(bool downloading)
+    {
+        if (downloading)
+        {
+            if (TitleBarUpdateBtn != null) TitleBarUpdateBtn.IsEnabled = false;
+            if (TitleBarUpdateProgress != null) TitleBarUpdateProgress.Visibility = Visibility.Visible;
+            if (TitleBarUpdateText != null) TitleBarUpdateText.Text = "Downloading...";
+        }
+        else
+        {
+            if (TitleBarUpdateBtn != null) TitleBarUpdateBtn.IsEnabled = true;
+            if (TitleBarUpdateProgress != null) TitleBarUpdateProgress.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    public void UpdateTitleBarDownloadProgress(int percentage)
+    {
+        if (TitleBarUpdateProgress != null)
+        {
+            TitleBarUpdateProgress.Value = percentage;
+        }
+        if (TitleBarUpdateText != null)
+        {
+            TitleBarUpdateText.Text = $"Downloading: {percentage}%";
+        }
+    }
+
+    public void UpdateTitleBarDownloadText(string text)
+    {
+        if (TitleBarUpdateText != null)
+        {
+            TitleBarUpdateText.Text = text;
+        }
+    }
+
+    private async void TitleBarUpdateBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_updateDownloadUrl)) return;
+        
+        if (MainPage.Instance != null)
+        {
+            await MainPage.Instance.StartUpdateDownloadFromTitleBar(_updateDownloadUrl, _updateAssetName);
+        }
+    }
 }

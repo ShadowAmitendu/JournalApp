@@ -363,6 +363,7 @@ namespace JournalApp
                     }
                 }
                 UpdateSaveSettingsButtonState();
+                TriggerUpdateCheckStartup();
             }
             catch (Exception ex)
             {
@@ -843,6 +844,7 @@ namespace JournalApp
                 // Show Main Editor Layout
                 if (MainEditorGrid != null) MainEditorGrid.Visibility = Visibility.Visible;
                 if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
+                if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
 
                 _selectedCategory = category.Name;
                 if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = category.Name;
@@ -854,6 +856,7 @@ namespace JournalApp
                 {
                     if (MainEditorGrid != null) MainEditorGrid.Visibility = Visibility.Visible;
                     if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
+                    if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
 
                     _selectedCategory = "Trash";
                     if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Trash";
@@ -863,6 +866,7 @@ namespace JournalApp
                 {
                     if (MainEditorGrid != null) MainEditorGrid.Visibility = Visibility.Visible;
                     if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
+                    if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
 
                     _selectedCategory = "Favorites";
                     if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Favorites";
@@ -875,8 +879,15 @@ namespace JournalApp
 
                     if (navItem == SettingsNavItem && SettingsGrid != null)
                     {
+                        if (GitHubGrid != null) GitHubGrid.Visibility = Visibility.Collapsed;
                         SettingsGrid.Visibility = Visibility.Visible;
                         TriggerUpdateCheck();
+                    }
+                    else if (navItem == GitHubNavItem && GitHubGrid != null)
+                    {
+                        if (SettingsGrid != null) SettingsGrid.Visibility = Visibility.Collapsed;
+                        GitHubGrid.Visibility = Visibility.Visible;
+                        LoadGitHubCommitsAndHistory();
                     }
                 }
             }
@@ -3159,6 +3170,12 @@ namespace JournalApp
             if (UpdateStatusTextBlock != null)
                 UpdateStatusTextBlock.Text = "Downloading update...";
 
+            var mainWindow = MainWindow.Instance;
+            if (mainWindow != null)
+            {
+                mainWindow.ShowTitleBarDownloadState(true);
+            }
+
             try
             {
                 string tempPath = Path.Combine(Path.GetTempPath(), assetName);
@@ -3185,12 +3202,19 @@ namespace JournalApp
                             await fileStream.WriteAsync(buffer, 0, read);
                             totalRead += read;
                             
-                            if (totalBytes > 0 && UpdateStatusTextBlock != null)
+                            if (totalBytes > 0)
                             {
                                 int pct = (int)((double)totalRead / totalBytes * 100);
                                 DispatcherQueue.TryEnqueue(() =>
                                 {
-                                    UpdateStatusTextBlock.Text = $"Downloading: {pct}%";
+                                    if (UpdateStatusTextBlock != null)
+                                    {
+                                        UpdateStatusTextBlock.Text = $"Downloading: {pct}%";
+                                    }
+                                    if (mainWindow != null)
+                                    {
+                                        mainWindow.UpdateTitleBarDownloadProgress(pct);
+                                    }
                                 });
                             }
                         }
@@ -3200,6 +3224,11 @@ namespace JournalApp
                 if (UpdateStatusTextBlock != null)
                     UpdateStatusTextBlock.Text = "Launching installer...";
 
+                if (mainWindow != null)
+                {
+                    mainWindow.UpdateTitleBarDownloadText("Installing...");
+                }
+
                 var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(tempPath);
                 await Windows.System.Launcher.LaunchFileAsync(file);
 
@@ -3208,8 +3237,253 @@ namespace JournalApp
             }
             catch (Exception ex)
             {
+                if (UpdateStatusTextBlock != null)
+                    UpdateStatusTextBlock.Text = "Check failed";
+                if (mainWindow != null)
+                {
+                    mainWindow.ShowTitleBarDownloadState(false);
+                    mainWindow.UpdateTitleBarDownloadText("Update Failed");
+                }
                 await ShowAlertAsync("Update Failed", $"Could not download or launch update: {ex.Message}");
             }
+        }
+
+        public async Task StartUpdateDownloadFromTitleBar(string downloadUrl, string assetName)
+        {
+            await DownloadAndInstallUpdate(downloadUrl, assetName);
+        }
+
+        private async void TriggerUpdateCheckStartup()
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/ShadowAmitendu/JournalApp/releases/latest");
+                request.Headers.UserAgent.TryParseAdd("JournalApp");
+                
+                string savedToken = GetSetting("GitHubToken");
+                if (!string.IsNullOrEmpty(savedToken))
+                {
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", savedToken);
+                }
+
+                var response = await _httpClient.SendAsync(request);
+                if (!response.IsSuccessStatusCode) return;
+
+                string json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                string latestTag = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "1.0.0" : "1.0.0";
+                
+                string downloadUrl = "";
+                string assetName = "";
+                if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var asset in assetsEl.EnumerateArray())
+                    {
+                        string name = asset.GetProperty("name").GetString() ?? "";
+                        if (name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase) || 
+                            name.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase) ||
+                            name.EndsWith(".appxbundle", StringComparison.OrdinalIgnoreCase))
+                        {
+                            downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+                            assetName = name;
+                            break;
+                        }
+                    }
+                }
+
+                var currentVersion = GetAppVersion();
+                var cleanLatest = NormalizeVersionString(latestTag);
+                var cleanCurrent = NormalizeVersionString(currentVersion);
+
+                bool hasNewUpdate = false;
+                if (Version.TryParse(cleanLatest, out Version? remote) && Version.TryParse(cleanCurrent, out Version? local))
+                {
+                    if (remote > local)
+                    {
+                        hasNewUpdate = true;
+                    }
+                }
+
+                if (hasNewUpdate && MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.ShowUpdateAvailable(downloadUrl, assetName, latestTag);
+                }
+            }
+            catch {}
+        }
+
+        private async void LoadGitHubCommitsAndHistory()
+        {
+            if (GitHubGrid == null || GitHubCommitsListView == null || GitHubHistoryProgressBar == null || GitHubHistoryErrorText == null) return;
+
+            GitHubHistoryProgressBar.Visibility = Visibility.Visible;
+            GitHubHistoryErrorText.Visibility = Visibility.Collapsed;
+            GitHubCommitsListView.ItemsSource = null;
+            CommitChartContainer.Children.Clear();
+
+            string token = GetSetting("GitHubToken");
+            string repoName = GetSetting("GitHubRepo");
+
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName))
+            {
+                GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
+                GitHubHistoryErrorText.Visibility = Visibility.Visible;
+                GitHubHistoryErrorText.Text = "Please set up your GitHub Personal Access Token (PAT) and Repository name in the Settings tab first to view sync history.";
+                return;
+            }
+
+            try
+            {
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
+                _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+                var userResponse = await _httpClient.GetAsync("https://api.github.com/user");
+                if (!userResponse.IsSuccessStatusCode)
+                {
+                    throw new Exception("Failed to authenticate with GitHub. Check your token in Settings.");
+                }
+
+                using var userDoc = JsonDocument.Parse(await userResponse.Content.ReadAsStringAsync());
+                string username = userDoc.RootElement.GetProperty("login").GetString();
+
+                var commitsResponse = await _httpClient.GetAsync($"https://api.github.com/repos/{username}/{repoName}/commits");
+                if (!commitsResponse.IsSuccessStatusCode)
+                {
+                    string errContent = await commitsResponse.Content.ReadAsStringAsync();
+                    throw new Exception($"Failed to fetch repository commits: {commitsResponse.ReasonPhrase}. Details: {errContent}");
+                }
+
+                string commitsJson = await commitsResponse.Content.ReadAsStringAsync();
+                using var commitsDoc = JsonDocument.Parse(commitsJson);
+                
+                var commitList = new List<GitHubCommitViewModel>();
+                var commitDates = new Dictionary<string, int>();
+
+                for (int i = 6; i >= 0; i--)
+                {
+                    string dateKey = DateTime.Today.AddDays(-i).ToString("yyyy-MM-dd");
+                    commitDates[dateKey] = 0;
+                }
+
+                foreach (var commitObj in commitsDoc.RootElement.EnumerateArray())
+                {
+                    string sha = commitObj.GetProperty("sha").GetString() ?? "";
+                    string shortSha = sha.Length > 7 ? sha.Substring(0, 7) : sha;
+
+                    var commitInfo = commitObj.GetProperty("commit");
+                    string message = commitInfo.GetProperty("message").GetString() ?? "";
+                    
+                    var authorInfo = commitInfo.GetProperty("author");
+                    string authorName = authorInfo.GetProperty("name").GetString() ?? "";
+                    string dateStr = authorInfo.GetProperty("date").GetString() ?? "";
+
+                    DateTime commitDate = DateTime.TryParse(dateStr, out var d) ? d.ToLocalTime() : DateTime.Now;
+                    
+                    commitList.Add(new GitHubCommitViewModel
+                    {
+                        Message = message,
+                        Author = authorName,
+                        DateFormatted = commitDate.ToString("g"),
+                        ShortSha = shortSha
+                    });
+
+                    string commitDateKey = commitDate.ToString("yyyy-MM-dd");
+                    if (commitDates.ContainsKey(commitDateKey))
+                    {
+                        commitDates[commitDateKey]++;
+                    }
+                }
+
+                RenderCommitActivityChart(commitDates);
+                GitHubCommitsListView.ItemsSource = commitList;
+                GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
+                GitHubHistoryErrorText.Visibility = Visibility.Visible;
+                GitHubHistoryErrorText.Text = $"Error: {ex.Message}";
+            }
+        }
+
+        private void RenderCommitActivityChart(Dictionary<string, int> commitDates)
+        {
+            if (CommitChartContainer == null) return;
+            CommitChartContainer.Children.Clear();
+
+            int maxCommits = commitDates.Values.Max();
+            if (maxCommits == 0) maxCommits = 1;
+
+            var accentBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            var textBrushSecondary = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+
+            foreach (var kvp in commitDates)
+            {
+                string dateStr = kvp.Key;
+                int count = kvp.Value;
+                
+                DateTime dt = DateTime.Parse(dateStr);
+                string label = dt.ToString("dd MMM");
+
+                var barStack = new StackPanel
+                {
+                    Width = 60,
+                    Spacing = 4,
+                    VerticalAlignment = VerticalAlignment.Bottom
+                };
+
+                var countText = new TextBlock
+                {
+                    Text = $"{count}",
+                    FontSize = 10,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Foreground = textBrushSecondary
+                };
+
+                double maxHeight = 80;
+                double calculatedHeight = ((double)count / maxCommits) * maxHeight;
+                if (calculatedHeight < 3) calculatedHeight = 3;
+
+                var bar = new Border
+                {
+                    Height = calculatedHeight,
+                    Width = 20,
+                    Background = accentBrush,
+                    CornerRadius = new CornerRadius(4, 4, 0, 0),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+
+                var labelText = new TextBlock
+                {
+                    Text = label,
+                    FontSize = 10,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Foreground = textBrushSecondary
+                };
+
+                barStack.Children.Add(countText);
+                barStack.Children.Add(bar);
+                barStack.Children.Add(labelText);
+
+                CommitChartContainer.Children.Add(barStack);
+            }
+        }
+
+        private void RefreshGitHubHistoryBtn_Click(object sender, RoutedEventArgs e)
+        {
+            LoadGitHubCommitsAndHistory();
+        }
+
+        public class GitHubCommitViewModel
+        {
+            public string Message { get; set; }
+            public string Author { get; set; }
+            public string DateFormatted { get; set; }
+            public string ShortSha { get; set; }
         }
 
         // Trigger update checking
