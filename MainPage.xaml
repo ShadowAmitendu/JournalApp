@@ -181,11 +181,19 @@
                             </Button>
                             
                             <!-- Empty Trash Button -->
-                            <Button x:Name="EmptyTrashButton" ToolTipService.ToolTip="Empty Trash" Click="EmptyTrashButton_Click" Height="32" CornerRadius="16" Padding="8,0" Visibility="Collapsed">
+                            <Button x:Name="EmptyTrashButton" ToolTipService.ToolTip="Empty Trash" Click="EmptyTrashButton_Click" Height="32" CornerRadius="16" Padding="8,0" Visibility="Collapsed" Background="#FF3B30" BorderBrush="#FF3B30" Foreground="White">
+                                <Button.Resources>
+                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#D32F2F" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#D32F2F" />
+                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#B71C1C" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White" />
+                                    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#B71C1C" />
+                                </Button.Resources>
                                 <Button.Content>
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE74D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Foreground="Red" />
-                                        <TextBlock Text="Empty Trash" FontSize="11" Foreground="Red" FontWeight="Medium" VerticalAlignment="Center"/>
+                                        <FontIcon Glyph="&#xE74D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
+                                        <TextBlock Text="Empty Trash" FontSize="11" FontWeight="Medium" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button.Content>
                             </Button>
@@ -1292,7 +1300,7 @@
                                             <TextBlock Text="JournalApp" FontSize="14" FontWeight="Medium" />
                                             <TextBlock Text="© 2026 JournalApp. All rights reserved." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
-                                        <TextBlock Grid.Column="2" Text="1.2.0" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="AboutVersionTextBlock" Grid.Column="2" Text="1.2.0" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </Grid>
                                 </Expander.Header>
                                 <StackPanel x:Name="AboutDetailsPanel" Spacing="8" Margin="44,0,0,8">

@@ -440,6 +440,10 @@ namespace JournalApp
         {
             try
             {
+                if (AboutVersionTextBlock != null)
+                {
+                    AboutVersionTextBlock.Text = GetAppVersion();
+                }
                 LoadCategoriesList();
                 RefreshNotesList();
                 LoadSavedGitHubSettings();
