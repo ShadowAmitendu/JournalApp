@@ -882,7 +882,7 @@
             </Grid>
             
             <!-- Settings Grid -->
-            <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,16,0,0">
+            <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,36,0,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -892,12 +892,12 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Fixed Settings Header (Always Visible) -->
-                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="40,0,40,16">
+                <Grid Grid.Row="0" Grid.Column="0" HorizontalAlignment="Stretch" Padding="56,0,56,24">
                     <TextBlock Text="Settings" FontSize="28" FontWeight="Bold" VerticalAlignment="Center" />
                 </Grid>
 
                 <!-- Scrollable Settings Content -->
-                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="40,8,40,40">
+                <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch" Padding="56,0,56,48">
                     <StackPanel Spacing="4" HorizontalAlignment="Stretch" Margin="0,0,0,24">
                         <!-- ── Appearance & behavior ── -->
                         <StackPanel Spacing="2">

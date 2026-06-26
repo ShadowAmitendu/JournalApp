@@ -2955,13 +2955,100 @@ namespace JournalApp
             }
         }
 
+        private string GetAppVersion()
+        {
+            try
+            {
+                var version = Windows.ApplicationModel.Package.Current.Id.Version;
+                return $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
+            }
+            catch (InvalidOperationException)
+            {
+                var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                return version != null ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}" : "1.0.0.0";
+            }
+        }
+
+        private string NormalizeVersionString(string versionStr)
+        {
+            if (string.IsNullOrEmpty(versionStr)) return "0.0.0.0";
+            if (versionStr.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+            {
+                versionStr = versionStr.Substring(1);
+            }
+            int dashIndex = versionStr.IndexOf('-');
+            if (dashIndex > 0)
+            {
+                versionStr = versionStr.Substring(0, dashIndex);
+            }
+            return versionStr.Trim();
+        }
+
+        private async Task DownloadAndInstallUpdate(string downloadUrl, string assetName)
+        {
+            if (UpdateStatusTextBlock != null)
+                UpdateStatusTextBlock.Text = "Downloading update...";
+
+            try
+            {
+                string tempPath = Path.Combine(Path.GetTempPath(), assetName);
+                Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
+                
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+
+                using (var downloadResponse = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
+                {
+                    downloadResponse.EnsureSuccessStatusCode();
+                    var totalBytes = downloadResponse.Content.Headers.ContentLength ?? -1L;
+                    
+                    using (var contentStream = await downloadResponse.Content.ReadAsStreamAsync())
+                    using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                    {
+                        var buffer = new byte[8192];
+                        var totalRead = 0L;
+                        int read;
+                        while ((read = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            await fileStream.WriteAsync(buffer, 0, read);
+                            totalRead += read;
+                            
+                            if (totalBytes > 0 && UpdateStatusTextBlock != null)
+                            {
+                                int pct = (int)((double)totalRead / totalBytes * 100);
+                                DispatcherQueue.TryEnqueue(() =>
+                                {
+                                    UpdateStatusTextBlock.Text = $"Downloading: {pct}%";
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if (UpdateStatusTextBlock != null)
+                    UpdateStatusTextBlock.Text = "Launching installer...";
+
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(tempPath);
+                await Windows.System.Launcher.LaunchFileAsync(file);
+
+                await Task.Delay(1000);
+                Microsoft.UI.Xaml.Application.Current.Exit();
+            }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync("Update Failed", $"Could not download or launch update: {ex.Message}");
+            }
+        }
+
         // Trigger update checking
         private async void TriggerUpdateCheck()
         {
             if (UpdateStatusTextBlock != null)
                 UpdateStatusTextBlock.Text = "Checking for updates...";
             if (LastCheckedTextBlock != null)
-                LastCheckedTextBlock.Text = "Connecting to update server...";
+                LastCheckedTextBlock.Text = "Connecting to GitHub...";
 
             // Show spinner in button
             if (CheckUpdatesButton != null)
@@ -2979,26 +3066,138 @@ namespace JournalApp
                 };
             }
 
-            await Task.Delay(1500); // Simulate network check
-
-            if (UpdateStatusTextBlock != null)
-                UpdateStatusTextBlock.Text = "You're up to date!";
-            if (LastCheckedTextBlock != null)
-                LastCheckedTextBlock.Text = $"Last checked: {DateTime.Now:h:mm:ss tt}";
-
-            // Restore button
-            if (CheckUpdatesButton != null)
+            try
             {
-                CheckUpdatesButton.Content = new Microsoft.UI.Xaml.Controls.StackPanel
+                using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/ShadowAmitendu/JournalApp/releases/latest");
+                request.Headers.UserAgent.TryParseAdd("JournalApp");
+                
+                string savedToken = GetSetting("GitHubToken");
+                if (!string.IsNullOrEmpty(savedToken))
                 {
-                    Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
-                    Spacing = 8,
-                    Children =
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", savedToken);
+                }
+
+                var response = await _httpClient.SendAsync(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
-                        new Microsoft.UI.Xaml.Controls.TextBlock { Text = "Check Now", VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center }
+                        throw new Exception("No releases found for the repository.");
                     }
-                };
-                CheckUpdatesButton.IsEnabled = true;
+                    throw new Exception($"GitHub API returned: {response.ReasonPhrase} ({response.StatusCode})");
+                }
+
+                string json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                string latestTag = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "1.0.0" : "1.0.0";
+                string changelog = root.TryGetProperty("body", out var bodyEl) ? bodyEl.GetString() ?? "" : "";
+                string releaseHtmlUrl = root.TryGetProperty("html_url", out var urlEl) ? urlEl.GetString() ?? "" : "";
+
+                // Find MSIX/Appx asset
+                string downloadUrl = "";
+                string assetName = "";
+                if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var asset in assetsEl.EnumerateArray())
+                    {
+                        string name = asset.GetProperty("name").GetString() ?? "";
+                        if (name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase) || 
+                            name.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase) ||
+                            name.EndsWith(".appxbundle", StringComparison.OrdinalIgnoreCase))
+                        {
+                            downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+                            assetName = name;
+                            break;
+                        }
+                    }
+                }
+
+                var currentVersion = GetAppVersion();
+                var cleanLatest = NormalizeVersionString(latestTag);
+                var cleanCurrent = NormalizeVersionString(currentVersion);
+
+                bool hasNewUpdate = false;
+                if (Version.TryParse(cleanLatest, out Version? remote) && Version.TryParse(cleanCurrent, out Version? local))
+                {
+                    if (remote > local)
+                    {
+                        hasNewUpdate = true;
+                    }
+                }
+
+                if (hasNewUpdate)
+                {
+                    if (UpdateStatusTextBlock != null)
+                        UpdateStatusTextBlock.Text = $"Update available: {latestTag}";
+                    if (LastCheckedTextBlock != null)
+                        LastCheckedTextBlock.Text = $"Current version: {currentVersion}";
+
+                    var dialog = new ContentDialog
+                    {
+                        Title = "Update Available",
+                        Content = new ScrollViewer
+                        {
+                            MaxHeight = 300,
+                            Content = new TextBlock
+                            {
+                                Text = $"A new version ({latestTag}) is available. Would you like to update now?\n\nRelease Notes:\n{changelog}",
+                                TextWrapping = TextWrapping.Wrap
+                            }
+                        },
+                        PrimaryButtonText = !string.IsNullOrEmpty(downloadUrl) ? "Install Update" : "View Release",
+                        CloseButtonText = "Later",
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = this.XamlRoot
+                    };
+
+                    var result = await dialog.ShowAsync();
+                    if (result == ContentDialogResult.Primary)
+                    {
+                        if (string.IsNullOrEmpty(downloadUrl))
+                        {
+                            if (!string.IsNullOrEmpty(releaseHtmlUrl))
+                            {
+                                await Windows.System.Launcher.LaunchUriAsync(new Uri(releaseHtmlUrl));
+                            }
+                        }
+                        else
+                        {
+                            await DownloadAndInstallUpdate(downloadUrl, assetName);
+                        }
+                    }
+                }
+                else
+                {
+                    if (UpdateStatusTextBlock != null)
+                        UpdateStatusTextBlock.Text = "You're up to date!";
+                    if (LastCheckedTextBlock != null)
+                        LastCheckedTextBlock.Text = $"Last checked: {DateTime.Now:h:mm:ss tt} (Version: {currentVersion})";
+                }
+            }
+            catch (Exception ex)
+            {
+                if (UpdateStatusTextBlock != null)
+                    UpdateStatusTextBlock.Text = "Check failed";
+                if (LastCheckedTextBlock != null)
+                    LastCheckedTextBlock.Text = $"Error: {ex.Message}";
+            }
+            finally
+            {
+                if (CheckUpdatesButton != null)
+                {
+                    CheckUpdatesButton.Content = new Microsoft.UI.Xaml.Controls.StackPanel
+                    {
+                        Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+                        Spacing = 8,
+                        Children =
+                        {
+                            new Microsoft.UI.Xaml.Controls.TextBlock { Text = "Check Now", VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center }
+                        }
+                    };
+                    CheckUpdatesButton.IsEnabled = true;
+                }
             }
         }
 
