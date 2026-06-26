@@ -3082,7 +3082,11 @@ namespace JournalApp
                 {
                     if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
-                        throw new Exception("No releases found for the repository.");
+                        if (UpdateStatusTextBlock != null)
+                            UpdateStatusTextBlock.Text = "No releases found";
+                        if (LastCheckedTextBlock != null)
+                            LastCheckedTextBlock.Text = "Create a release on GitHub first to enable updates.";
+                        return;
                     }
                     throw new Exception($"GitHub API returned: {response.ReasonPhrase} ({response.StatusCode})");
                 }
