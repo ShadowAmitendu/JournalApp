@@ -3501,6 +3501,19 @@ namespace JournalApp
                 return;
             }
 
+            // Slugify repository name to match GitHub rules
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
+
+            if (string.IsNullOrEmpty(repoName))
+            {
+                await ShowAlertAsync("Invalid Repository Name", "The repository name must contain valid alphanumeric characters, hyphens, underscores, or periods.");
+                return;
+            }
+
+            // Update textbox to show cleaned name
+            GitHubRepoTextBox.Text = repoName;
+
             // Disable buttons during sync
             GitHubSyncButton.IsEnabled = false;
             GitHubDisconnectButton.IsEnabled = false;
@@ -3543,12 +3556,14 @@ namespace JournalApp
                     var createResponse = await _httpClient.PostAsync("https://api.github.com/user/repos", createContent);
                     if (!createResponse.IsSuccessStatusCode)
                     {
-                        throw new Exception($"Failed to create repository: {createResponse.ReasonPhrase}");
+                        string errorResponse = await createResponse.Content.ReadAsStringAsync();
+                        throw new Exception($"Failed to create repository: {createResponse.ReasonPhrase}. Details: {errorResponse}");
                     }
                 }
                 else if (!repoResponse.IsSuccessStatusCode)
                 {
-                    throw new Exception($"Failed to access repository: {repoResponse.ReasonPhrase}");
+                    string errorResponse = await repoResponse.Content.ReadAsStringAsync();
+                    throw new Exception($"Failed to access repository: {repoResponse.ReasonPhrase}. Details: {errorResponse}");
                 }
 
                 // 3. Gather files to sync
