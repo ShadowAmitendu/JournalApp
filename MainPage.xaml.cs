@@ -2530,6 +2530,28 @@ namespace JournalApp
                 HeroImage.Width = W;
             }
 
+            // Center the image in the container on initial load
+            // so panning is possible in all directions from the middle
+            if (HeroImageTransform != null &&
+                HeroImageTransform.TranslateX == 0 &&
+                HeroImageTransform.TranslateY == 0 &&
+                SelectedNote != null &&
+                SelectedNote.CoverOffsetX == 0 &&
+                SelectedNote.CoverOffsetY == 0)
+            {
+                // Center horizontally and vertically
+                double centerX = (W - HeroImage.Width) / 2.0;
+                double centerY = (H - HeroImage.Height) / 2.0;
+                HeroImageTransform.TranslateX = centerX;
+                HeroImageTransform.TranslateY = centerY;
+            }
+            else if (HeroImageTransform != null && SelectedNote != null)
+            {
+                // Restore saved offsets
+                HeroImageTransform.TranslateX = SelectedNote.CoverOffsetX;
+                HeroImageTransform.TranslateY = SelectedNote.CoverOffsetY;
+            }
+
             ConstrainHeroImageTranslation();
         }
 
