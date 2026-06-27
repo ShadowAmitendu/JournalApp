@@ -2852,16 +2852,41 @@ namespace JournalApp
 
             if (AdjustHeroFlyout != null) AdjustHeroFlyout.Hide();
 
-            // Snapshot native image dimensions
-            _repoImgNativeW = bitmap.PixelWidth;
-            _repoImgNativeH = bitmap.PixelHeight;
-            _repoLayoutDone = false;
+            double bannerW = HeroImageContainer?.ActualWidth > 0 ? HeroImageContainer.ActualWidth : 800.0;
+            double bannerH = 300.0;
+            double tx = HeroImageTransform?.TranslateX ?? (SelectedNote?.CoverOffsetX ?? 0);
+            double ty = HeroImageTransform?.TranslateY ?? (SelectedNote?.CoverOffsetY ?? 0);
 
-            // Set image in modal
-            RepositionFullImage.Source = HeroImage.Source;
+            var repoWin = new CoverRepositionWindow(
+                HeroImage.Source,
+                bitmap.PixelWidth, bitmap.PixelHeight,
+                bannerW, bannerH,
+                tx, ty);
 
-            // Show modal (layout triggers RepositionArea_SizeChanged)
-            CoverRepositionModal.Visibility = Visibility.Visible;
+            repoWin.RepositionConfirmed += (s, result) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (SelectedNote == null) return;
+                    if (HeroImageTransform != null)
+                    {
+                        HeroImageTransform.TranslateX = result.tx;
+                        HeroImageTransform.TranslateY = result.ty;
+                        ConstrainHeroImageTranslation();
+                        SelectedNote.CoverOffsetX = HeroImageTransform.TranslateX;
+                        SelectedNote.CoverOffsetY = HeroImageTransform.TranslateY;
+                    }
+                    else
+                    {
+                        SelectedNote.CoverOffsetX = result.tx;
+                        SelectedNote.CoverOffsetY = result.ty;
+                    }
+                    MarkDirty();
+                    ShowStatusMessage("Cover position saved");
+                });
+            };
+
+            repoWin.Activate();
         }
 
         // ── Reposition Modal state ────────────────────────────────────────────────
