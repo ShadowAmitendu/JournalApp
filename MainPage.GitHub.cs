@@ -227,6 +227,10 @@ namespace JournalApp
             GitHubHistoryProgressBar.Visibility = Visibility.Visible;
             GitHubHistoryErrorText.Visibility = Visibility.Collapsed;
             GitHubCommitsListView.ItemsSource = null;
+            GitHubCommitsListView.Visibility = Visibility.Collapsed;
+            
+            if (CommitChartSkeleton != null) CommitChartSkeleton.Visibility = Visibility.Visible;
+            if (CommitChartContainer != null) CommitChartContainer.Visibility = Visibility.Collapsed;
             CommitChartContainer.Children.Clear();
 
             string token = GetSecureToken();
@@ -236,6 +240,9 @@ namespace JournalApp
             if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName))
             {
                 GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
+                if (CommitChartSkeleton != null) CommitChartSkeleton.Visibility = Visibility.Collapsed;
+                if (CommitChartContainer != null) CommitChartContainer.Visibility = Visibility.Collapsed;
+                if (GitHubCommitsListView != null) GitHubCommitsListView.Visibility = Visibility.Collapsed;
                 GitHubHistoryErrorText.Visibility = Visibility.Visible;
                 GitHubHistoryErrorText.Text = "Please set up your GitHub Personal Access Token (PAT) and Repository name in the Settings tab first to view sync history.";
                 return;
@@ -306,11 +313,18 @@ namespace JournalApp
 
                 RenderCommitActivityChart(commitDates);
                 GitHubCommitsListView.ItemsSource = commitList;
+                
                 GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
+                if (CommitChartSkeleton != null) CommitChartSkeleton.Visibility = Visibility.Collapsed;
+                if (CommitChartContainer != null) CommitChartContainer.Visibility = Visibility.Visible;
+                if (GitHubCommitsListView != null) GitHubCommitsListView.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
                 GitHubHistoryProgressBar.Visibility = Visibility.Collapsed;
+                if (CommitChartSkeleton != null) CommitChartSkeleton.Visibility = Visibility.Collapsed;
+                if (CommitChartContainer != null) CommitChartContainer.Visibility = Visibility.Collapsed;
+                if (GitHubCommitsListView != null) GitHubCommitsListView.Visibility = Visibility.Collapsed;
                 GitHubHistoryErrorText.Visibility = Visibility.Visible;
                 GitHubHistoryErrorText.Text = $"Error: {ex.Message}";
             }
