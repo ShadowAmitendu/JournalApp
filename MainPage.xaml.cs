@@ -147,6 +147,52 @@ namespace JournalApp
             catch { }
         }
 
+        // ── Secure master password storage (Windows Credential Manager) ──────
+        private const string _vaultMasterPwResource = "JournalApp_MasterPassword";
+        private const string _vaultMasterPwUsername = "MasterPW";
+
+        private static string GetSecureMasterPassword()
+        {
+            try
+            {
+                var vault = new PasswordVault();
+                var cred = vault.Retrieve(_vaultMasterPwResource, _vaultMasterPwUsername);
+                cred.RetrievePassword();
+                return cred.Password;
+            }
+            catch
+            {
+                // Migrate from old plaintext LocalSettings if present
+                string legacy = GetSetting("MasterPassword", "");
+                if (!string.IsNullOrEmpty(legacy))
+                {
+                    SaveSecureMasterPassword(legacy);
+                    RemoveSetting("MasterPassword");
+                    return legacy;
+                }
+                return string.Empty;
+            }
+        }
+
+        private static void SaveSecureMasterPassword(string password)
+        {
+            try
+            {
+                var vault = new PasswordVault();
+                // Remove old entry first
+                try { vault.Remove(vault.Retrieve(_vaultMasterPwResource, _vaultMasterPwUsername)); } catch { }
+                if (!string.IsNullOrWhiteSpace(password))
+                    vault.Add(new PasswordCredential(_vaultMasterPwResource, _vaultMasterPwUsername, password));
+
+                // Clean up legacy plaintext entry if it exists
+                RemoveSetting("MasterPassword");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SaveSecureMasterPassword] Failed: {ex.Message}");
+            }
+        }
+
         private static string GetSetting(string key, string defaultValue = "")
         {
             try
@@ -377,15 +423,15 @@ namespace JournalApp
         private bool _isPageInitialized = false;
         private object _previousSelectedItem;
         private bool _isUpdatingEffectsUI = false;
+        private bool _isFilteringByTag = false;
+        private bool _isNavigating = false;
 
         // Undo trash
         private JournalNote _lastSoftDeletedNote;
         private JournalNote _lastSoftDeletedPreviousSelection;
         private DispatcherTimer _undoToastTimer;
 
-        // Find & Replace
-        private List<Microsoft.UI.Text.ITextRange> _findMatches = new();
-        private int _findMatchIndex = -1;
+
 
         // Full-text search cache (key = note Id, value = stripped plain text)
         private readonly Dictionary<string, string> _rtfTextCache = new();
@@ -394,6 +440,7 @@ namespace JournalApp
         private readonly List<string> _unlockedCategories = new();
         private readonly List<string> _lockedCategories = new();
         private string _masterPassword = "";
+        private bool _disableSavingCurrentNote = false;
 
         public MainPage()
         {
@@ -419,6 +466,10 @@ namespace JournalApp
             _isPageInitialized = true;
             _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5.0) };
             _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+
+            _recordingTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.0) };
+            _recordingTimer.Tick += RecordingTimer_Tick;
+            _audioPlayer.MediaEnded += AudioPlayer_MediaEnded;
 
             _undoToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5.0) };
             _undoToastTimer.Tick += (s, e) =>
@@ -492,10 +543,12 @@ namespace JournalApp
                 {
                     AboutVersionTextBlock.Text = GetAppVersion();
                 }
+                LoadSavedGitHubSettings();
                 LoadCategoriesList();
                 RefreshNotesList();
-                LoadSavedGitHubSettings();
+                CheckAppLockOnStartup();
                 LoadSavedFonts();
+                _ = PopulateMicrophoneDevicesAsync();
                 
                 // Auto-select "All Entries"
                 var allEntriesCategory = JournalManager.Instance.Categories.FirstOrDefault(c => c.Name == "All Entries");
@@ -534,6 +587,143 @@ namespace JournalApp
             }
         }
 
+        private void CheckAppLockOnStartup()
+        {
+            if (!string.IsNullOrEmpty(_masterPassword))
+            {
+                if (AppLockOverlay != null)
+                {
+                    AppLockOverlay.Visibility = Visibility.Visible;
+                }
+
+                if (AppLockPasswordBox != null)
+                {
+                    AppLockPasswordBox.Password = "";
+                }
+
+                if (AppLockStatusText != null)
+                {
+                    AppLockStatusText.Visibility = Visibility.Collapsed;
+                }
+
+                // Check Hello capability and auto-authenticate
+                this.DispatcherQueue.TryEnqueue(async () =>
+                {
+                    bool helloAvailable = false;
+                    try
+                    {
+                        var availability = await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync();
+                        helloAvailable = availability == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available;
+                    }
+                    catch { }
+
+                    if (WindowsHelloButton != null)
+                    {
+                        WindowsHelloButton.Visibility = helloAvailable ? Visibility.Visible : Visibility.Collapsed;
+                    }
+
+                    if (helloAvailable)
+                    {
+                        await AutoAuthenticateHelloAsync();
+                    }
+                });
+            }
+        }
+
+        private async void WindowsHelloButton_Click(object sender, RoutedEventArgs e)
+        {
+            await AutoAuthenticateHelloAsync();
+        }
+
+        private async Task AutoAuthenticateHelloAsync()
+        {
+            if (AppLockStatusText != null)
+            {
+                AppLockStatusText.Visibility = Visibility.Collapsed;
+            }
+
+            bool verified = await VerifyWithWindowsHelloAsync();
+            if (verified)
+            {
+                UnlockJournal();
+            }
+            else
+            {
+                if (AppLockStatusText != null)
+                {
+                    AppLockStatusText.Text = "Windows Hello authentication cancelled or failed.";
+                    AppLockStatusText.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private async Task<bool> VerifyWithWindowsHelloAsync()
+        {
+            try
+            {
+                var availability = await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync();
+                if (availability == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available)
+                {
+                    var result = await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync("Authenticate to unlock your Journal.");
+                    return result == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WindowsHello] Verification error: {ex.Message}");
+            }
+            return false;
+        }
+
+        private void UnlockWithPassword_Click(object sender, RoutedEventArgs e)
+        {
+            VerifyAndUnlockWithPassword();
+        }
+
+        private void AppLockPasswordBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                VerifyAndUnlockWithPassword();
+                e.Handled = true;
+            }
+        }
+
+        private void VerifyAndUnlockWithPassword()
+        {
+            if (AppLockPasswordBox == null) return;
+            string entered = AppLockPasswordBox.Password;
+            if (entered == _masterPassword)
+            {
+                UnlockJournal();
+            }
+            else
+            {
+                if (AppLockStatusText != null)
+                {
+                    AppLockStatusText.Text = "Incorrect password. Please try again.";
+                    AppLockStatusText.Visibility = Visibility.Visible;
+                }
+                AppLockPasswordBox.SelectAll();
+            }
+        }
+
+        private void UnlockJournal()
+        {
+            if (AppLockOverlay != null)
+            {
+                AppLockOverlay.Visibility = Visibility.Collapsed;
+            }
+            if (AppLockPasswordBox != null)
+            {
+                AppLockPasswordBox.Password = "";
+            }
+            if (AppLockStatusText != null)
+            {
+                AppLockStatusText.Visibility = Visibility.Collapsed;
+            }
+        }
+
         private void OnWindowClosed(object sender, Microsoft.UI.Xaml.WindowEventArgs e)
         {
             // Final flush before the process exits
@@ -541,6 +731,14 @@ namespace JournalApp
             {
                 if (_isDirty && SelectedNote != null)
                     SaveCurrentNoteContent();
+            }
+            catch { }
+
+            // Dispose the audio player to release native handles
+            try
+            {
+                _audioPlayer?.Dispose();
+                _audioPlayer = null;
             }
             catch { }
         }
@@ -552,6 +750,45 @@ namespace JournalApp
             {
                 try { SaveCurrentNoteContent(); } catch { }
             }
+        }
+
+        private Microsoft.UI.Xaml.Media.Brush GetThemeBrush(string key, string fallbackHex = "#808080")
+        {
+            try
+            {
+                if (Application.Current.Resources.TryGetValue(key, out object val) && val is Microsoft.UI.Xaml.Media.Brush brush)
+                {
+                    return brush;
+                }
+                
+                foreach (var dict in Application.Current.Resources.MergedDictionaries)
+                {
+                    if (dict.TryGetValue(key, out object val2) && val2 is Microsoft.UI.Xaml.Media.Brush brush2)
+                    {
+                        return brush2;
+                    }
+                    if (dict.ThemeDictionaries != null)
+                    {
+                        foreach (var themeKey in dict.ThemeDictionaries.Keys)
+                        {
+                            if (dict.ThemeDictionaries[themeKey] is ResourceDictionary themeDict)
+                            {
+                                if (themeDict.TryGetValue(key, out object val3) && val3 is Microsoft.UI.Xaml.Media.Brush brush3)
+                                {
+                                    return brush3;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (this.Resources.TryGetValue(key, out object pageVal) && pageVal is Microsoft.UI.Xaml.Media.Brush pageBrush)
+                {
+                    return pageBrush;
+                }
+            }
+            catch { }
+            return GetBrushFromHex(fallbackHex);
         }
 
         private void LoadCategoriesList()
@@ -930,19 +1167,37 @@ namespace JournalApp
                     }
 
                     byte[] loadedBytes = fileBytes;
-                    if (isEncrypted && _lockedCategories.Contains(SelectedNote.Category) && !string.IsNullOrEmpty(_masterPassword))
+                    bool decryptionFailedOrSkipped = false;
+                    if (isEncrypted)
                     {
-                        try
+                        if (_lockedCategories.Contains(SelectedNote.Category) && !string.IsNullOrEmpty(_masterPassword))
                         {
-                            loadedBytes = EncryptionHelper.Decrypt(fileBytes, _masterPassword);
+                            try
+                            {
+                                loadedBytes = EncryptionHelper.Decrypt(fileBytes, _masterPassword);
+                            }
+                            catch (Exception decryptEx)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[LoadNoteContent] Decryption failed: {decryptEx.Message}");
+                                NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Decryption Failed]");
+                                decryptionFailedOrSkipped = true;
+                            }
                         }
-                        catch (Exception decryptEx)
+                        else
                         {
-                            System.Diagnostics.Debug.WriteLine($"[LoadNoteContent] Decryption failed: {decryptEx.Message}");
-                            NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Decryption Failed]");
-                            return;
+                            System.Diagnostics.Debug.WriteLine("[LoadNoteContent] Encrypted note skipped (not in locked category or empty password)");
+                            NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Locked]");
+                            decryptionFailedOrSkipped = true;
                         }
                     }
+
+                    if (decryptionFailedOrSkipped)
+                    {
+                        _disableSavingCurrentNote = true;
+                        return;
+                    }
+
+                    _disableSavingCurrentNote = false;
 
                     using (var ms = new MemoryStream(loadedBytes))
                     {
@@ -982,6 +1237,7 @@ namespace JournalApp
                 }
                 else
                 {
+                    _disableSavingCurrentNote = false;
                     NoteRichEditBox.Document.SetText(TextSetOptions.None, "");
                 }
 
@@ -1006,7 +1262,7 @@ namespace JournalApp
 
         private void SaveCurrentNoteContent()
         {
-            if (SelectedNote == null) return;
+            if (SelectedNote == null || _disableSavingCurrentNote) return;
 
             try
             {
@@ -1031,21 +1287,30 @@ namespace JournalApp
 
                 File.WriteAllBytes(rtfPath, rtfBytes);
 
-                // Extract hashtags
-                var tags = new List<string>();
+                // Extract inline hashtags from the note body
+                var inlineTags = new List<string>();
                 if (!string.IsNullOrEmpty(plainText))
                 {
                     var matches = System.Text.RegularExpressions.Regex.Matches(plainText, @"\B#([a-zA-Z0-9_]+)");
                     foreach (System.Text.RegularExpressions.Match match in matches)
                     {
                         string tag = match.Groups[1].Value.ToLowerInvariant();
-                        if (!tags.Contains(tag))
+                        if (!inlineTags.Contains(tag))
                         {
-                            tags.Add(tag);
+                            inlineTags.Add(tag);
                         }
                     }
                 }
-                SelectedNote.Tags = tags;
+                // Merge inline hashtags with manually-added tags (preserve both)
+                var existingTags = SelectedNote.Tags ?? new List<string>();
+                foreach (var inlineTag in inlineTags)
+                {
+                    if (!existingTags.Contains(inlineTag))
+                    {
+                        existingTags.Add(inlineTag);
+                    }
+                }
+                SelectedNote.Tags = existingTags;
 
                 // Invalidate full-text cache so the next search re-reads from file
                 _rtfTextCache.Remove(SelectedNote.Id);
@@ -1070,6 +1335,16 @@ namespace JournalApp
                 }
                 _isDirty = false;
                 UpdateTitleBarBackupButtonState();
+
+                if (AutoBackupToggle != null && AutoBackupToggle.IsOn)
+                {
+                    string token = GetSetting("GitHubToken", "");
+                    string repo = GetSetting("GitHubRepo", "");
+                    if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repo))
+                    {
+                        TriggerBackupFromTitleBar();
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -1102,145 +1377,158 @@ namespace JournalApp
         // Selection Handlers
         private async void CategoriesNavView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
         {
-            JournalCategory category = null;
-            NavigationViewItem navItem = null;
-
-            if (args.SelectedItem is NavigationViewItem item)
+            if (_isNavigating) return;
+            _isNavigating = true;
+            try
             {
-                navItem = item;
-                if (item.Tag is string tag && tag == "AddCategory")
-                {
-                    // Re-select the previous item so "Add Category" button doesn't remain visually selected
-                    if (_previousSelectedItem != null)
-                    {
-                        CategoriesNavView.SelectedItem = _previousSelectedItem;
-                    }
-                    ShowNewCategoryDialog();
-                    return;
-                }
-                else
-                {
-                    _previousSelectedItem = item;
-                    category = item.Tag as JournalCategory;
-                }
-            }
+                JournalCategory category = null;
+                NavigationViewItem navItem = null;
 
-            if (category != null)
-            {
-                // Accessing a locked category requires password unlock
-                if (_lockedCategories.Contains(category.Name) && !_unlockedCategories.Contains(category.Name))
+                if (args.SelectedItem is NavigationViewItem item)
                 {
-                    if (string.IsNullOrEmpty(_masterPassword))
+                    navItem = item;
+                    if (item.Tag is string tag && tag == "AddCategory")
                     {
-                        var noPassDialog = new ContentDialog
-                        {
-                            Title = "Security Warning",
-                            Content = "This category is marked as locked, but no Master Password is set in Settings. Please set a Master Password first.",
-                            CloseButtonText = "OK",
-                            XamlRoot = this.XamlRoot
-                        };
-                        await noPassDialog.ShowAsync();
+                        // Re-select the previous item so "Add Category" button doesn't remain visually selected
                         if (_previousSelectedItem != null)
                         {
                             CategoriesNavView.SelectedItem = _previousSelectedItem;
                         }
+                        ShowNewCategoryDialog();
                         return;
-                    }
-
-                    var passwordBox = new PasswordBox
-                    {
-                        Header = "Enter Master Password",
-                        PlaceholderText = "Password",
-                        HorizontalAlignment = HorizontalAlignment.Stretch
-                    };
-                    var challengeDialog = new ContentDialog
-                    {
-                        Title = $"Unlock Category: {category.Name}",
-                        Content = passwordBox,
-                        PrimaryButtonText = "Unlock",
-                        CloseButtonText = "Cancel",
-                        DefaultButton = ContentDialogButton.Primary,
-                        XamlRoot = this.XamlRoot
-                    };
-                    challengeDialog.Opened += (s, e) => passwordBox.Focus(FocusState.Programmatic);
-
-                    var result = await challengeDialog.ShowAsync();
-                    if (result == ContentDialogResult.Primary && passwordBox.Password == _masterPassword)
-                    {
-                        _unlockedCategories.Add(category.Name);
                     }
                     else
                     {
-                        if (result == ContentDialogResult.Primary)
-                        {
-                            var errorDialog = new ContentDialog
-                            {
-                                Title = "Access Denied",
-                                Content = "Incorrect master password. Access denied.",
-                                CloseButtonText = "OK",
-                                XamlRoot = this.XamlRoot
-                            };
-                            await errorDialog.ShowAsync();
-                        }
-                        if (_previousSelectedItem != null)
-                        {
-                            CategoriesNavView.SelectedItem = _previousSelectedItem;
-                        }
-                        return;
+                        _previousSelectedItem = item;
+                        category = item.Tag as JournalCategory;
                     }
                 }
 
-                ShowGrid(MainEditorGrid);
-                _selectedCategory = category.Name;
-                if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = category.Name;
-                RefreshNotesList();
+                if (category != null)
+                {
+                    // Accessing a locked category requires password unlock
+                    if (_lockedCategories.Contains(category.Name) && !_unlockedCategories.Contains(category.Name))
+                    {
+                        if (string.IsNullOrEmpty(_masterPassword))
+                        {
+                            var noPassDialog = new ContentDialog
+                            {
+                                Title = "Security Warning",
+                                Content = "This category is marked as locked, but no Master Password is set in Settings. Please set a Master Password first.",
+                                CloseButtonText = "OK",
+                                XamlRoot = this.XamlRoot
+                            };
+                            await noPassDialog.ShowAsync();
+                            if (_previousSelectedItem != null)
+                            {
+                                CategoriesNavView.SelectedItem = _previousSelectedItem;
+                            }
+                            return;
+                        }
+
+                        var passwordBox = new PasswordBox
+                        {
+                            Header = "Enter Master Password",
+                            PlaceholderText = "Password",
+                            HorizontalAlignment = HorizontalAlignment.Stretch
+                        };
+                        var challengeDialog = new ContentDialog
+                        {
+                            Title = $"Unlock Category: {category.Name}",
+                            Content = passwordBox,
+                            PrimaryButtonText = "Unlock",
+                            CloseButtonText = "Cancel",
+                            DefaultButton = ContentDialogButton.Primary,
+                            XamlRoot = this.XamlRoot
+                        };
+                        challengeDialog.Opened += (s, e) => passwordBox.Focus(FocusState.Programmatic);
+
+                        var result = await challengeDialog.ShowAsync();
+                        if (result == ContentDialogResult.Primary && passwordBox.Password == _masterPassword)
+                        {
+                            _unlockedCategories.Add(category.Name);
+                        }
+                        else
+                        {
+                            if (result == ContentDialogResult.Primary)
+                            {
+                                var errorDialog = new ContentDialog
+                                {
+                                    Title = "Access Denied",
+                                    Content = "Incorrect master password. Access denied.",
+                                    CloseButtonText = "OK",
+                                    XamlRoot = this.XamlRoot
+                                };
+                                await errorDialog.ShowAsync();
+                            }
+                            if (_previousSelectedItem != null)
+                            {
+                                CategoriesNavView.SelectedItem = _previousSelectedItem;
+                            }
+                            return;
+                        }
+                    }
+
+                    ShowGrid(MainEditorGrid);
+                    _selectedCategory = category.Name;
+                    if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = category.Name;
+                    RefreshNotesList();
+                }
+                else if (navItem != null)
+                {
+                    if (navItem == TrashNavItem)
+                    {
+                        ShowGrid(MainEditorGrid);
+                        _selectedCategory = "Trash";
+                        if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Trash";
+                        RefreshNotesList();
+                    }
+                    else if (navItem == FavoritesNavItem)
+                    {
+                        ShowGrid(MainEditorGrid);
+                        _selectedCategory = "Favorites";
+                        if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Favorites";
+                        RefreshNotesList();
+                    }
+                    else if (navItem.Tag is string tagStr && tagStr.StartsWith("Tag:"))
+                    {
+                        ShowGrid(MainEditorGrid);
+                        string tagName = tagStr.Substring(4);
+                        _selectedCategory = tagStr;
+                        if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = $"#{tagName}";
+                        RefreshNotesList();
+                    }
+                    else if (navItem == SettingsNavItem)
+                    {
+                        ShowGrid(SettingsGrid);
+                        PopulateLockedCategoriesSettings();
+                        TriggerUpdateCheck();
+                    }
+                    else if (navItem == GitHubNavItem)
+                    {
+                        ShowGrid(GitHubGrid);
+                        LoadGitHubCommitsAndHistory();
+                    }
+                    else if (navItem == StatsNavItem)
+                    {
+                        ShowGrid(StatsGrid);
+                        PopulateMoodStats();
+                        PopulateContributionGraph();
+                        PopulateTagCloud();
+                    }
+                    else if (navItem == GalleryNavItem)
+                    {
+                        ShowGrid(GalleryGrid);
+                        PopulateGallery();
+                    }
+                }
             }
-            else if (navItem != null)
+            finally
             {
-                if (navItem == TrashNavItem)
+                this.DispatcherQueue.TryEnqueue(() =>
                 {
-                    ShowGrid(MainEditorGrid);
-                    _selectedCategory = "Trash";
-                    if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Trash";
-                    RefreshNotesList();
-                }
-                else if (navItem == FavoritesNavItem)
-                {
-                    ShowGrid(MainEditorGrid);
-                    _selectedCategory = "Favorites";
-                    if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "Favorites";
-                    RefreshNotesList();
-                }
-                else if (navItem.Tag is string tagStr && tagStr.StartsWith("Tag:"))
-                {
-                    ShowGrid(MainEditorGrid);
-                    string tagName = tagStr.Substring(4);
-                    _selectedCategory = tagStr;
-                    if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = $"#{tagName}";
-                    RefreshNotesList();
-                }
-                else if (navItem == SettingsNavItem)
-                {
-                    ShowGrid(SettingsGrid);
-                    PopulateLockedCategoriesSettings();
-                    TriggerUpdateCheck();
-                }
-                else if (navItem == GitHubNavItem)
-                {
-                    ShowGrid(GitHubGrid);
-                    LoadGitHubCommitsAndHistory();
-                }
-                else if (navItem == StatsNavItem)
-                {
-                    ShowGrid(StatsGrid);
-                    PopulateMoodStats();
-                    PopulateContributionGraph();
-                }
-                else if (navItem == GalleryNavItem)
-                {
-                    ShowGrid(GalleryGrid);
-                    PopulateGallery();
-                }
+                    _isNavigating = false;
+                });
             }
         }
 
@@ -1301,122 +1589,7 @@ namespace JournalApp
             RefreshNotesList();
         }
 
-        // ── Find & Replace ───────────────────────────────────────────────────
-        private void CloseFindBar()
-        {
-            if (FindReplaceBar != null) FindReplaceBar.Visibility = Visibility.Collapsed;
-            _findMatches.Clear();
-            _findMatchIndex = -1;
-            if (MatchCountText != null) MatchCountText.Text = "";
-        }
 
-        private void CloseFindBarBtn_Click(object sender, RoutedEventArgs e) => CloseFindBar();
-
-        private void FindTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            FindInNote();
-        }
-
-        private void FindTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
-        {
-            if (e.Key == Windows.System.VirtualKey.Enter)
-            {
-                FindNextMatch();
-                e.Handled = true;
-            }
-        }
-
-        private void PrevMatchBtn_Click(object sender, RoutedEventArgs e) => FindPrevMatch();
-        private void NextMatchBtn_Click(object sender, RoutedEventArgs e) => FindNextMatch();
-
-        private void FindInNote()
-        {
-            _findMatches.Clear();
-            _findMatchIndex = -1;
-
-            string term = FindTextBox?.Text;
-            if (string.IsNullOrEmpty(term) || SelectedNote == null)
-            {
-                if (MatchCountText != null) MatchCountText.Text = "";
-                return;
-            }
-
-            try
-            {
-                NoteRichEditBox.Document.GetText(TextGetOptions.None, out string fullText);
-                int searchFrom = 0;
-                while (searchFrom < fullText.Length)
-                {
-                    int idx = fullText.IndexOf(term, searchFrom, StringComparison.OrdinalIgnoreCase);
-                    if (idx < 0) break;
-                    var range = NoteRichEditBox.Document.GetRange(idx, idx + term.Length);
-                    _findMatches.Add(range);
-                    searchFrom = idx + 1;
-                }
-
-                if (MatchCountText != null)
-                    MatchCountText.Text = _findMatches.Count == 0 ? "No results" : $"1 of {_findMatches.Count}";
-
-                if (_findMatches.Count > 0)
-                {
-                    _findMatchIndex = 0;
-                    HighlightCurrentMatch();
-                }
-            }
-            catch { }
-        }
-
-        private void FindNextMatch()
-        {
-            if (_findMatches.Count == 0) { FindInNote(); return; }
-            _findMatchIndex = (_findMatchIndex + 1) % _findMatches.Count;
-            HighlightCurrentMatch();
-        }
-
-        private void FindPrevMatch()
-        {
-            if (_findMatches.Count == 0) { FindInNote(); return; }
-            _findMatchIndex = (_findMatchIndex - 1 + _findMatches.Count) % _findMatches.Count;
-            HighlightCurrentMatch();
-        }
-
-        private void HighlightCurrentMatch()
-        {
-            if (_findMatchIndex < 0 || _findMatchIndex >= _findMatches.Count) return;
-            var range = _findMatches[_findMatchIndex];
-            NoteRichEditBox.Document.Selection.SetRange(range.StartPosition, range.EndPosition);
-            if (MatchCountText != null)
-                MatchCountText.Text = $"{_findMatchIndex + 1} of {_findMatches.Count}";
-        }
-
-        private void ReplaceOneBtn_Click(object sender, RoutedEventArgs e)
-        {
-            if (_findMatches.Count == 0 || _findMatchIndex < 0) return;
-            string replacement = ReplaceTextBox?.Text ?? "";
-            var range = _findMatches[_findMatchIndex];
-            range.Text = replacement;
-            MarkDirty();
-            FindInNote(); // re-scan after replacement
-        }
-
-        private void ReplaceAllBtn_Click(object sender, RoutedEventArgs e)
-        {
-            if (_findMatches.Count == 0) return;
-            string term = FindTextBox?.Text;
-            string replacement = ReplaceTextBox?.Text ?? "";
-            if (string.IsNullOrEmpty(term)) return;
-
-            NoteRichEditBox.Document.GetText(TextGetOptions.None, out string fullText);
-            string newText = System.Text.RegularExpressions.Regex.Replace(
-                fullText, System.Text.RegularExpressions.Regex.Escape(term),
-                replacement, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // Replace entire document text
-            NoteRichEditBox.Document.SetText(TextSetOptions.None, newText);
-            MarkDirty();
-            FindInNote();
-            ShowStatusMessage($"Replaced all occurrences of \"{term}\"");
-        }
 
         // Action Handlers
         private void NewNoteButton_Click(object sender, RoutedEventArgs e)
@@ -1584,70 +1757,75 @@ namespace JournalApp
             }
         }
 
-        // Formatting Command Buttons
-        private void BoldButton_Click(object sender, RoutedEventArgs e)
+        private static readonly string[] DailyWritingPrompts = new[]
         {
-            var format = NoteRichEditBox.Document.Selection.CharacterFormat;
-            format.Bold = (format.Bold == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
-            NoteRichEditBox.Document.Selection.CharacterFormat = format;
-            MarkDirty();
+            "What is something that made you smile today?",
+            "Describe a challenge you faced recently and how you handled it.",
+            "What are three things you are most grateful for right now?",
+            "Write about a person who has had a positive impact on your life.",
+            "What is a goal you want to achieve this week, and how will you reach it?",
+            "Describe a place where you feel completely peaceful and happy.",
+            "What is a lesson you learned recently, and why was it important?",
+            "If you could travel anywhere right now, where would you go and why?",
+            "Write about a memory from your childhood that still brings you joy.",
+            "What is a quote or saying that inspires you, and what does it mean to you?",
+            "Describe your perfect day from start to finish.",
+            "What are some habits you want to cultivate or let go of?",
+            "Write about a book, movie, or song that recently moved you, and why.",
+            "How do you feel today physically, mentally, and emotionally?",
+            "What is something you are looking forward to in the near future?",
+            "Write about a time you tried something new and what you learned from it."
+        };
+
+        private static readonly Random _promptRandom = new Random();
+
+        private void InspirationFlyout_Opening(object sender, object e)
+        {
+            ShowRandomPrompt();
         }
 
-        private void ItalicButton_Click(object sender, RoutedEventArgs e)
+        private void NewPrompt_Click(object sender, RoutedEventArgs e)
         {
-            var format = NoteRichEditBox.Document.Selection.CharacterFormat;
-            format.Italic = (format.Italic == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
-            NoteRichEditBox.Document.Selection.CharacterFormat = format;
-            MarkDirty();
+            ShowRandomPrompt();
         }
 
-        private void UnderlineButton_Click(object sender, RoutedEventArgs e)
+        private void ShowRandomPrompt()
         {
-            var format = NoteRichEditBox.Document.Selection.CharacterFormat;
-            format.Underline = (format.Underline == UnderlineType.Single) ? UnderlineType.None : UnderlineType.Single;
-            NoteRichEditBox.Document.Selection.CharacterFormat = format;
-            MarkDirty();
+            if (PromptDisplayTextBlock != null)
+            {
+                int index = _promptRandom.Next(DailyWritingPrompts.Length);
+                PromptDisplayTextBlock.Text = DailyWritingPrompts[index];
+            }
         }
 
-        private void AlignLeftButton_Click(object sender, RoutedEventArgs e)
+        private void InsertPrompt_Click(object sender, RoutedEventArgs e)
         {
-            var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
-            format.Alignment = ParagraphAlignment.Left;
-            NoteRichEditBox.Document.Selection.ParagraphFormat = format;
-            MarkDirty();
+            if (SelectedNote == null || PromptDisplayTextBlock == null) return;
+            
+            string prompt = PromptDisplayTextBlock.Text;
+            if (string.IsNullOrEmpty(prompt)) return;
+
+            string prefix = "\r\n";
+            NoteRichEditBox.Document.GetText(TextGetOptions.None, out string allText);
+            if (string.IsNullOrEmpty(allText) || allText.Equals("\r") || NoteRichEditBox.Document.Selection.StartPosition == 0)
+            {
+                prefix = "";
+            }
+
+            string textToInsert = $"{prefix}> Prompt: {prompt}\r\n\r\n";
+            NoteRichEditBox.Document.Selection.SetText(TextSetOptions.None, textToInsert);
+            
+            int endPos = NoteRichEditBox.Document.Selection.EndPosition;
+            NoteRichEditBox.Document.Selection.SetRange(endPos, endPos);
+            NoteRichEditBox.Focus(FocusState.Programmatic);
+
+            if (InspirationFlyout != null)
+            {
+                InspirationFlyout.Hide();
+            }
         }
 
-        private void AlignCenterButton_Click(object sender, RoutedEventArgs e)
-        {
-            var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
-            format.Alignment = ParagraphAlignment.Center;
-            NoteRichEditBox.Document.Selection.ParagraphFormat = format;
-            MarkDirty();
-        }
 
-        private void AlignRightButton_Click(object sender, RoutedEventArgs e)
-        {
-            var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
-            format.Alignment = ParagraphAlignment.Right;
-            NoteRichEditBox.Document.Selection.ParagraphFormat = format;
-            MarkDirty();
-        }
-
-        private void AlignJustifyButton_Click(object sender, RoutedEventArgs e)
-        {
-            var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
-            format.Alignment = ParagraphAlignment.Justify;
-            NoteRichEditBox.Document.Selection.ParagraphFormat = format;
-            MarkDirty();
-        }
-
-        private void BulletListButton_Click(object sender, RoutedEventArgs e)
-        {
-            var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
-            format.ListType = (format.ListType == MarkerType.Bullet) ? MarkerType.None : MarkerType.Bullet;
-            NoteRichEditBox.Document.Selection.ParagraphFormat = format;
-            MarkDirty();
-        }
 
         // Favorites
         private void FavoriteToggle_Checked(object sender, RoutedEventArgs e)
@@ -2249,7 +2427,7 @@ namespace JournalApp
                 Text = "Specify the display dimensions for the selected image.",
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 13,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Foreground = GetThemeBrush("TextFillColorSecondaryBrush", "#8A8886")
             });
             
             var grid = new Grid();
@@ -2787,8 +2965,8 @@ namespace JournalApp
                 bool hasLoc = !string.IsNullOrEmpty(SelectedNote.LocationTag);
                 LocationChipText.Text = hasLoc ? SelectedNote.LocationTag : "Add Location";
                 LocationChipText.Foreground = hasLoc
-                    ? (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorPrimaryBrush"]
-                    : (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorSecondaryBrush"];
+                    ? GetThemeBrush("TextFillColorPrimaryBrush", "#000000")
+                    : GetThemeBrush("TextFillColorSecondaryBrush", "#8A8886");
             }
 
             // Weather chip
@@ -2808,8 +2986,8 @@ namespace JournalApp
                 WeatherChipText.Text = weatherEmoji;
                 bool hasWeather = !string.IsNullOrEmpty(SelectedNote.WeatherTag);
                 WeatherChipText.Foreground = hasWeather
-                    ? (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorPrimaryBrush"]
-                    : (Microsoft.UI.Xaml.Media.Brush)App.Current.Resources["TextFillColorSecondaryBrush"];
+                    ? GetThemeBrush("TextFillColorPrimaryBrush", "#000000")
+                    : GetThemeBrush("TextFillColorSecondaryBrush", "#8A8886");
             }
 
             // Photo strip — rebuild (keep "Add Photo" button, prepend thumbnails)
@@ -2851,6 +3029,8 @@ namespace JournalApp
                     }
                 }
             }
+            UpdateAttachedAudioUI();
+            UpdateAttachedTagsUI();
         }
 
         private async void LocationChip_Click(object sender, RoutedEventArgs e)
@@ -2876,6 +3056,242 @@ namespace JournalApp
                 MarkDirty();
             }
         }
+
+        private async void AutoDetectMoments_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+
+            if (AutoDetectMomentsProgress != null)
+            {
+                AutoDetectMomentsProgress.Visibility = Visibility.Visible;
+                AutoDetectMomentsProgress.IsActive = true;
+            }
+            if (AutoDetectMomentsIcon != null)
+            {
+                AutoDetectMomentsIcon.Visibility = Visibility.Collapsed;
+            }
+            if (AutoDetectMomentsText != null)
+            {
+                AutoDetectMomentsText.Text = "Detecting...";
+            }
+            if (AutoDetectMomentsButton != null)
+            {
+                AutoDetectMomentsButton.IsEnabled = false;
+            }
+
+            try
+            {
+                string ipGeoUrl = "https://ipapi.co/json/";
+                string geoJson = await _httpClient.GetStringAsync(ipGeoUrl);
+                using var geoDoc = JsonDocument.Parse(geoJson);
+                var root = geoDoc.RootElement;
+                
+                string city = root.TryGetProperty("city", out var cityProp) ? cityProp.GetString() : "";
+                string region = root.TryGetProperty("region_code", out var regionProp) ? regionProp.GetString() : "";
+                string country = root.TryGetProperty("country_code", out var countryProp) ? countryProp.GetString() : "";
+                
+                double lat = root.TryGetProperty("latitude", out var latProp) ? latProp.GetDouble() : 0.0;
+                double lon = root.TryGetProperty("longitude", out var lonProp) ? lonProp.GetDouble() : 0.0;
+
+                string locationText = "";
+                if (!string.IsNullOrEmpty(city))
+                {
+                    locationText = string.IsNullOrEmpty(region) ? $"{city}, {country}" : $"{city}, {region}";
+                }
+
+                string weatherTag = "Sunny";
+                if (lat != 0.0 || lon != 0.0)
+                {
+                    string weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true";
+                    string weatherJson = await _httpClient.GetStringAsync(weatherUrl);
+                    using var weatherDoc = JsonDocument.Parse(weatherJson);
+                    var weatherRoot = weatherDoc.RootElement;
+                    if (weatherRoot.TryGetProperty("current_weather", out var cwProp))
+                    {
+                        int weatherCode = cwProp.TryGetProperty("weathercode", out var wcProp) ? wcProp.GetInt32() : 0;
+                        weatherTag = MapWmoCodeToWeatherTag(weatherCode);
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(locationText))
+                {
+                    SelectedNote.LocationTag = locationText;
+                }
+                SelectedNote.WeatherTag = weatherTag;
+                
+                UpdateMomentsUI();
+                MarkDirty();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to auto-detect location/weather: {ex.Message}");
+                await ShowAlertAsync("Auto-Detect Failed", "Could not automatically determine location or weather. Please check your internet connection.");
+            }
+            finally
+            {
+                if (AutoDetectMomentsProgress != null)
+                {
+                    AutoDetectMomentsProgress.Visibility = Visibility.Collapsed;
+                    AutoDetectMomentsProgress.IsActive = false;
+                }
+                if (AutoDetectMomentsIcon != null)
+                {
+                    AutoDetectMomentsIcon.Visibility = Visibility.Visible;
+                }
+                if (AutoDetectMomentsText != null)
+                {
+                    AutoDetectMomentsText.Text = "Auto-detect";
+                }
+                if (AutoDetectMomentsButton != null)
+                {
+                    AutoDetectMomentsButton.IsEnabled = true;
+                }
+            }
+        }
+
+        private string MapWmoCodeToWeatherTag(int wmoCode)
+        {
+            return wmoCode switch
+            {
+                0 => "Sunny",
+                1 or 2 => "PartlyCloudy",
+                3 => "Cloudy",
+                45 or 48 => "Foggy",
+                51 or 53 or 55 => "Rainy",
+                61 or 63 or 65 or 80 or 81 or 82 => "Rainy",
+                71 or 73 or 75 or 77 or 85 or 86 => "Snowy",
+                95 or 96 or 99 => "Stormy",
+                _ => "Sunny"
+            };
+        }
+
+
+
+        private void UpdateAttachedTagsUI()
+        {
+            if (AttachedTagsPanel == null) return;
+            AttachedTagsPanel.Children.Clear();
+
+            if (SelectedNote == null || SelectedNote.Tags == null) return;
+
+            var textBrushSecondary = GetThemeBrush("TextFillColorSecondaryBrush", "#8A8886");
+            var borderBrush = GetThemeBrush("CardStrokeColorDefaultBrush", "#E5E5E5");
+            var bgBrush = GetThemeBrush("ControlAltFillColorSecondaryBrush", "#F9F9F9");
+
+            foreach (var tag in SelectedNote.Tags)
+            {
+                var tagBorder = new Border
+                {
+                    Background = bgBrush,
+                    BorderBrush = borderBrush,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(10, 4, 6, 4),
+                    Margin = new Thickness(0, 0, 4, 0)
+                };
+
+                var contentPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 6
+                };
+
+                var tagText = new TextBlock
+                {
+                    Text = $"#{tag}",
+                    FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = textBrushSecondary
+                };
+
+                var deleteBtn = new Button
+                {
+                    Content = "\uE894",
+                    FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Application.Current.Resources["SymbolThemeFontFamily"],
+                    FontSize = 8,
+                    Width = 16,
+                    Height = 16,
+                    Padding = new Thickness(0),
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+                    BorderThickness = new Thickness(0),
+                    CornerRadius = new CornerRadius(8),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Tag = tag
+                };
+                deleteBtn.Click += DeleteTagBtn_Click;
+
+                contentPanel.Children.Add(tagText);
+                contentPanel.Children.Add(deleteBtn);
+                tagBorder.Child = contentPanel;
+
+                AttachedTagsPanel.Children.Add(tagBorder);
+            }
+        }
+
+        private void DeleteTagBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string tag && SelectedNote != null)
+            {
+                if (SelectedNote.Tags != null && SelectedNote.Tags.Contains(tag))
+                {
+                    SelectedNote.Tags.Remove(tag);
+                    JournalManager.Instance.SaveNotesMetadata();
+                    UpdateAttachedTagsUI();
+                    LoadCategoriesList();
+                    RefreshNotesList();
+                    MarkDirty();
+                }
+            }
+        }
+
+        private void AddTagBtn_Click(object sender, RoutedEventArgs e)
+        {
+            AddCurrentTag();
+        }
+
+        private void NewTagTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                AddCurrentTag();
+                e.Handled = true;
+            }
+        }
+
+        private void AddCurrentTag()
+        {
+            if (NewTagTextBox == null || SelectedNote == null) return;
+            string rawTag = NewTagTextBox.Text.Trim();
+            if (string.IsNullOrEmpty(rawTag)) return;
+
+            if (rawTag.StartsWith("#"))
+            {
+                rawTag = rawTag.Substring(1);
+            }
+            rawTag = rawTag.ToLowerInvariant().Trim();
+
+            if (!string.IsNullOrEmpty(rawTag))
+            {
+                if (SelectedNote.Tags == null)
+                {
+                    SelectedNote.Tags = new List<string>();
+                }
+
+                if (!SelectedNote.Tags.Contains(rawTag))
+                {
+                    SelectedNote.Tags.Add(rawTag);
+                    JournalManager.Instance.SaveNotesMetadata();
+                    UpdateAttachedTagsUI();
+                    LoadCategoriesList();
+                    RefreshNotesList();
+                    MarkDirty();
+                }
+            }
+
+            NewTagTextBox.Text = "";
+        }
+
+
 
         private async void AddMomentPhoto_Click(object sender, RoutedEventArgs e)
         {
@@ -2965,7 +3381,7 @@ namespace JournalApp
                 Text = "Specify the display dimensions for the imported image.",
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 13,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Foreground = GetThemeBrush("TextFillColorSecondaryBrush", "#8A8886")
             });
             
             var grid = new Grid();
@@ -3076,91 +3492,7 @@ namespace JournalApp
             catch { return false; }
         }
 
-        // ── Writing streak ──────────────────────────────────────────────────
-        private void UpdateStreakUI()
-        {
-            try
-            {
-                int streak = ComputeWritingStreak();
-                if (StreakBadgeText != null)
-                {
-                    if (streak > 0)
-                    {
-                        StreakBadgeText.Text = streak == 1
-                            ? "🔥 1 day streak"
-                            : $"🔥 {streak} day streak";
-                        StreakBadgeText.Visibility = Visibility.Visible;
-                    }
-                    else
-                    {
-                        StreakBadgeText.Visibility = Visibility.Collapsed;
-                    }
-                }
-            }
-            catch { }
-        }
 
-        private int ComputeWritingStreak()
-        {
-            var activityDates = JournalManager.Instance.Notes
-                .Where(n => !n.IsDeleted)
-                .SelectMany(n => new[] { n.DateCreated.Date, n.DateModified.Date })
-                .Distinct()
-                .ToHashSet();
-
-            var today = DateTime.Today;
-            int streak = 0;
-            // Allow today OR yesterday as a starting point (so opening the app doesn't reset a streak)
-            var check = activityDates.Contains(today) ? today : today.AddDays(-1);
-            if (!activityDates.Contains(check)) return 0;
-
-            while (activityDates.Contains(check))
-            {
-                streak++;
-                check = check.AddDays(-1);
-            }
-            return streak;
-        }
-
-        private void UpdateWordCount()
-        {
-            if (SelectedNote == null)
-            {
-                if (WordCountTextBlock != null)
-                {
-                    WordCountTextBlock.Text = "Word Count: 0 | Characters: 0";
-                }
-                return;
-            }
-
-            try
-            {
-                string text;
-                NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out text);
-                if (text == null) text = "";
-
-                if (text.EndsWith("\r"))
-                {
-                    text = text.Substring(0, text.Length - 1);
-                }
-
-                int charCount = text.Length;
-                var words = text.Split(new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                int wordCount = words.Length;
-
-                if (WordCountTextBlock != null)
-                {
-                    WordCountTextBlock.Text = $"Word Count: {wordCount} | Characters: {charCount}";
-                }
-            }
-            catch
-            {
-                if (WordCountTextBlock != null)
-                {
-                    WordCountTextBlock.Text = "Word Count: 0 | Characters: 0";
-                }
-            }
-        }
 
         private void PinListButton_Click(object sender, RoutedEventArgs e)
         {
@@ -3278,7 +3610,7 @@ namespace JournalApp
         {
             if (sender is Border border)
             {
-                border.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorSecondaryBrush"];
+                border.Background = GetThemeBrush("CardBackgroundFillColorSecondaryBrush", "#EFEFEF");
                 try
                 {
                     typeof(UIElement).GetProperty("ProtectedCursor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?
@@ -3292,7 +3624,7 @@ namespace JournalApp
         {
             if (sender is Border border)
             {
-                border.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"];
+                border.Background = GetThemeBrush("CardBackgroundFillColorDefaultBrush", "#FFFFFF");
                 try
                 {
                     typeof(UIElement).GetProperty("ProtectedCursor", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?
@@ -3469,6 +3801,12 @@ namespace JournalApp
             UpdateSaveSettingsButtonState();
         }
 
+        private void AutoBackupToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            UpdateSaveSettingsButtonState();
+        }
+
         // Clear all data click handler
         private async void ClearAllDataButton_Click(object sender, RoutedEventArgs e)
         {
@@ -3559,6 +3897,200 @@ namespace JournalApp
             catch (Exception ex)
             {
                 await ShowAlertAsync("Export Failed", $"An error occurred during export: {ex.Message}");
+            }
+        }
+
+        private string GetExtensionForTag(string tag)
+        {
+            return tag switch
+            {
+                "MD" => ".md",
+                "HTML" => ".html",
+                "RTF" => ".rtf",
+                _ => ".md"
+            };
+        }
+
+        private async void BatchExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var formatCombo = new ComboBox
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Margin = new Thickness(0, 12, 0, 12)
+                };
+                formatCombo.Items.Add(new ComboBoxItem { Content = "Markdown (.md)", Tag = "MD" });
+                formatCombo.Items.Add(new ComboBoxItem { Content = "HTML (.html)", Tag = "HTML" });
+                formatCombo.Items.Add(new ComboBoxItem { Content = "Rich Text Format (.rtf)", Tag = "RTF" });
+                formatCombo.SelectedIndex = 0;
+
+                var panel = new StackPanel { Spacing = 8 };
+                panel.Children.Add(new TextBlock { Text = "Choose the export format:" });
+                panel.Children.Add(formatCombo);
+
+                var dialog = new ContentDialog
+                {
+                    Title = "Batch Export Entries",
+                    Content = panel,
+                    PrimaryButtonText = "Choose Folder & Export",
+                    CloseButtonText = "Cancel",
+                    XamlRoot = this.XamlRoot
+                };
+
+                var res = await dialog.ShowAsync();
+                if (res != ContentDialogResult.Primary) return;
+
+                var selectedTag = (formatCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "MD";
+
+                var folderPicker = new FolderPicker();
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance);
+                WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, hwnd);
+                folderPicker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+                folderPicker.FileTypeFilter.Add("*");
+
+                StorageFolder folder = await folderPicker.PickSingleFolderAsync();
+                if (folder == null) return;
+
+                string exportPath = Path.Combine(folder.Path, $"JournalExport_{selectedTag}_{DateTime.Now:yyyyMMdd_HHmmss}");
+                Directory.CreateDirectory(exportPath);
+
+                var notes = JournalManager.Instance.Notes.Where(n => !n.IsDeleted).ToList();
+                int count = 0;
+
+                var tempRichEdit = new RichEditBox();
+                ((Panel)this.Content).Children.Add(tempRichEdit);
+                tempRichEdit.Visibility = Visibility.Collapsed;
+
+                foreach (var note in notes)
+                {
+                    string safeTitle = string.Join("_", note.Title.Split(Path.GetInvalidFileNameChars()));
+                    if (string.IsNullOrWhiteSpace(safeTitle)) safeTitle = "Untitled";
+                    
+                    string baseFileName = $"{note.DateCreated:yyyy-MM-dd}_{safeTitle}";
+                    string finalFileName = baseFileName;
+                    int offset = 1;
+                    string ext = GetExtensionForTag(selectedTag);
+                    while (File.Exists(Path.Combine(exportPath, finalFileName + ext)))
+                    {
+                        finalFileName = $"{baseFileName}_{offset++}";
+                    }
+                    
+                    string destFilePath = Path.Combine(exportPath, finalFileName + ext);
+
+                    string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(note.RtfFileName);
+                    if (!File.Exists(rtfPath)) continue;
+
+                    byte[] fileBytes = File.ReadAllBytes(rtfPath);
+                    bool isEncrypted = true;
+                    if (fileBytes.Length >= 5)
+                    {
+                        if (fileBytes[0] == 123 && fileBytes[1] == 92 && fileBytes[2] == 114 && fileBytes[3] == 116 && fileBytes[4] == 102)
+                        {
+                            isEncrypted = false;
+                        }
+                    }
+
+                    byte[] loadedBytes = fileBytes;
+                    if (isEncrypted && _lockedCategories.Contains(note.Category) && !string.IsNullOrEmpty(_masterPassword))
+                    {
+                        try
+                        {
+                            loadedBytes = EncryptionHelper.Decrypt(fileBytes, _masterPassword);
+                        }
+                        catch (Exception decryptEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[BatchExport] Decryption failed: {decryptEx.Message}");
+                            continue;
+                        }
+                    }
+
+                    if (selectedTag == "RTF")
+                    {
+                        File.WriteAllBytes(destFilePath, loadedBytes);
+                        count++;
+                    }
+                    else
+                    {
+                        using (var ms = new MemoryStream(loadedBytes))
+                        {
+                            var winrtStream = ms.AsRandomAccessStream();
+                            tempRichEdit.Document.LoadFromStream(TextSetOptions.FormatRtf, winrtStream);
+                        }
+
+                        tempRichEdit.Document.GetText(TextGetOptions.UseLf, out string plainText);
+                        
+                        if (selectedTag == "MD")
+                        {
+                            var sb = new System.Text.StringBuilder();
+                            sb.AppendLine($"# {note.Title}");
+                            sb.AppendLine($"*Date Created: {note.DateCreated:f}*");
+                            if (!string.IsNullOrEmpty(note.LocationTag)) sb.AppendLine($"*Location: {note.LocationTag}*");
+                            if (!string.IsNullOrEmpty(note.WeatherTag)) sb.AppendLine($"*Weather: {note.WeatherTag}*");
+                            if (note.Tags != null && note.Tags.Count > 0)
+                            {
+                                sb.AppendLine($"*Tags: {string.Join(", ", note.Tags.Select(t => "#" + t))}*");
+                            }
+                            sb.AppendLine();
+                            sb.AppendLine("---");
+                            sb.AppendLine();
+                            sb.AppendLine(plainText);
+
+                            File.WriteAllText(destFilePath, sb.ToString(), System.Text.Encoding.UTF8);
+                            count++;
+                        }
+                        else if (selectedTag == "HTML")
+                        {
+                            var sb = new System.Text.StringBuilder();
+                            sb.AppendLine("<!DOCTYPE html>");
+                            sb.AppendLine("<html>");
+                            sb.AppendLine("<head>");
+                            sb.AppendLine("    <meta charset=\"utf-8\">");
+                            sb.AppendLine($"    <title>{System.Net.WebUtility.HtmlEncode(note.Title)}</title>");
+                            sb.AppendLine("    <style>");
+                            sb.AppendLine("        body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #333; }");
+                            sb.AppendLine("        h1 { border-bottom: 1px solid #eee; padding-bottom: 10px; }");
+                            sb.AppendLine("        .metadata { color: #666; font-size: 0.9em; margin-bottom: 20px; line-height: 1.8; }");
+                            sb.AppendLine("        .content { white-space: pre-wrap; font-size: 1.05em; }");
+                            sb.AppendLine("        .tags { margin-top: 20px; }");
+                            sb.AppendLine("        .tag { background: #eee; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; margin-right: 6px; display: inline-block; text-decoration: none; color: #555; }");
+                            sb.AppendLine("    </style>");
+                            sb.AppendLine("</head>");
+                            sb.AppendLine("<body>");
+                            sb.AppendLine($"    <h1>{System.Net.WebUtility.HtmlEncode(note.Title)}</h1>");
+                            sb.AppendLine("    <div class=\"metadata\">");
+                            sb.AppendLine($"        <strong>Date Created:</strong> {note.DateCreated:f}<br>");
+                            if (!string.IsNullOrEmpty(note.LocationTag)) sb.AppendLine($"        <strong>Location:</strong> {System.Net.WebUtility.HtmlEncode(note.LocationTag)}<br>");
+                            if (!string.IsNullOrEmpty(note.WeatherTag)) sb.AppendLine($"        <strong>Weather:</strong> {System.Net.WebUtility.HtmlEncode(note.WeatherTag)}<br>");
+                            sb.AppendLine("    </div>");
+                            sb.AppendLine("    <hr>");
+                            sb.AppendLine($"    <div class=\"content\">{System.Net.WebUtility.HtmlEncode(plainText)}</div>");
+                            if (note.Tags != null && note.Tags.Count > 0)
+                            {
+                                sb.AppendLine("    <div class=\"tags\">");
+                                foreach (var t in note.Tags)
+                                {
+                                    sb.AppendLine($"        <span class=\"tag\">#{System.Net.WebUtility.HtmlEncode(t)}</span>");
+                                }
+                                sb.AppendLine("    </div>");
+                            }
+                            sb.AppendLine("</body>");
+                            sb.AppendLine("</html>");
+
+                            File.WriteAllText(destFilePath, sb.ToString(), System.Text.Encoding.UTF8);
+                            count++;
+                        }
+                    }
+                }
+
+                ((Panel)this.Content).Children.Remove(tempRichEdit);
+
+                await ShowAlertAsync("Export Succeeded", $"Successfully exported {count} entries to:\n{exportPath}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to batch export entries: {ex.Message}");
+                await ShowAlertAsync("Export Failed", $"An error occurred during batch export: {ex.Message}");
             }
         }
 
@@ -3842,6 +4374,47 @@ namespace JournalApp
                     };
                     ParseInlineStyles(line.Substring(4), heading.Inlines);
                     richTextBlock.Blocks.Add(heading);
+                    continue;
+                }
+
+                // Handle checklists
+                bool isTodoUnchecked = line.StartsWith("- [ ] ") || line.StartsWith("☐ ");
+                bool isTodoChecked = line.StartsWith("- [x] ") || line.StartsWith("- [X] ") || line.StartsWith("☒ ") || line.StartsWith("☑ ");
+                
+                if (isTodoUnchecked || isTodoChecked)
+                {
+                    var listParagraph = new Paragraph
+                    {
+                        Margin = new Thickness(20, 4, 0, 4)
+                    };
+                    
+                    string checkGlyph = isTodoChecked ? "☑  " : "☐  ";
+                    listParagraph.Inlines.Add(new Run { Text = checkGlyph, FontWeight = FontWeights.Bold, Foreground = GetBrushFromHex(isTodoChecked ? "#107C41" : "#8A8886") });
+                    
+                    int sliceIndex = 0;
+                    if (line.StartsWith("- [ ] ") || line.StartsWith("- [x] ") || line.StartsWith("- [X] "))
+                    {
+                        sliceIndex = 6;
+                    }
+                    else if (line.StartsWith("☐ ") || line.StartsWith("☒ ") || line.StartsWith("☑ "))
+                    {
+                        sliceIndex = 2;
+                    }
+                    
+                    var textSpan = new Span();
+                    ParseInlineStyles(line.Substring(sliceIndex), textSpan.Inlines);
+                    if (isTodoChecked)
+                    {
+                        foreach (var inline in textSpan.Inlines)
+                        {
+                            if (inline is Run run)
+                            {
+                                run.Foreground = GetBrushFromHex("#8A8886");
+                            }
+                        }
+                    }
+                    listParagraph.Inlines.Add(textSpan);
+                    richTextBlock.Blocks.Add(listParagraph);
                     continue;
                 }
 
@@ -4767,183 +5340,7 @@ namespace JournalApp
             sb.Begin();
         }
 
-        private void PopulateMoodStats()
-        {
-            var notes = JournalManager.Instance.Notes.Where(n => !n.IsDeleted).ToList();
-            int total = notes.Count;
 
-            int happy = notes.Count(n => n.Mood == "😊 Happy");
-            int neutral = notes.Count(n => n.Mood == "😐 Neutral");
-            int sad = notes.Count(n => n.Mood == "😢 Sad");
-            int stressed = notes.Count(n => n.Mood == "😫 Stressed");
-            int angry = notes.Count(n => n.Mood == "😡 Angry");
-            int none = notes.Count(n => string.IsNullOrEmpty(n.Mood) || n.Mood == "None");
-
-            if (total == 0)
-            {
-                if (MoodHappyCountText != null) MoodHappyCountText.Text = "0 entries (0%)";
-                if (MoodHappyProgress != null) MoodHappyProgress.Value = 0;
-                
-                if (MoodNeutralCountText != null) MoodNeutralCountText.Text = "0 entries (0%)";
-                if (MoodNeutralProgress != null) MoodNeutralProgress.Value = 0;
-
-                if (MoodSadCountText != null) MoodSadCountText.Text = "0 entries (0%)";
-                if (MoodSadProgress != null) MoodSadProgress.Value = 0;
-
-                if (MoodStressedCountText != null) MoodStressedCountText.Text = "0 entries (0%)";
-                if (MoodStressedProgress != null) MoodStressedProgress.Value = 0;
-
-                if (MoodAngryCountText != null) MoodAngryCountText.Text = "0 entries (0%)";
-                if (MoodAngryProgress != null) MoodAngryProgress.Value = 0;
-
-                if (MoodNoneCountText != null) MoodNoneCountText.Text = "0 entries (0%)";
-                if (MoodNoneProgress != null) MoodNoneProgress.Value = 0;
-                return;
-            }
-
-            double p(int c) => (double)c / total * 100;
-
-            if (MoodHappyCountText != null) MoodHappyCountText.Text = $"{happy} entries ({p(happy):F0}%)";
-            if (MoodHappyProgress != null) MoodHappyProgress.Value = p(happy);
-
-            if (MoodNeutralCountText != null) MoodNeutralCountText.Text = $"{neutral} entries ({p(neutral):F0}%)";
-            if (MoodNeutralProgress != null) MoodNeutralProgress.Value = p(neutral);
-
-            if (MoodSadCountText != null) MoodSadCountText.Text = $"{sad} entries ({p(sad):F0}%)";
-            if (MoodSadProgress != null) MoodSadProgress.Value = p(sad);
-
-            if (MoodStressedCountText != null) MoodStressedCountText.Text = $"{stressed} entries ({p(stressed):F0}%)";
-            if (MoodStressedProgress != null) MoodStressedProgress.Value = p(stressed);
-
-            if (MoodAngryCountText != null) MoodAngryCountText.Text = $"{angry} entries ({p(angry):F0}%)";
-            if (MoodAngryProgress != null) MoodAngryProgress.Value = p(angry);
-
-            if (MoodNoneCountText != null) MoodNoneCountText.Text = $"{none} entries ({p(none):F0}%)";
-            if (MoodNoneProgress != null) MoodNoneProgress.Value = p(none);
-        }
-
-        private int ComputeLongestWritingStreak()
-        {
-            var activityDates = JournalManager.Instance.Notes
-                .Where(n => !n.IsDeleted)
-                .SelectMany(n => new[] { n.DateCreated.Date, n.DateModified.Date })
-                .Distinct()
-                .OrderBy(d => d)
-                .ToList();
-
-            if (activityDates.Count == 0) return 0;
-
-            int maxStreak = 0;
-            int currentStreak = 1;
-
-            for (int i = 1; i < activityDates.Count; i++)
-            {
-                if (activityDates[i] == activityDates[i - 1].AddDays(1))
-                {
-                    currentStreak++;
-                }
-                else if (activityDates[i] != activityDates[i - 1])
-                {
-                    maxStreak = Math.Max(maxStreak, currentStreak);
-                    currentStreak = 1;
-                }
-            }
-
-            maxStreak = Math.Max(maxStreak, currentStreak);
-            return maxStreak;
-        }
-
-        private void PopulateContributionGraph()
-        {
-            if (ContributionGrid == null) return;
-
-            ContributionGrid.Children.Clear();
-            ContributionGrid.RowDefinitions.Clear();
-            ContributionGrid.ColumnDefinitions.Clear();
-
-            for (int r = 0; r < 7; r++)
-            {
-                ContributionGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            }
-            for (int c = 0; c < 53; c++)
-            {
-                ContributionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            }
-
-            var noteCounts = JournalManager.Instance.Notes
-                .Where(n => !n.IsDeleted)
-                .GroupBy(n => n.DateCreated.Date)
-                .ToDictionary(g => g.Key, g => g.Count());
-
-            DateTime today = DateTime.Today;
-            DateTime startDate = today.AddDays(-370);
-            int startDayOfWeek = (int)startDate.DayOfWeek;
-            DateTime gridStartDate = startDate.AddDays(-startDayOfWeek);
-
-            for (int col = 0; col < 53; col++)
-            {
-                for (int row = 0; row < 7; row++)
-                {
-                    DateTime cellDate = gridStartDate.AddDays(col * 7 + row);
-                    
-                    bool isFuture = cellDate > today;
-                    bool isBeforeRange = cellDate < startDate;
-                    
-                    int count = 0;
-                    if (!isFuture && !isBeforeRange)
-                    {
-                        noteCounts.TryGetValue(cellDate, out count);
-                    }
-
-                    string hexColor = "#15FFFFFF";
-                    if (this.ActualTheme == ElementTheme.Light)
-                    {
-                        hexColor = "#F0F0F0";
-                    }
-
-                    if (!isFuture && !isBeforeRange)
-                    {
-                        if (count == 1) hexColor = "#FF1b4c2b";
-                        else if (count == 2) hexColor = "#FF2e6930";
-                        else if (count == 3) hexColor = "#FF398b3f";
-                        else if (count >= 4) hexColor = "#FF4dca57";
-                    }
-
-                    var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
-                    {
-                        Width = 10,
-                        Height = 10,
-                        RadiusX = 2,
-                        RadiusY = 2,
-                        Fill = GetBrushFromHex(hexColor),
-                        Opacity = (isFuture || isBeforeRange) ? 0.0 : 1.0
-                    };
-
-                    if (!isFuture && !isBeforeRange)
-                    {
-                        var toolTipText = $"{cellDate.ToString("MMMM d, yyyy")}: {count} {(count == 1 ? "entry" : "entries")}";
-                        ToolTipService.SetToolTip(rect, toolTipText);
-                    }
-
-                    Grid.SetRow(rect, row);
-                    Grid.SetColumn(rect, col);
-                    ContributionGrid.Children.Add(rect);
-                }
-            }
-
-            if (CurrentStreakStatsText != null)
-            {
-                CurrentStreakStatsText.Text = $"{ComputeWritingStreak()} days";
-            }
-            if (LongestStreakStatsText != null)
-            {
-                LongestStreakStatsText.Text = $"{ComputeLongestWritingStreak()} days";
-            }
-            if (TotalEntriesStatsText != null)
-            {
-                TotalEntriesStatsText.Text = JournalManager.Instance.Notes.Count(n => !n.IsDeleted).ToString();
-            }
-        }
 
         private void PopulateGallery()
         {

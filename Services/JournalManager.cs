@@ -187,6 +187,9 @@ namespace JournalApp
             {
                 try { File.Delete(rtfPath); } catch {}
             }
+
+            // Delete attached media files (photos + audio)
+            DeleteNoteMediaFiles(note);
         }
 
         public void EmptyTrash()
@@ -201,8 +204,37 @@ namespace JournalApp
                 {
                     try { File.Delete(rtfPath); } catch {}
                 }
+
+                // Delete attached media files (photos + audio)
+                DeleteNoteMediaFiles(note);
             }
             SaveNotesMetadata();
+        }
+
+        private void DeleteNoteMediaFiles(JournalNote note)
+        {
+            if (note.AttachedPhotoPaths != null)
+            {
+                foreach (var photoPath in note.AttachedPhotoPaths)
+                {
+                    string absPath = GetAbsoluteMediaPath(photoPath);
+                    if (absPath != null && File.Exists(absPath))
+                    {
+                        try { File.Delete(absPath); } catch {}
+                    }
+                }
+            }
+            if (note.AttachedAudioPaths != null)
+            {
+                foreach (var audioPath in note.AttachedAudioPaths)
+                {
+                    string absPath = GetAbsoluteMediaPath(audioPath);
+                    if (absPath != null && File.Exists(absPath))
+                    {
+                        try { File.Delete(absPath); } catch {}
+                    }
+                }
+            }
         }
 
         public string CopyImageToLocalMedia(string sourcePath)

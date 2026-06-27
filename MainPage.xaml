@@ -119,7 +119,7 @@
                         <InfoBadge x:Name="TrashInfoBadge" Value="0" Visibility="Collapsed" />
                     </NavigationViewItem.InfoBadge>
                 </NavigationViewItem>
-                <NavigationViewItem x:Name="GitHubNavItem" Content="GitHub History" ToolTipService.ToolTip="GitHub History">
+                <NavigationViewItem x:Name="GitHubNavItem" Content="GitHub History" ToolTipService.ToolTip="GitHub History" Visibility="Collapsed">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE150;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
                     </NavigationViewItem.Icon>
@@ -249,7 +249,7 @@
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate x:DataType="local:NotesGroup">
-                                        <Border Visibility="{x:Bind IsHeaderVisible, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                                        <Border Visibility="{x:Bind IsHeaderVisible, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}"
                                                 Padding="16,16,16,8" 
                                                 Background="Transparent"
                                                 HorizontalAlignment="Stretch">
@@ -261,15 +261,15 @@
                                                 </Grid.ColumnDefinitions>
                                                 
                                                 <FontIcon Grid.Column="0" 
-                                                          Glyph="{x:Bind CategoryIcon, Mode=OneWay}" 
-                                                          Foreground="{x:Bind CategoryColor, Converter={StaticResource HexToBrushConverter}, Mode=OneWay}" 
+                                                          Glyph="{x:Bind CategoryIcon, Mode=OneTime}" 
+                                                          Foreground="{x:Bind CategoryColor, Converter={StaticResource HexToBrushConverter}, Mode=OneTime}" 
                                                           FontFamily="{ThemeResource SymbolThemeFontFamily}" 
                                                           FontSize="18" 
                                                           Margin="0,0,8,0" 
                                                           VerticalAlignment="Center" />
                                                 
                                                 <TextBlock Grid.Column="1" 
-                                                           Text="{x:Bind Key, Mode=OneWay}" 
+                                                           Text="{x:Bind Key, Mode=OneTime}" 
                                                            Style="{ThemeResource BodyLargeTextBlockStyle}"
                                                            VerticalAlignment="Center" />
                                                 
@@ -311,52 +311,52 @@
                                             <!-- Fallback Image Icon -->
                                             <FontIcon Glyph="&#xE722;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             <!-- Thumbnail Image -->
-                                            <Image Source="{x:Bind AvatarImagePath, Converter={StaticResource ImagePathConverter}, Mode=OneWay}" Stretch="UniformToFill" />
+                                            <Image Source="{x:Bind AvatarImagePath, Converter={StaticResource ImagePathConverter}, Mode=OneTime}" Stretch="UniformToFill" />
                                         </Grid>
                                         
                                         <!-- Middle: Content Info (Column 1) -->
                                         <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <TextBlock Text="{x:Bind Title}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorPrimaryBrush}" MaxWidth="120" />
-                                                <FontIcon Glyph="&#xE735;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Foreground="Gold" Visibility="{x:Bind IsFavorite, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" VerticalAlignment="Center" />
-                                                <FontIcon Glyph="&#xE840;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Foreground="{ThemeResource SystemControlHighlightAccentBrush}" Visibility="{x:Bind IsPinned, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" VerticalAlignment="Center" />
+                                                <FontIcon Glyph="&#xE735;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Foreground="Gold" Visibility="{x:Bind IsFavorite, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}" VerticalAlignment="Center" />
+                                                <FontIcon Glyph="&#xE840;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Foreground="{ThemeResource SystemControlHighlightAccentBrush}" Visibility="{x:Bind IsPinned, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}" VerticalAlignment="Center" />
                                             </StackPanel>
                                             <TextBlock Text="{x:Bind Snippet}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                         </StackPanel>
                                         
                                         <!-- Right: Date Card (Column 2) -->
                                         <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="2" Margin="8,0,0,0" Width="56">
-                                            <TextBlock Text="{x:Bind DateDayOfWeek, Mode=OneWay}" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{ThemeResource SystemControlHighlightAccentBrush}" />
-                                            <TextBlock Text="{x:Bind DateDayNumber, Mode=OneWay}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Margin="0,-4" />
-                                            <TextBlock Text="{x:Bind DateMonthYear, Mode=OneWay}" FontSize="9" FontWeight="Medium" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="{x:Bind DateDayOfWeek, Mode=OneTime}" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{ThemeResource SystemControlHighlightAccentBrush}" />
+                                            <TextBlock Text="{x:Bind DateDayNumber, Mode=OneTime}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Margin="0,-4" />
+                                            <TextBlock Text="{x:Bind DateMonthYear, Mode=OneTime}" FontSize="9" FontWeight="Medium" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
              
                                          <!-- Rightmost: Vertical Actions Column (Column 3) -->
                                         <StackPanel Grid.Column="3" Orientation="Vertical" Spacing="4" VerticalAlignment="Center" Margin="8,0,0,0">
                                             <!-- Pin Button -->
-                                            <Button Click="PinListButton_Click" Tag="ActionButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Pin to Top" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneWay}">
+                                            <Button Click="PinListButton_Click" Tag="ActionButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Pin to Top" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneTime}">
                                                 <Button.Resources>
                                                     <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource SystemAccentColor}" />
                                                     <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource SystemAccentColor}" />
                                                 </Button.Resources>
                                                 <Grid>
-                                                    <FontIcon Glyph="&#xE840;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsPinned, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
-                                                    <FontIcon Glyph="&#xE718;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsPinned, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneWay}" />
+                                                    <FontIcon Glyph="&#xE840;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsPinned, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}" />
+                                                    <FontIcon Glyph="&#xE718;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsPinned, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneTime}" />
                                                 </Grid>
                                             </Button>
                                             <!-- Star Button -->
-                                            <Button Click="FavoriteListButton_Click" Tag="ActionButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Toggle Favorite" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneWay}">
+                                            <Button Click="FavoriteListButton_Click" Tag="ActionButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Toggle Favorite" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneTime}">
                                                 <Button.Resources>
                                                     <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="Gold" />
                                                     <SolidColorBrush x:Key="ButtonForegroundPressed" Color="Gold" />
                                                 </Button.Resources>
                                                 <Grid>
-                                                    <FontIcon Glyph="&#xE735;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsFavorite, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
-                                                    <FontIcon Glyph="&#xE734;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsFavorite, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneWay}" />
+                                                    <FontIcon Glyph="&#xE735;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsFavorite, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}" />
+                                                    <FontIcon Glyph="&#xE734;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Visibility="{x:Bind IsFavorite, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneTime}" />
                                                 </Grid>
                                             </Button>
                                             <!-- Delete Button -->
-                                            <Button Click="DeleteListButton_Click" Tag="DeleteButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Move to Trash" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneWay}">
+                                            <Button Click="DeleteListButton_Click" Tag="DeleteButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Move to Trash" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneTime}">
                                                 <Button.Resources>
                                                     <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="Red" />
                                                     <SolidColorBrush x:Key="ButtonForegroundPressed" Color="Red" />
@@ -365,14 +365,14 @@
                                             </Button>
                                             
                                             <!-- Trash Mode Buttons -->
-                                            <Button Click="RestoreListButton_Click" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Restore Entry" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                            <Button Click="RestoreListButton_Click" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Restore Entry" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}">
                                                 <Button.Resources>
                                                     <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource SystemAccentColor}" />
                                                     <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource SystemAccentColor}" />
                                                 </Button.Resources>
                                                 <FontIcon Glyph="&#xE7A6;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
                                             </Button>
-                                            <Button Click="PermanentlyDeleteListButton_Click" Tag="DeleteButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Delete Permanently" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                            <Button Click="PermanentlyDeleteListButton_Click" Tag="DeleteButton" Opacity="0" IsHitTestVisible="False" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" Width="26" Height="26" CornerRadius="13" ToolTipService.ToolTip="Delete Permanently" Visibility="{x:Bind IsDeleted, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}">
                                                 <Button.Resources>
                                                     <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="Red" />
                                                     <SolidColorBrush x:Key="ButtonForegroundPressed" Color="Red" />
@@ -386,7 +386,7 @@
                                     <Border Grid.Row="1" 
                                             Height="1" 
                                             Background="{ThemeResource DividerStrokeColorDefaultBrush}" 
-                                            Visibility="{x:Bind IsBottomDividerVisible, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                            Visibility="{x:Bind IsBottomDividerVisible, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}" />
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -446,6 +446,24 @@
                                 </Button.Content>
                             </Button>
 
+                             <Button ToolTipService.ToolTip="Highlight Text" Width="44" Height="32" Padding="0">
+                                 <Button.Content>
+                                     <StackPanel Orientation="Horizontal" Spacing="4" Padding="6,0">
+                                         <FontIcon Glyph="&#xE7E6;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                         <FontIcon Glyph="&#xE96E;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="8" VerticalAlignment="Center" />
+                                     </StackPanel>
+                                 </Button.Content>
+                                 <Button.Flyout>
+                                     <MenuFlyout>
+                                         <MenuFlyoutItem Text="Yellow" Tag="#FFFF00" Click="HighlightColor_Click" />
+                                         <MenuFlyoutItem Text="Green" Tag="#00FF00" Click="HighlightColor_Click" />
+                                         <MenuFlyoutItem Text="Blue" Tag="#00FFFF" Click="HighlightColor_Click" />
+                                         <MenuFlyoutItem Text="Pink" Tag="#FF00FF" Click="HighlightColor_Click" />
+                                         <MenuFlyoutItem Text="Clear" Tag="Clear" Click="HighlightColor_Click" />
+                                     </MenuFlyout>
+                                 </Button.Flyout>
+                             </Button>
+
                             <AppBarSeparator />
 
                             <Button ToolTipService.ToolTip="Align Left" Click="AlignLeftButton_Click" Width="36" Height="32" Padding="0">
@@ -476,6 +494,11 @@
                                     <FontIcon Glyph="&#xE8FD;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
                                 </Button.Content>
                             </Button>
+                            <Button x:Name="ChecklistButton" ToolTipService.ToolTip="Checklist" Click="ChecklistButton_Click" Width="36" Height="32" Padding="0">
+                                <Button.Content>
+                                    <FontIcon Glyph="&#xE73A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                </Button.Content>
+                            </Button>
 
                             <AppBarSeparator />
 
@@ -502,6 +525,25 @@
                                     </MenuFlyout>
                                 </Button.Flyout>
                             </Button>
+
+                             <!-- Inspiration (Daily Prompts) -->
+                             <Button x:Name="InspirationButton" ToolTipService.ToolTip="Writing Inspiration" Width="36" Height="32" Padding="0">
+                                 <Button.Content>
+                                     <FontIcon Glyph="&#xE710;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                 </Button.Content>
+                                 <Button.Flyout>
+                                     <Flyout x:Name="InspirationFlyout" Placement="Bottom" Opening="InspirationFlyout_Opening">
+                                         <StackPanel Width="260" Spacing="8">
+                                             <TextBlock Text="Writing Prompt" FontWeight="SemiBold" FontSize="13" />
+                                             <TextBlock x:Name="PromptDisplayTextBlock" Text="Loading prompt..." FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,4,0,0">
+                                                 <Button Content="New" Click="NewPrompt_Click" FontSize="11" Padding="8,4" />
+                                                 <Button Content="Insert" Click="InsertPrompt_Click" FontSize="11" Padding="8,4" Style="{StaticResource AccentButtonStyle}" />
+                                             </StackPanel>
+                                         </StackPanel>
+                                     </Flyout>
+                                 </Button.Flyout>
+                             </Button>
 
                             <!-- Font Family Selector in Toolbar -->
                             <ComboBox x:Name="ToolbarFontComboBox" Width="130" Height="32" SelectionChanged="ToolbarFontComboBox_SelectionChanged" PlaceholderText="Font" ToolTipService.ToolTip="Text Font Family">
@@ -995,88 +1037,157 @@
                                      <RichTextBlock x:Name="MarkdownPreviewTextBlock" Grid.Column="1" Visibility="Collapsed" MinHeight="500" FontSize="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="20,0,0,0" IsTextSelectionEnabled="True" />
                                  </Grid>
 
-                                  <!-- ══════════════════════════════════════════ -->
-                                  <!-- MOMENTS: location · weather · photos        -->
-                                  <!-- ══════════════════════════════════════════ -->
                                   <Border Margin="0,24,0,40"
-                                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                          BorderThickness="1" CornerRadius="12" Padding="20,16">
-                                      <StackPanel Spacing="16">
-                                          <!-- Header -->
-                                          <StackPanel Orientation="Horizontal" Spacing="10">
-                                              <FontIcon Glyph="&#xE81D;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                        FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                        VerticalAlignment="Center" />
-                                              <TextBlock Text="Moments" FontSize="15" FontWeight="SemiBold"
-                                                         VerticalAlignment="Center" />
-                                          </StackPanel>
-                                          <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-                                          <!-- Location + Weather chips -->
-                                          <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
-                                              <Button x:Name="LocationChipButton" Click="LocationChip_Click"
-                                                      CornerRadius="20" Padding="12,6"
-                                                      Background="Transparent"
-                                                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                                  <StackPanel Orientation="Horizontal" Spacing="6">
-                                                      <FontIcon Glyph="&#xE707;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                                FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                      <TextBlock x:Name="LocationChipText" Text="Add Location"
+                                           Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                           BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                           BorderThickness="1" CornerRadius="12" Padding="20,16">
+                                       <StackPanel Spacing="16">
+                                           <!-- Header Row with Title and Auto-Detect Action -->
+                                           <Grid>
+                                               <Grid.ColumnDefinitions>
+                                                   <ColumnDefinition Width="*" />
+                                                   <ColumnDefinition Width="Auto" />
+                                               </Grid.ColumnDefinitions>
+                                               <StackPanel Orientation="Horizontal" Spacing="10" Grid.Column="0">
+                                                   <FontIcon Glyph="&#xE81D;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                             FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                             VerticalAlignment="Center" />
+                                                   <TextBlock Text="Moments &amp; Attachments" FontSize="15" FontWeight="SemiBold"
+                                                              VerticalAlignment="Center" />
+                                               </StackPanel>
+                                               <Button x:Name="AutoDetectMomentsButton" Click="AutoDetectMoments_Click" Grid.Column="1"
+                                                       CornerRadius="12" Padding="10,4"
+                                                       Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                                       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                                       ToolTipService.ToolTip="Auto-detect location and weather">
+                                                   <StackPanel Orientation="Horizontal" Spacing="6">
+                                                       <FontIcon x:Name="AutoDetectMomentsIcon" Glyph="&#xE81D;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                                                  FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                  </StackPanel>
-                                              </Button>
-                                              <Button x:Name="WeatherChipButton"
-                                                      CornerRadius="20" Padding="12,6"
-                                                      Background="Transparent"
-                                                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                                  <StackPanel Orientation="Horizontal" Spacing="6">
-                                                      <FontIcon x:Name="WeatherChipIcon" Glyph="&#xE9CA;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                                FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                      <TextBlock x:Name="WeatherChipText" Text="Add Weather"
+                                                       <ProgressRing x:Name="AutoDetectMomentsProgress" Width="12" Height="12" IsActive="False" Visibility="Collapsed" VerticalAlignment="Center" />
+                                                       <TextBlock x:Name="AutoDetectMomentsText" Text="Auto-detect"
+                                                                  FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                   </StackPanel>
+                                               </Button>
+                                           </Grid>
+                                           
+                                           <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+
+                                           <!-- Metadata Chip Row -->
+                                           <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                                               <!-- Location Chip -->
+                                               <Button x:Name="LocationChipButton" Click="LocationChip_Click"
+                                                       CornerRadius="16" Padding="12,6"
+                                                       Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                                       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                                   <StackPanel Orientation="Horizontal" Spacing="6">
+                                                       <FontIcon Glyph="&#xE707;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                                                  FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                  </StackPanel>
-                                                  <Button.Flyout>
-                                                      <MenuFlyout>
-                                                          <MenuFlyoutItem Text="&#x2600;&#xFE0F;  Sunny" Tag="Sunny" Click="WeatherOption_Click" />
-                                                          <MenuFlyoutItem Text="&#x26C5;  Partly Cloudy" Tag="PartlyCloudy" Click="WeatherOption_Click" />
-                                                          <MenuFlyoutItem Text="&#x2601;&#xFE0F;  Cloudy" Tag="Cloudy" Click="WeatherOption_Click" />
-                                                          <MenuFlyoutItem Text="&#x1F327;&#xFE0F;  Rainy" Tag="Rainy" Click="WeatherOption_Click" />
-                                                          <MenuFlyoutItem Text="&#x26A1;  Stormy" Tag="Stormy" Click="WeatherOption_Click" />
-                                                          <MenuFlyoutItem Text="&#x2744;&#xFE0F;  Snowy" Tag="Snowy" Click="WeatherOption_Click" />
-                                                          <MenuFlyoutItem Text="&#x1F32B;&#xFE0F;  Foggy" Tag="Foggy" Click="WeatherOption_Click" />
-                                                          <MenuFlyoutSeparator />
-                                                          <MenuFlyoutItem Text="Clear" Tag="" Click="WeatherOption_Click" />
-                                                      </MenuFlyout>
-                                                  </Button.Flyout>
-                                              </Button>
-                                          </StackPanel>
-                                          <!-- Photos strip -->
-                                          <StackPanel Spacing="8">
-                                              <TextBlock Text="Photos" FontSize="12" FontWeight="Medium"
-                                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                              <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                                            VerticalScrollBarVisibility="Disabled"
-                                                            HorizontalScrollMode="Enabled">
-                                                  <StackPanel x:Name="MomentPhotosPanel" Orientation="Horizontal"
-                                                              Spacing="8" Padding="0,2">
-                                                      <Button x:Name="AddMomentPhotoButton" Click="AddMomentPhoto_Click"
-                                                              Width="100" Height="100" Padding="0" CornerRadius="10"
-                                                              Background="Transparent"
-                                                              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                                              ToolTipService.ToolTip="Attach a photo to this entry">
-                                                          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
-                                                              <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                                        FontSize="22" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                              <TextBlock Text="Add Photo" FontSize="10"
-                                                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                                         HorizontalAlignment="Center" />
-                                                          </StackPanel>
-                                                      </Button>
-                                                  </StackPanel>
-                                              </ScrollViewer>
-                                          </StackPanel>
-                                      </StackPanel>
-                                  </Border>
+                                                       <TextBlock x:Name="LocationChipText" Text="Add Location"
+                                                                  FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                   </StackPanel>
+                                               </Button>
+                                               <!-- Weather Chip -->
+                                               <Button x:Name="WeatherChipButton"
+                                                       CornerRadius="16" Padding="12,6"
+                                                       Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                                       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                                   <StackPanel Orientation="Horizontal" Spacing="6">
+                                                       <FontIcon x:Name="WeatherChipIcon" Glyph="&#xE9CA;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                 FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                       <TextBlock x:Name="WeatherChipText" Text="Add Weather"
+                                                                  FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                   </StackPanel>
+                                                   <Button.Flyout>
+                                                       <MenuFlyout>
+                                                           <MenuFlyoutItem Text="&#x2600;&#xFE0F;  Sunny" Tag="Sunny" Click="WeatherOption_Click" />
+                                                           <MenuFlyoutItem Text="&#x26C5;  Partly Cloudy" Tag="PartlyCloudy" Click="WeatherOption_Click" />
+                                                           <MenuFlyoutItem Text="&#x2601;&#xFE0F;  Cloudy" Tag="Cloudy" Click="WeatherOption_Click" />
+                                                           <MenuFlyoutItem Text="&#x1F327;&#xFE0F;  Rainy" Tag="Rainy" Click="WeatherOption_Click" />
+                                                           <MenuFlyoutItem Text="&#x26A1;  Stormy" Tag="Stormy" Click="WeatherOption_Click" />
+                                                           <MenuFlyoutItem Text="&#x2744;&#xFE0F;  Snowy" Tag="Snowy" Click="WeatherOption_Click" />
+                                                           <MenuFlyoutItem Text="&#x1F32B;&#xFE0F;  Foggy" Tag="Foggy" Click="WeatherOption_Click" />
+                                                           <MenuFlyoutSeparator />
+                                                           <MenuFlyoutItem Text="Clear" Tag="" Click="WeatherOption_Click" />
+                                                       </MenuFlyout>
+                                                   </Button.Flyout>
+                                               </Button>
+                                           </StackPanel>
+
+                                           <!-- Two-Column Attachments Panel -->
+                                           <Grid ColumnSpacing="24" RowSpacing="16" Margin="0,4,0,0">
+                                               <Grid.ColumnDefinitions>
+                                                   <ColumnDefinition Width="*" />
+                                                   <ColumnDefinition Width="*" />
+                                               </Grid.ColumnDefinitions>
+
+                                               <!-- Column 0: Photos -->
+                                               <StackPanel Grid.Column="0" Spacing="8">
+                                                   <TextBlock Text="Photos" FontSize="12" FontWeight="SemiBold"
+                                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                   <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                                 VerticalScrollBarVisibility="Disabled"
+                                                                 HorizontalScrollMode="Enabled">
+                                                       <StackPanel x:Name="MomentPhotosPanel" Orientation="Horizontal"
+                                                                   Spacing="8" Padding="0,2">
+                                                           <Button x:Name="AddMomentPhotoButton" Click="AddMomentPhoto_Click"
+                                                                   Width="80" Height="80" Padding="0" CornerRadius="10"
+                                                                   Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                                                   BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                                                   ToolTipService.ToolTip="Attach a photo to this entry">
+                                                               <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                                                                   <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                             FontSize="18" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                                   <TextBlock Text="Add Photo" FontSize="10"
+                                                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                              HorizontalAlignment="Center" />
+                                                               </StackPanel>
+                                                           </Button>
+                                                       </StackPanel>
+                                                   </ScrollViewer>
+                                               </StackPanel>
+
+                                               <!-- Column 1: Voice Memos -->
+                                               <StackPanel Grid.Column="1" Spacing="8">
+                                                   <TextBlock Text="Voice Memos" FontSize="12" FontWeight="SemiBold"
+                                                              Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                   <ComboBox x:Name="MicSelectionComboBox" SelectionChanged="MicSelectionComboBox_SelectionChanged" 
+                                                              HorizontalAlignment="Stretch" FontSize="11" Height="30" Padding="8,4" PlaceholderText="Select Microphone" />
+                                                   <StackPanel Orientation="Horizontal" Spacing="12">
+                                                       <Button x:Name="RecordAudioButton" Click="RecordAudioButton_Click"
+                                                               CornerRadius="14" Padding="10,5" 
+                                                               Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                                               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                                               ToolTipService.ToolTip="Record a voice memo">
+                                                           <StackPanel Orientation="Horizontal" Spacing="6">
+                                                               <FontIcon x:Name="RecordAudioIcon" Glyph="&#xE720;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="11" Foreground="Red" />
+                                                               <TextBlock x:Name="RecordAudioText" Text="Record Memo" FontSize="11" FontWeight="Medium" />
+                                                           </StackPanel>
+                                                       </Button>
+                                                       <TextBlock x:Name="RecordingTimerTextBlock" Text="00:00" FontSize="12" VerticalAlignment="Center" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                   </StackPanel>
+                                                   <StackPanel x:Name="AttachedAudioPanel" Spacing="6" Padding="0,2" />
+                                               </StackPanel>
+                                           </Grid>
+
+                                            <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="0,8" />
+
+                                            <!-- Tags Section -->
+                                            <StackPanel Spacing="8">
+                                                <TextBlock Text="Tags &amp; Keywords" FontSize="12" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBox x:Name="NewTagTextBox" PlaceholderText="Add/create tag..." 
+                                                             Width="180" Height="30" FontSize="11"
+                                                             KeyDown="NewTagTextBox_KeyDown" />
+                                                    <Button x:Name="AddTagBtn" Content="Add Tag" Click="AddTagBtn_Click" 
+                                                            CornerRadius="14" Padding="12,4" FontSize="11"
+                                                            Background="{ThemeResource ControlAltFillColorSecondaryBrush}"
+                                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" />
+                                                </StackPanel>
+                                                <StackPanel x:Name="AttachedTagsPanel" Orientation="Horizontal" Spacing="6" Padding="0,2" />
+                                            </StackPanel>
+                                       </StackPanel>
+                                   </Border>
                             </StackPanel>
                         </Grid>
                     </ScrollViewer>
@@ -1139,7 +1250,7 @@
                 <!-- Scrollable Settings Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000"
-                                HorizontalAlignment="Center"
+                                HorizontalAlignment="Stretch"
                                 Padding="40,40,40,40"
                                 Spacing="8">
                         <!-- Hidden element to force uniform 1000px layout width -->
@@ -1317,6 +1428,7 @@
                                         <TextBlock x:Name="GitHubStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         <ProgressBar x:Name="GitHubSyncProgressBar" IsIndeterminate="False" Height="4" Value="0" Margin="0,4,0,0" Visibility="Collapsed" />
                                     </StackPanel>
+                                    <ToggleSwitch x:Name="AutoBackupToggle" Header="Auto-Backup on Save" IsOn="False" Toggled="AutoBackupToggle_Toggled" OnContent="Enabled" OffContent="Disabled" Margin="0,8,0,0" />
                                 </StackPanel>
                             </Expander>
                         </StackPanel>
@@ -1462,7 +1574,7 @@
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000"
-                                HorizontalAlignment="Center"
+                                HorizontalAlignment="Stretch"
                                 Padding="40,40,40,40"
                                 Spacing="8">
                         <!-- Hidden element to force uniform 1000px layout width -->
@@ -1693,7 +1805,7 @@
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000"
-                                HorizontalAlignment="Center"
+                                HorizontalAlignment="Stretch"
                                 Padding="40,40,40,40"
                                 Spacing="8">
                         <!-- Hidden element to force uniform 1000px layout width -->
@@ -1807,6 +1919,14 @@
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Tag Cloud Card -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20" Margin="0,16,0,0">
+                            <StackPanel Spacing="16">
+                                <TextBlock Text="Frequently Used Tags" FontSize="16" FontWeight="SemiBold" />
+                                <VariableSizedWrapGrid x:Name="TagCloudPanel" Orientation="Horizontal" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -2079,5 +2199,67 @@
                 </ScrollViewer>
             </Grid>
         </ContentDialog>
+        <!-- App Lock Overlay Screen -->
+        <Grid x:Name="AppLockOverlay"
+              Visibility="Collapsed"
+              Background="{ThemeResource SolidBackgroundFillColorBaseAltBrush}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="24" Width="360">
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="28"
+                        Shadow="{StaticResource SharedShadow}">
+                    <StackPanel Spacing="16">
+                        <!-- Icon -->
+                        <FontIcon x:Name="AppLockIcon" Glyph="&#xE72E;" FontSize="44" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                        
+                        <TextBlock Text="Journal Locked" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="Please authenticate to access your personal journal entries." 
+                                   HorizontalAlignment="Center" 
+                                   TextAlignment="Center" 
+                                   TextWrapping="Wrap" 
+                                   FontSize="13" 
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        
+                        <!-- Windows Hello Button -->
+                        <Button x:Name="WindowsHelloButton"
+                                HorizontalAlignment="Stretch"
+                                Height="40"
+                                Margin="0,8,0,0"
+                                Style="{ThemeResource AccentButtonStyle}"
+                                Click="WindowsHelloButton_Click"
+                                Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE785;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="16" />
+                                <TextBlock Text="Sign in with Windows Hello" />
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Password input section -->
+                        <StackPanel x:Name="AppLockPasswordSection" Spacing="8" Margin="0,8,0,0">
+                            <PasswordBox x:Name="AppLockPasswordBox" 
+                                         PlaceholderText="Enter Master Password" 
+                                         PasswordRevealMode="Hidden"
+                                         Height="38"
+                                         KeyDown="AppLockPasswordBox_KeyDown"/>
+                            <Button Content="Unlock" 
+                                    HorizontalAlignment="Stretch" 
+                                    Height="38" 
+                                    Click="UnlockWithPassword_Click"/>
+                        </StackPanel>
+
+                        <!-- Status text -->
+                        <TextBlock x:Name="AppLockStatusText" 
+                                   Foreground="#FF3B30" 
+                                   FontSize="12" 
+                                   HorizontalAlignment="Center" 
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap" 
+                                   Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>

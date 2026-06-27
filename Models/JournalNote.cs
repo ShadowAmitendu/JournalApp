@@ -30,6 +30,7 @@ namespace JournalApp
         public string LocationTag { get; set; } = "";
         public string WeatherTag { get; set; } = "";
         public List<string> AttachedPhotoPaths { get; set; } = new List<string>();
+        public List<string> AttachedAudioPaths { get; set; } = new List<string>();
 
         public string AvatarImagePath => !string.IsNullOrEmpty(HeroImagePath) 
             ? HeroImagePath 

@@ -302,11 +302,15 @@ namespace JournalApp
                 }
                 else
                 {
-                    if (!commitsResponse.IsSuccessStatusCode)
-                    {
-                        string errContent = await commitsResponse.Content.ReadAsStringAsync();
-                        throw new Exception($"Failed to fetch repository commits: {commitsResponse.ReasonPhrase}. Details: {errContent}");
-                    }
+                     if (!commitsResponse.IsSuccessStatusCode)
+                     {
+                         if (commitsResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                         {
+                             throw new FileNotFoundException($"Repository '{repoName}' was not found. Please click 'Sync Now' in Settings to create and backup your journal to this repository first.");
+                         }
+                         string errContent = await commitsResponse.Content.ReadAsStringAsync();
+                         throw new Exception($"Failed to fetch repository commits: {commitsResponse.ReasonPhrase}. Details: {errContent}");
+                     }
 
                     commitsJson = await commitsResponse.Content.ReadAsStringAsync();
 
@@ -379,7 +383,14 @@ namespace JournalApp
                 if (CommitChartContainer != null) CommitChartContainer.Visibility = Visibility.Collapsed;
                 if (GitHubCommitsListView != null) GitHubCommitsListView.Visibility = Visibility.Collapsed;
                 GitHubHistoryErrorText.Visibility = Visibility.Visible;
-                GitHubHistoryErrorText.Text = $"Error: {ex.Message}";
+                if (ex is FileNotFoundException || ex.Message.Contains("was not found"))
+                {
+                    GitHubHistoryErrorText.Text = ex.Message;
+                }
+                else
+                {
+                    GitHubHistoryErrorText.Text = $"Error: {ex.Message}";
+                }
             }
         }
 
@@ -391,8 +402,8 @@ namespace JournalApp
             int maxCommits = commitDates.Values.Max();
             if (maxCommits == 0) maxCommits = 1;
 
-            var accentBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
-            var textBrushSecondary = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+            var accentBrush = GetThemeBrush("AccentFillColorDefaultBrush", "#0078D4");
+            var textBrushSecondary = GetThemeBrush("TextFillColorSecondaryBrush", "#8A8886");
 
             foreach (var kvp in commitDates)
             {
@@ -666,6 +677,10 @@ namespace JournalApp
                 if (AutoSaveSlider != null)
                     SaveSetting("AutoSaveIntervalSeconds", AutoSaveSlider.Value.ToString());
 
+                // Auto-backup toggle
+                if (AutoBackupToggle != null)
+                    SaveSetting("AutoBackupOnSave", AutoBackupToggle.IsOn ? "True" : "False");
+
                 // Unsplash key
                 if (UnsplashTokenPasswordBox != null)
                     SaveSetting("UnsplashAccessKey", UnsplashTokenPasswordBox.Password?.Trim());
@@ -676,9 +691,9 @@ namespace JournalApp
                 if (GitHubRepoTextBox != null)
                     SaveSetting("GitHubRepo", GitHubRepoTextBox.Text?.Trim());
 
-                // Master Password & Locked Categories
+                // Master Password & Locked Categories — store securely in Credential Manager
                 string inputPassword = MasterPasswordBox != null ? MasterPasswordBox.Password : "";
-                SaveSetting("MasterPassword", inputPassword);
+                SaveSecureMasterPassword(inputPassword);
                 _masterPassword = inputPassword;
 
                 string lockedCatsStr = string.Join(",", _lockedCategories);
@@ -699,6 +714,7 @@ namespace JournalApp
             if (SaveSettingsIcon != null) SaveSettingsIcon.Glyph = "\uE74E"; // save icon
             if (SaveSettingsText != null) SaveSettingsText.Text = "Save Settings";
             UpdateSaveSettingsButtonState();
+            UpdateTitleBarBackupButtonState();
         }
 
         private void UpdateSaveSettingsButtonState()
@@ -873,8 +889,15 @@ namespace JournalApp
                     }
                 }
 
-                // Load Master Password & Locked Categories
-                _masterPassword = GetSetting("MasterPassword", "");
+                // Load Auto-Backup Toggle state on startup
+                string savedAutoBackup = GetSetting("AutoBackupOnSave", "False");
+                if (AutoBackupToggle != null)
+                {
+                    AutoBackupToggle.IsOn = string.Equals(savedAutoBackup, "True", StringComparison.OrdinalIgnoreCase);
+                }
+
+                // Load Master Password & Locked Categories — from secure Credential Manager
+                _masterPassword = GetSecureMasterPassword();
                 if (MasterPasswordBox != null)
                 {
                     MasterPasswordBox.Password = _masterPassword;
@@ -975,6 +998,7 @@ namespace JournalApp
                 LoadCategoriesList();
                 RefreshNotesList();
                 UpdateSaveSettingsButtonState();
+                UpdateTitleBarBackupButtonState();
                 await ShowAlertAsync("Defaults Restored", "Application settings and default data have been successfully restored.");
             }
         }
@@ -1208,6 +1232,10 @@ namespace JournalApp
 
                 await ShowAlertAsync("Disconnected", "GitHub credentials have been removed from this device.");
                 UpdateTitleBarBackupButtonState();
+                 if (CategoriesNavView != null && CategoriesNavView.SelectedItem == (object)GitHubNavItem)
+                 {
+                     CategoriesNavView.SelectedItem = SettingsNavItem;
+                 }
             }
         }
 
@@ -1594,15 +1622,19 @@ namespace JournalApp
 
         public void UpdateTitleBarBackupButtonState()
         {
-            if (MainWindow.Instance == null) return;
-
             string token = GetSecureToken();
             if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
             string repoName = GetSetting("GitHubRepo");
 
             bool isConfigured = !string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repoName);
-            bool isBackupNeeded = IsBackupNeeded();
 
+            if (GitHubNavItem != null)
+            {
+                GitHubNavItem.Visibility = isConfigured ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (MainWindow.Instance == null) return;
+            bool isBackupNeeded = IsBackupNeeded();
             MainWindow.Instance.UpdateBackupButtonState(isBackupNeeded, isConfigured);
         }
 

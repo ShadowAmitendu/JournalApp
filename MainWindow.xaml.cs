@@ -89,7 +89,7 @@ public sealed partial class MainWindow : Window
                 {
                     var workArea = displayArea.WorkArea;
                     int width = 1480;
-                    int height = 800;
+                    int height = 890;
                     appWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
 
                     int x = workArea.X + (workArea.Width - width) / 2;
@@ -333,6 +333,7 @@ public sealed partial class MainWindow : Window
         {
             var mmi = (MINMAXINFO)System.Runtime.InteropServices.Marshal.PtrToStructure(lParam, typeof(MINMAXINFO));
             mmi.ptMinTrackSize.x = 1211; // minimum width constraint
+            mmi.ptMinTrackSize.y = 890;  // minimum height constraint
             System.Runtime.InteropServices.Marshal.StructureToPtr(mmi, lParam, false);
             return IntPtr.Zero;
         }
