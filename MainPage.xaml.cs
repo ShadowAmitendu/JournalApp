@@ -377,10 +377,6 @@ namespace JournalApp
         private bool _isPageInitialized = false;
         private object _previousSelectedItem;
         private bool _isUpdatingEffectsUI = false;
-        private bool _isRepositionMode = false;
-        private Windows.Foundation.Point _dragStart;
-        private double _dragStartX;
-        private double _dragStartY;
 
         // Undo trash
         private JournalNote _lastSoftDeletedNote;
@@ -2506,13 +2502,13 @@ namespace JournalApp
 
             double W = HeroImageContainer.ActualWidth;
             double H = HeroImageContainer.ActualHeight; // usually 300
-            if (W == 0) W = 800; // fallback default
+            if (W == 0) W = 800;
             if (H == 0) H = 300;
 
             double w = bitmap.PixelWidth;
             double h = bitmap.PixelHeight;
 
-            if (w == 0 || h == 0) return; // Image not loaded yet, wait for ImageOpened
+            if (w == 0 || h == 0) return;
 
             double aspectContainer = W / H;
             double aspectImage = w / h;
@@ -2530,26 +2526,27 @@ namespace JournalApp
                 HeroImage.Width = W;
             }
 
-            // Center the image in the container on initial load
-            // so panning is possible in all directions from the middle
-            if (HeroImageTransform != null &&
-                HeroImageTransform.TranslateX == 0 &&
-                HeroImageTransform.TranslateY == 0 &&
-                SelectedNote != null &&
-                SelectedNote.CoverOffsetX == 0 &&
-                SelectedNote.CoverOffsetY == 0)
+            HeroImage.Stretch = Microsoft.UI.Xaml.Media.Stretch.Fill;
+            HeroImage.HorizontalAlignment = HorizontalAlignment.Left;
+            HeroImage.VerticalAlignment = VerticalAlignment.Top;
+
+            // Center the image in the container on initial load if no offset is saved
+            if (HeroImageTransform != null && SelectedNote != null)
             {
-                // Center horizontally and vertically
-                double centerX = (W - HeroImage.Width) / 2.0;
-                double centerY = (H - HeroImage.Height) / 2.0;
-                HeroImageTransform.TranslateX = centerX;
-                HeroImageTransform.TranslateY = centerY;
-            }
-            else if (HeroImageTransform != null && SelectedNote != null)
-            {
-                // Restore saved offsets
-                HeroImageTransform.TranslateX = SelectedNote.CoverOffsetX;
-                HeroImageTransform.TranslateY = SelectedNote.CoverOffsetY;
+                if (SelectedNote.CoverOffsetX == 0 && SelectedNote.CoverOffsetY == 0)
+                {
+                    double centerX = (W - HeroImage.Width) / 2.0;
+                    double centerY = (H - HeroImage.Height) / 2.0;
+                    HeroImageTransform.TranslateX = centerX;
+                    HeroImageTransform.TranslateY = centerY;
+                    SelectedNote.CoverOffsetX = centerX;
+                    SelectedNote.CoverOffsetY = centerY;
+                }
+                else
+                {
+                    HeroImageTransform.TranslateX = SelectedNote.CoverOffsetX;
+                    HeroImageTransform.TranslateY = SelectedNote.CoverOffsetY;
+                }
             }
 
             ConstrainHeroImageTranslation();
@@ -2854,33 +2851,74 @@ namespace JournalApp
 
             double bannerW = HeroImageContainer?.ActualWidth > 0 ? HeroImageContainer.ActualWidth : 800.0;
             double bannerH = 300.0;
-            double tx = HeroImageTransform?.TranslateX ?? (SelectedNote?.CoverOffsetX ?? 0);
-            double ty = HeroImageTransform?.TranslateY ?? (SelectedNote?.CoverOffsetY ?? 0);
+
+            // Determine current percentage offset of image
+            double pctX = 0.5;
+            double pctY = 0.5;
+
+            double aspectContainer = bannerW / bannerH;
+            double aspectImage = bitmap.PixelWidth / (double)bitmap.PixelHeight;
+
+            double imgW, imgH;
+            if (aspectImage > aspectContainer)
+            {
+                imgH = bannerH;
+                imgW = bannerH * aspectImage;
+            }
+            else
+            {
+                imgH = bannerW / aspectImage;
+                imgW = bannerW;
+            }
+
+            if (SelectedNote.CoverOffsetX < 0)
+            {
+                double minX = bannerW - imgW;
+                pctX = minX < 0 ? Math.Clamp(SelectedNote.CoverOffsetX / minX, 0.0, 1.0) : 0.5;
+            }
+            else if (SelectedNote.CoverOffsetX > 0 && SelectedNote.CoverOffsetX <= 1.0)
+            {
+                pctX = SelectedNote.CoverOffsetX;
+            }
+
+            if (SelectedNote.CoverOffsetY < 0)
+            {
+                double minY = bannerH - imgH;
+                pctY = minY < 0 ? Math.Clamp(SelectedNote.CoverOffsetY / minY, 0.0, 1.0) : 0.5;
+            }
+            else if (SelectedNote.CoverOffsetY > 0 && SelectedNote.CoverOffsetY <= 1.0)
+            {
+                pctY = SelectedNote.CoverOffsetY;
+            }
+
+            if (SelectedNote.CoverOffsetX == 0 && SelectedNote.CoverOffsetY == 0)
+            {
+                pctX = 0.5;
+                pctY = 0.5;
+            }
+            else if (SelectedNote.CoverOffsetX == 0)
+            {
+                pctX = 0.0;
+            }
+            else if (SelectedNote.CoverOffsetY == 0)
+            {
+                pctY = 0.0;
+            }
 
             var repoWin = new CoverRepositionWindow(
                 HeroImage.Source,
                 bitmap.PixelWidth, bitmap.PixelHeight,
                 bannerW, bannerH,
-                tx, ty);
+                pctX, pctY);
 
             repoWin.RepositionConfirmed += (s, result) =>
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     if (SelectedNote == null) return;
-                    if (HeroImageTransform != null)
-                    {
-                        HeroImageTransform.TranslateX = result.tx;
-                        HeroImageTransform.TranslateY = result.ty;
-                        ConstrainHeroImageTranslation();
-                        SelectedNote.CoverOffsetX = HeroImageTransform.TranslateX;
-                        SelectedNote.CoverOffsetY = HeroImageTransform.TranslateY;
-                    }
-                    else
-                    {
-                        SelectedNote.CoverOffsetX = result.tx;
-                        SelectedNote.CoverOffsetY = result.ty;
-                    }
+                    SelectedNote.CoverOffsetX = result.pctX;
+                    SelectedNote.CoverOffsetY = result.pctY;
+                    UpdateHeroImageSizeAndConstraints();
                     MarkDirty();
                     ShowStatusMessage("Cover position saved");
                 });
@@ -2888,176 +2926,6 @@ namespace JournalApp
 
             repoWin.Activate();
         }
-
-        // ── Reposition Modal state ────────────────────────────────────────────────
-        private double _repoImgNativeW, _repoImgNativeH;
-        private double _repoOverlayScale;   // overlay display pixels per native pixel
-        private double _repoBannerScale;    // banner display pixels per native pixel
-        private double _repoCropLeft, _repoCropTop;
-        private double _repoCropW, _repoCropH;
-        private Windows.Foundation.Point _repoDragStart;
-        private double _repoCropLeftAtStart, _repoCropTopAtStart;
-        private bool _repoIsDragging;
-        private bool _repoLayoutDone;
-
-        private void RepositionArea_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            LayoutRepositionModal(e.NewSize.Width, e.NewSize.Height);
-        }
-
-        private void LayoutRepositionModal(double areaW, double areaH)
-        {
-            if (_repoImgNativeW == 0 || _repoImgNativeH == 0) return;
-            if (areaW < 50 || areaH < 50) return;
-
-            // Leave a comfortable margin around the image
-            double maxW = Math.Max(50, areaW - 48);
-            double maxH = Math.Max(50, areaH - 48);
-
-            // Scale image to fit within available area (Uniform)
-            double scaleX = maxW / _repoImgNativeW;
-            double scaleY = maxH / _repoImgNativeH;
-            _repoOverlayScale = Math.Min(scaleX, scaleY);
-
-            double dispImgW = _repoImgNativeW * _repoOverlayScale;
-            double dispImgH = _repoImgNativeH * _repoOverlayScale;
-
-            // Size canvas + image
-            RepositionCanvas.Width  = dispImgW;
-            RepositionCanvas.Height = dispImgH;
-            RepositionFullImage.Width  = dispImgW;
-            RepositionFullImage.Height = dispImgH;
-
-            // Compute banner display scale (how image is scaled inside the 300px banner)
-            double bannerW = HeroImageContainer?.ActualWidth > 0 ? HeroImageContainer.ActualWidth : 800.0;
-            double bannerH = 300.0;
-            double bannerAspect = bannerW / bannerH;
-            double imgAspect   = _repoImgNativeW / _repoImgNativeH;
-            _repoBannerScale = (imgAspect > bannerAspect)
-                ? bannerH / _repoImgNativeH   // fit height
-                : bannerW / _repoImgNativeW;  // fit width
-
-            // Crop frame size in overlay coords
-            double ratio = _repoOverlayScale / _repoBannerScale;
-            _repoCropW = Math.Min(bannerW * ratio, dispImgW);
-            _repoCropH = Math.Min(bannerH * ratio, dispImgH);
-
-            RepoCropFrame.Width  = _repoCropW;
-            RepoCropFrame.Height = _repoCropH;
-
-            if (!_repoLayoutDone)
-            {
-                _repoLayoutDone = true;
-
-                // Initial position from current banner translate
-                double tx = HeroImageTransform?.TranslateX ?? (SelectedNote?.CoverOffsetX ?? 0);
-                double ty = HeroImageTransform?.TranslateY ?? (SelectedNote?.CoverOffsetY ?? 0);
-
-                _repoCropLeft = Math.Clamp(-tx * ratio, 0, dispImgW - _repoCropW);
-                _repoCropTop  = Math.Clamp(-ty * ratio, 0, dispImgH - _repoCropH);
-            }
-
-            Canvas.SetLeft(RepoCropFrame, _repoCropLeft);
-            Canvas.SetTop(RepoCropFrame,  _repoCropTop);
-            UpdateRepoDimRects(dispImgW, dispImgH);
-        }
-
-        private void UpdateRepoDimRects(double imgW, double imgH)
-        {
-            // Top
-            Canvas.SetLeft(RepoDimTop, 0); Canvas.SetTop(RepoDimTop, 0);
-            RepoDimTop.Width = imgW; RepoDimTop.Height = Math.Max(0, _repoCropTop);
-
-            // Bottom
-            double by = _repoCropTop + _repoCropH;
-            Canvas.SetLeft(RepoDimBottom, 0); Canvas.SetTop(RepoDimBottom, by);
-            RepoDimBottom.Width = imgW; RepoDimBottom.Height = Math.Max(0, imgH - by);
-
-            // Left
-            Canvas.SetLeft(RepoDimLeft, 0); Canvas.SetTop(RepoDimLeft, _repoCropTop);
-            RepoDimLeft.Width = Math.Max(0, _repoCropLeft); RepoDimLeft.Height = _repoCropH;
-
-            // Right
-            double rx = _repoCropLeft + _repoCropW;
-            Canvas.SetLeft(RepoDimRight, rx); Canvas.SetTop(RepoDimRight, _repoCropTop);
-            RepoDimRight.Width = Math.Max(0, imgW - rx); RepoDimRight.Height = _repoCropH;
-        }
-
-        private void RepoCropFrame_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            var el = sender as UIElement;
-            el?.CapturePointer(e.Pointer);
-            _repoDragStart = e.GetCurrentPoint(RepositionCanvas).Position;
-            _repoCropLeftAtStart = _repoCropLeft;
-            _repoCropTopAtStart  = _repoCropTop;
-            _repoIsDragging = true;
-            e.Handled = true;
-        }
-
-        private void RepoCropFrame_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (!_repoIsDragging) return;
-            var pt = e.GetCurrentPoint(RepositionCanvas);
-            if (!pt.Properties.IsLeftButtonPressed) return;
-
-            double dx = pt.Position.X - _repoDragStart.X;
-            double dy = pt.Position.Y - _repoDragStart.Y;
-
-            double imgW = RepositionCanvas.Width;
-            double imgH = RepositionCanvas.Height;
-
-            _repoCropLeft = Math.Clamp(_repoCropLeftAtStart + dx, 0, imgW - _repoCropW);
-            _repoCropTop  = Math.Clamp(_repoCropTopAtStart  + dy, 0, imgH - _repoCropH);
-
-            Canvas.SetLeft(RepoCropFrame, _repoCropLeft);
-            Canvas.SetTop(RepoCropFrame,  _repoCropTop);
-            UpdateRepoDimRects(imgW, imgH);
-            e.Handled = true;
-        }
-
-        private void RepoCropFrame_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            _repoIsDragging = false;
-            (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
-            e.Handled = true;
-        }
-
-        private void RepoDoneButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (SelectedNote == null) return;
-
-            // Convert crop frame position → banner TranslateX/Y
-            double ratio = _repoBannerScale / _repoOverlayScale;
-            double tx = -_repoCropLeft * ratio;
-            double ty = -_repoCropTop  * ratio;
-
-            if (HeroImageTransform != null)
-            {
-                HeroImageTransform.TranslateX = tx;
-                HeroImageTransform.TranslateY = ty;
-                ConstrainHeroImageTranslation();
-                SelectedNote.CoverOffsetX = HeroImageTransform.TranslateX;
-                SelectedNote.CoverOffsetY = HeroImageTransform.TranslateY;
-            }
-            else
-            {
-                SelectedNote.CoverOffsetX = tx;
-                SelectedNote.CoverOffsetY = ty;
-            }
-
-            CoverRepositionModal.Visibility = Visibility.Collapsed;
-            MarkDirty();
-            ShowStatusMessage("Cover position saved");
-        }
-
-        private void RepoCancelButton_Click(object sender, RoutedEventArgs e)
-        {
-            CoverRepositionModal.Visibility = Visibility.Collapsed;
-        }
-
-        // Legacy handlers kept for XAML references (old inline-drag path no longer active)
-        private void RepositionDone_Click(object sender, RoutedEventArgs e) { }
-        private void RepositionCancel_Click(object sender, RoutedEventArgs e) { }
 
 
         // Photographer attribution is now handled natively via Hyperlink NavigateUri in XAML.

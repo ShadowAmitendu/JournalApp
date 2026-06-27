@@ -20,35 +20,38 @@
             <TextBlock Text="Reposition Cover Image"
                        FontSize="18" FontWeight="SemiBold"
                        Foreground="White" HorizontalAlignment="Center"/>
-            <TextBlock Text="Drag the image to choose which area appears in the cover banner"
+            <TextBlock Text="Drag the frame to choose which area fills the cover banner"
                        FontSize="12" Foreground="#99FFFFFF" HorizontalAlignment="Center"/>
         </StackPanel>
 
-        <!-- Main canvas area (dark background, image + fixed crop frame) -->
+        <!-- Canvas area -->
         <Grid Grid.Row="1" x:Name="CanvasContainer"
               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
               Background="#0D0D0D"
               SizeChanged="CanvasContainer_SizeChanged">
             <Canvas x:Name="MainCanvas">
 
-                <!-- Draggable image -->
+                <!-- Full image — STATIC, does not move -->
                 <Image x:Name="RepoImage"
                        Stretch="Fill"
-                       Canvas.Left="0" Canvas.Top="0"
-                       PointerPressed="RepoImage_PointerPressed"
-                       PointerMoved="RepoImage_PointerMoved"
-                       PointerReleased="RepoImage_PointerReleased"
-                       PointerCanceled="RepoImage_PointerReleased"/>
+                       IsHitTestVisible="False"
+                       Canvas.Left="0" Canvas.Top="0"/>
 
-                <!-- Dim overlays — 4 rects outside the fixed crop frame -->
+                <!-- Dim overlays — 4 rects outside the crop frame -->
                 <Rectangle x:Name="DimTop"    Fill="#BB000000" IsHitTestVisible="False"/>
                 <Rectangle x:Name="DimBottom" Fill="#BB000000" IsHitTestVisible="False"/>
                 <Rectangle x:Name="DimLeft"   Fill="#BB000000" IsHitTestVisible="False"/>
                 <Rectangle x:Name="DimRight"  Fill="#BB000000" IsHitTestVisible="False"/>
 
-                <!-- Fixed crop frame (does NOT move) -->
-                <Grid x:Name="CropFrameGrid" IsHitTestVisible="False" Canvas.Left="0" Canvas.Top="0">
-                    <!-- White border -->
+                <!-- Movable crop frame — user drags this over the image -->
+                <Grid x:Name="CropFrameGrid"
+                      Canvas.Left="0" Canvas.Top="0"
+                      PointerPressed="CropFrame_PointerPressed"
+                      PointerMoved="CropFrame_PointerMoved"
+                      PointerReleased="CropFrame_PointerReleased"
+                      PointerCanceled="CropFrame_PointerReleased">
+
+                    <!-- White crop border -->
                     <Border BorderBrush="White" BorderThickness="2" Background="Transparent"/>
 
                     <!-- Rule-of-thirds grid lines -->
@@ -70,25 +73,24 @@
 
                     <!-- Corner handles -->
                     <Border Width="14" Height="14" Background="White" CornerRadius="2"
-                            HorizontalAlignment="Left"  VerticalAlignment="Top"    Margin="-1,-1,0,0"/>
+                            HorizontalAlignment="Left"  VerticalAlignment="Top"    IsHitTestVisible="False" Margin="-1,-1,0,0"/>
                     <Border Width="14" Height="14" Background="White" CornerRadius="2"
-                            HorizontalAlignment="Right" VerticalAlignment="Top"    Margin="0,-1,-1,0"/>
+                            HorizontalAlignment="Right" VerticalAlignment="Top"    IsHitTestVisible="False" Margin="0,-1,-1,0"/>
                     <Border Width="14" Height="14" Background="White" CornerRadius="2"
-                            HorizontalAlignment="Left"  VerticalAlignment="Bottom" Margin="-1,0,0,-1"/>
+                            HorizontalAlignment="Left"  VerticalAlignment="Bottom" IsHitTestVisible="False" Margin="-1,0,0,-1"/>
                     <Border Width="14" Height="14" Background="White" CornerRadius="2"
-                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-1,-1"/>
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False" Margin="0,0,-1,-1"/>
 
                     <!-- Edge midpoint handles -->
                     <Border Width="22" Height="8"  Background="White" CornerRadius="2"
-                            HorizontalAlignment="Center" VerticalAlignment="Top"    Margin="0,-1,0,0"/>
+                            HorizontalAlignment="Center" VerticalAlignment="Top"    IsHitTestVisible="False" Margin="0,-1,0,0"/>
                     <Border Width="22" Height="8"  Background="White" CornerRadius="2"
-                            HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-1"/>
+                            HorizontalAlignment="Center" VerticalAlignment="Bottom" IsHitTestVisible="False" Margin="0,0,0,-1"/>
                     <Border Width="8"  Height="22" Background="White" CornerRadius="2"
-                            HorizontalAlignment="Left"   VerticalAlignment="Center" Margin="-1,0,0,0"/>
+                            HorizontalAlignment="Left"   VerticalAlignment="Center" IsHitTestVisible="False" Margin="-1,0,0,0"/>
                     <Border Width="8"  Height="22" Background="White" CornerRadius="2"
-                            HorizontalAlignment="Right"  VerticalAlignment="Center" Margin="0,0,-1,0"/>
+                            HorizontalAlignment="Right"  VerticalAlignment="Center" IsHitTestVisible="False" Margin="0,0,-1,0"/>
                 </Grid>
-
             </Canvas>
         </Grid>
 
@@ -97,12 +99,9 @@
                     HorizontalAlignment="Center" Spacing="12" Margin="0,18,0,28">
             <Button x:Name="DoneButton" Click="DoneButton_Click"
                     CornerRadius="8" Padding="28,10"
-                    Background="#0078D4" Foreground="White"
-                    BorderThickness="0">
+                    Background="#0078D4" Foreground="White" BorderThickness="0">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE73E;"
-                              FontFamily="Segoe MDL2 Assets" FontSize="14"
-                              Foreground="White"/>
+                    <FontIcon Glyph="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White"/>
                     <TextBlock Text="Done" FontWeight="SemiBold" Foreground="White"/>
                 </StackPanel>
             </Button>
