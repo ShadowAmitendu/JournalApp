@@ -646,6 +646,7 @@
                                       PointerMoved="HeroDragGrid_PointerMoved"
                                       PointerReleased="HeroDragGrid_PointerReleased"
                                       PointerCanceled="HeroDragGrid_PointerReleased"
+                                      Background="Transparent"
                                       x:Name="HeroDragGrid">
                                     <Image x:Name="HeroImage" Height="600" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Center" IsHitTestVisible="False">
                                         <Image.RenderTransform>
