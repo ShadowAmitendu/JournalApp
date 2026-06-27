@@ -18,6 +18,7 @@
         <local:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
         <local:ImagePathConverter x:Key="ImagePathConverter" />
         <local:HexToBrushConverter x:Key="HexToBrushConverter" />
+        <local:BoolInverseConverter x:Key="BoolInverseConverter" />
 
         <!-- Shimmer gradient brush for skeleton loaders -->
         <LinearGradientBrush x:Key="ShimmerBrush" StartPoint="0,0.5" EndPoint="1,0.5">
@@ -1035,91 +1036,90 @@
                                      <!-- Right: Live Markdown Preview -->
                                      <RichTextBlock x:Name="MarkdownPreviewTextBlock" Grid.Column="1" Visibility="Collapsed" MinHeight="500" FontSize="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="20,0,0,0" IsTextSelectionEnabled="True" />
                                  </Grid>
+
+                                  <!-- ══════════════════════════════════════════ -->
+                                  <!-- MOMENTS: location · weather · photos        -->
+                                  <!-- ══════════════════════════════════════════ -->
+                                  <Border Margin="0,24,0,40"
+                                          Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                          BorderThickness="1" CornerRadius="12" Padding="20,16">
+                                      <StackPanel Spacing="16">
+                                          <!-- Header -->
+                                          <StackPanel Orientation="Horizontal" Spacing="10">
+                                              <FontIcon Glyph="&#xE81D;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                        FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        VerticalAlignment="Center" />
+                                              <TextBlock Text="Moments" FontSize="15" FontWeight="SemiBold"
+                                                         VerticalAlignment="Center" />
+                                          </StackPanel>
+                                          <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                          <!-- Location + Weather chips -->
+                                          <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
+                                              <Button x:Name="LocationChipButton" Click="LocationChip_Click"
+                                                      CornerRadius="20" Padding="12,6"
+                                                      Background="Transparent"
+                                                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                                  <StackPanel Orientation="Horizontal" Spacing="6">
+                                                      <FontIcon Glyph="&#xE707;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                      <TextBlock x:Name="LocationChipText" Text="Add Location"
+                                                                 FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                  </StackPanel>
+                                              </Button>
+                                              <Button x:Name="WeatherChipButton"
+                                                      CornerRadius="20" Padding="12,6"
+                                                      Background="Transparent"
+                                                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                                  <StackPanel Orientation="Horizontal" Spacing="6">
+                                                      <FontIcon x:Name="WeatherChipIcon" Glyph="&#xE9CA;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                      <TextBlock x:Name="WeatherChipText" Text="Add Weather"
+                                                                 FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                  </StackPanel>
+                                                  <Button.Flyout>
+                                                      <MenuFlyout>
+                                                          <MenuFlyoutItem Text="&#x2600;&#xFE0F;  Sunny" Tag="Sunny" Click="WeatherOption_Click" />
+                                                          <MenuFlyoutItem Text="&#x26C5;  Partly Cloudy" Tag="PartlyCloudy" Click="WeatherOption_Click" />
+                                                          <MenuFlyoutItem Text="&#x2601;&#xFE0F;  Cloudy" Tag="Cloudy" Click="WeatherOption_Click" />
+                                                          <MenuFlyoutItem Text="&#x1F327;&#xFE0F;  Rainy" Tag="Rainy" Click="WeatherOption_Click" />
+                                                          <MenuFlyoutItem Text="&#x26A1;  Stormy" Tag="Stormy" Click="WeatherOption_Click" />
+                                                          <MenuFlyoutItem Text="&#x2744;&#xFE0F;  Snowy" Tag="Snowy" Click="WeatherOption_Click" />
+                                                          <MenuFlyoutItem Text="&#x1F32B;&#xFE0F;  Foggy" Tag="Foggy" Click="WeatherOption_Click" />
+                                                          <MenuFlyoutSeparator />
+                                                          <MenuFlyoutItem Text="Clear" Tag="" Click="WeatherOption_Click" />
+                                                      </MenuFlyout>
+                                                  </Button.Flyout>
+                                              </Button>
+                                          </StackPanel>
+                                          <!-- Photos strip -->
+                                          <StackPanel Spacing="8">
+                                              <TextBlock Text="Photos" FontSize="12" FontWeight="Medium"
+                                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                              <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                            VerticalScrollBarVisibility="Disabled"
+                                                            HorizontalScrollMode="Enabled">
+                                                  <StackPanel x:Name="MomentPhotosPanel" Orientation="Horizontal"
+                                                              Spacing="8" Padding="0,2">
+                                                      <Button x:Name="AddMomentPhotoButton" Click="AddMomentPhoto_Click"
+                                                              Width="100" Height="100" Padding="0" CornerRadius="10"
+                                                              Background="Transparent"
+                                                              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                                              ToolTipService.ToolTip="Attach a photo to this entry">
+                                                          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                                                              <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                        FontSize="22" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                              <TextBlock Text="Add Photo" FontSize="10"
+                                                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                         HorizontalAlignment="Center" />
+                                                          </StackPanel>
+                                                      </Button>
+                                                  </StackPanel>
+                                              </ScrollViewer>
+                                          </StackPanel>
+                                      </StackPanel>
+                                  </Border>
                             </StackPanel>
-
-                            <!-- ══════════════════════════════════════════ -->
-                            <!-- MOMENTS: location · weather · photos        -->
-                            <!-- ══════════════════════════════════════════ -->
-                            <Border Margin="0,24,0,40"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1" CornerRadius="12" Padding="20,16">
-                                <StackPanel Spacing="16">
-                                    <!-- Header -->
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <FontIcon Glyph="&#xE81D;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                  FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                  VerticalAlignment="Center" />
-                                        <TextBlock Text="Moments" FontSize="15" FontWeight="SemiBold"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-                                    <!-- Location + Weather chips -->
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
-                                        <Button x:Name="LocationChipButton" Click="LocationChip_Click"
-                                                CornerRadius="20" Padding="12,6"
-                                                Background="Transparent"
-                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <FontIcon Glyph="&#xE707;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                          FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <TextBlock x:Name="LocationChipText" Text="Add Location"
-                                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button x:Name="WeatherChipButton"
-                                                CornerRadius="20" Padding="12,6"
-                                                Background="Transparent"
-                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <FontIcon x:Name="WeatherChipIcon" Glyph="&#xE9CA;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                          FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <TextBlock x:Name="WeatherChipText" Text="Add Weather"
-                                                           FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                            </StackPanel>
-                                            <Button.Flyout>
-                                                <MenuFlyout>
-                                                    <MenuFlyoutItem Text="&#x2600;&#xFE0F;  Sunny" Tag="Sunny" Click="WeatherOption_Click" />
-                                                    <MenuFlyoutItem Text="&#x26C5;  Partly Cloudy" Tag="PartlyCloudy" Click="WeatherOption_Click" />
-                                                    <MenuFlyoutItem Text="&#x2601;&#xFE0F;  Cloudy" Tag="Cloudy" Click="WeatherOption_Click" />
-                                                    <MenuFlyoutItem Text="&#x1F327;&#xFE0F;  Rainy" Tag="Rainy" Click="WeatherOption_Click" />
-                                                    <MenuFlyoutItem Text="&#x26A1;  Stormy" Tag="Stormy" Click="WeatherOption_Click" />
-                                                    <MenuFlyoutItem Text="&#x2744;&#xFE0F;  Snowy" Tag="Snowy" Click="WeatherOption_Click" />
-                                                    <MenuFlyoutItem Text="&#x1F32B;&#xFE0F;  Foggy" Tag="Foggy" Click="WeatherOption_Click" />
-                                                    <MenuFlyoutSeparator />
-                                                    <MenuFlyoutItem Text="Clear" Tag="" Click="WeatherOption_Click" />
-                                                </MenuFlyout>
-                                            </Button.Flyout>
-                                        </Button>
-                                    </StackPanel>
-                                    <!-- Photos strip -->
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="Photos" FontSize="12" FontWeight="Medium"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                                      VerticalScrollBarVisibility="Disabled"
-                                                      HorizontalScrollMode="Enabled">
-                                            <StackPanel x:Name="MomentPhotosPanel" Orientation="Horizontal"
-                                                        Spacing="8" Padding="0,2">
-                                                <Button x:Name="AddMomentPhotoButton" Click="AddMomentPhoto_Click"
-                                                        Width="100" Height="100" Padding="0" CornerRadius="10"
-                                                        Background="Transparent"
-                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
-                                                        ToolTipService.ToolTip="Attach a photo to this entry">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
-                                                        <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}"
-                                                                  FontSize="22" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                        <TextBlock Text="Add Photo" FontSize="10"
-                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                                   HorizontalAlignment="Center" />
-                                                    </StackPanel>
-                                                </Button>
-                                            </StackPanel>
-                                        </ScrollViewer>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
                         </Grid>
                     </ScrollViewer>
 
@@ -1893,7 +1893,7 @@
                                 <DataTemplate x:DataType="local:GalleryItem">
                                     <Grid Width="250" Height="180" Margin="5"
                                           Opacity="{x:Bind IsPlaceholder, Converter={StaticResource BoolToOpacityConverter}, Mode=OneTime}"
-                                          IsHitTestVisible="{x:Bind IsPlaceholder, Converter={StaticResource BoolToVisibilityInverseConverter}, Mode=OneTime}">
+                                          IsHitTestVisible="{x:Bind IsPlaceholder, Converter={StaticResource BoolInverseConverter}, Mode=OneTime}">
                                         <Grid CornerRadius="10"
                                               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                               BorderThickness="1"

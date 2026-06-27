@@ -24,7 +24,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Image Source="Assets/AppIcon.ico" Width="16" Height="16" Margin="16,0,8,0" VerticalAlignment="Center" />
+            <Image Source="ms-appx:///Assets/Square44x44Logo.scale-200.png" Width="16" Height="16" Margin="16,0,8,0" VerticalAlignment="Center" />
             <TextBlock x:Name="AppTitleTextBlock" Text="JournalApp" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,24,0" />
             
             <AutoSuggestBox x:Name="TitleSearchBox" Grid.Column="2" PlaceholderText="Search entries..." QueryIcon="Find" Width="300" VerticalAlignment="Center" HorizontalAlignment="Center" TextChanged="TitleSearchBox_TextChanged" Margin="0,0,140,0" />

@@ -243,6 +243,7 @@ namespace JournalApp
                         }
                     }
 
+                    _isLoadingNote = true;
                     _isDataLoaded = false; // Disable auto-save events while loading note details
                     _autoSaveTimer.Stop();
 
@@ -316,6 +317,7 @@ namespace JournalApp
                         this.DispatcherQueue.TryEnqueue(() =>
                         {
                             _isDirty = false;
+                            _isLoadingNote = false;
                             _isDataLoaded = true;
                         });
                     }
@@ -342,6 +344,7 @@ namespace JournalApp
         private List<JournalNote> _allNotes;
         private DispatcherTimer _autoSaveTimer;
         private bool _isDataLoaded = false;
+        private bool _isLoadingNote = false;
         private bool _isDirty = false;
         private bool _isPageInitialized = false;
         private object _previousSelectedItem;
@@ -1050,7 +1053,7 @@ namespace JournalApp
 
         private void MarkDirty()
         {
-            if (!_isDataLoaded) return;
+            if (!_isDataLoaded || _isLoadingNote) return;
             _isDirty = true;
             if (StatusMessageTextBlock != null)
             {
