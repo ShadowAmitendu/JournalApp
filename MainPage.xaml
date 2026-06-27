@@ -650,16 +650,16 @@
                             </Border>
                             
                             <!-- Hero Image Banner (Stretches full width, overlay cover actions) -->
-                            <Grid x:Name="HeroImageContainer" Grid.Row="0" Height="300" Background="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" HorizontalAlignment="Stretch" CornerRadius="0.1" SizeChanged="HeroImageContainer_SizeChanged">
+                            <Grid x:Name="HeroImageContainer" Grid.Row="0" Height="300" Background="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" HorizontalAlignment="Stretch" SizeChanged="HeroImageContainer_SizeChanged">
                                 <!-- Clipped container for image positioning -->
-                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" CornerRadius="0.1"
+                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                       PointerPressed="HeroDragGrid_PointerPressed"
                                       PointerMoved="HeroDragGrid_PointerMoved"
                                       PointerReleased="HeroDragGrid_PointerReleased"
                                       PointerCanceled="HeroDragGrid_PointerReleased"
                                       Background="Transparent"
                                       x:Name="HeroDragGrid">
-                                     <Image x:Name="HeroImage" Stretch="Fill" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
+                                     <Image x:Name="HeroImage" Stretch="None" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
                                          <Image.RenderTransform>
                                              <CompositeTransform x:Name="HeroImageTransform" TranslateX="0" TranslateY="0" />
                                          </Image.RenderTransform>
