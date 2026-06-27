@@ -237,6 +237,15 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    public void ShowBackupCompleteNotification(string message)
+    {
+        if (BackupCompleteTip != null)
+        {
+            BackupCompleteTip.Subtitle = message;
+            BackupCompleteTip.IsOpen = true;
+        }
+    }
+
     public void SetBackdrop(string backdropType)
     {
         try

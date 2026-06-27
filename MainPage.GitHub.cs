@@ -1108,7 +1108,15 @@ namespace JournalApp
                 if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Visible;
                 GitHubDisconnectButton.Visibility = Visibility.Visible;
 
-                await ShowAlertAsync("Synchronization Complete", $"Successfully backed up {filesToSync.Count} files to your private GitHub repository '{repoName}'!");
+                string successMsg = $"Successfully backed up {filesToSync.Count} files to your private GitHub repository '{repoName}'!";
+                if (MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.ShowBackupCompleteNotification(successMsg);
+                }
+                else
+                {
+                    await ShowAlertAsync("Synchronization Complete", successMsg);
+                }
             }
             catch (Exception ex)
             {

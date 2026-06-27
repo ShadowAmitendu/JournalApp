@@ -43,6 +43,16 @@
                         <TextBlock x:Name="TitleBarBackupText" Text="Backup" VerticalAlignment="Center" FontSize="12" />
                     </StackPanel>
                 </Button>
+                <TeachingTip x:Name="BackupCompleteTip"
+                             Target="{x:Bind TitleBarBackupBtn}"
+                             Title="Backup Complete"
+                             Subtitle="Your journal entries have been successfully backed up to GitHub."
+                             CloseButtonContent="OK"
+                             PreferredPlacement="Bottom">
+                    <TeachingTip.IconSource>
+                        <SymbolIconSource Symbol="Accept" />
+                    </TeachingTip.IconSource>
+                </TeachingTip>
             </StackPanel>
         </Grid>
 
