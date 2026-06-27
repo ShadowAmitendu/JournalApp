@@ -655,7 +655,7 @@
                                  <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                        Background="Transparent"
                                        x:Name="HeroDragGrid">
-                                     <Image x:Name="HeroImage" Stretch="UniformToFill" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False">
+                                     <Image x:Name="HeroImage" Stretch="UniformToFill" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
                                          <Image.RenderTransform>
                                              <CompositeTransform x:Name="HeroImageTransform" TranslateX="0" TranslateY="0" />
                                          </Image.RenderTransform>

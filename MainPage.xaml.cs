@@ -2500,8 +2500,8 @@ namespace JournalApp
             HeroImage.Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill;
             HeroImage.Width = double.NaN;
             HeroImage.Height = double.NaN;
-            HeroImage.HorizontalAlignment = HorizontalAlignment.Stretch;
-            HeroImage.VerticalAlignment = VerticalAlignment.Stretch;
+            HeroImage.HorizontalAlignment = HorizontalAlignment.Center;
+            HeroImage.VerticalAlignment = VerticalAlignment.Center;
 
             if (HeroImageTransform != null)
             {
