@@ -216,6 +216,27 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    public void SetBackupButtonLoadingState(bool isLoading)
+    {
+        if (TitleBarBackupBtn != null)
+        {
+            TitleBarBackupBtn.IsEnabled = !isLoading;
+            if (TitleBarBackupIcon != null)
+            {
+                TitleBarBackupIcon.Visibility = isLoading ? Visibility.Collapsed : Visibility.Visible;
+            }
+            if (TitleBarBackupProgressRing != null)
+            {
+                TitleBarBackupProgressRing.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+                TitleBarBackupProgressRing.IsActive = isLoading;
+            }
+            if (TitleBarBackupText != null)
+            {
+                TitleBarBackupText.Text = isLoading ? "Backing up..." : "Backup";
+            }
+        }
+    }
+
     public void SetBackdrop(string backdropType)
     {
         try

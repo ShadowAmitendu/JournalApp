@@ -38,7 +38,8 @@
                 </Button>
                 <Button x:Name="TitleBarBackupBtn" Style="{StaticResource AccentButtonStyle}" Click="TitleBarBackupBtn_Click" Padding="12,4" CornerRadius="4" IsEnabled="False">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE753;" FontSize="13" VerticalAlignment="Center" />
+                        <FontIcon x:Name="TitleBarBackupIcon" Glyph="&#xE753;" FontSize="13" VerticalAlignment="Center" />
+                        <ProgressRing x:Name="TitleBarBackupProgressRing" Width="12" Height="12" VerticalAlignment="Center" IsActive="False" Visibility="Collapsed" Foreground="White" />
                         <TextBlock x:Name="TitleBarBackupText" Text="Backup" VerticalAlignment="Center" FontSize="12" />
                     </StackPanel>
                 </Button>

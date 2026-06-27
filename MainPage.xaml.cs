@@ -99,8 +99,13 @@ namespace JournalApp
 
                 RemoveSetting("GitHubUsername");
                 RemoveSetting("GitHubCommitsCache_ETag");
-                RemoveSetting("GitHubCommitsCache_JSON");
                 RemoveSetting("GitHubCommitsCache_Repo");
+                try
+                {
+                    string cachePath = Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "github_commits_cache.json");
+                    if (File.Exists(cachePath)) File.Delete(cachePath);
+                }
+                catch { }
             }
             catch (Exception ex)
             {
@@ -109,8 +114,13 @@ namespace JournalApp
                 SaveSetting("GitHubToken", token);
                 RemoveSetting("GitHubUsername");
                 RemoveSetting("GitHubCommitsCache_ETag");
-                RemoveSetting("GitHubCommitsCache_JSON");
                 RemoveSetting("GitHubCommitsCache_Repo");
+                try
+                {
+                    string cachePath = Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "github_commits_cache.json");
+                    if (File.Exists(cachePath)) File.Delete(cachePath);
+                }
+                catch { }
             }
         }
 
@@ -128,8 +138,13 @@ namespace JournalApp
             RemoveSetting("GitHubToken");
             RemoveSetting("GitHubUsername");
             RemoveSetting("GitHubCommitsCache_ETag");
-            RemoveSetting("GitHubCommitsCache_JSON");
             RemoveSetting("GitHubCommitsCache_Repo");
+            try
+            {
+                string cachePath = Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "github_commits_cache.json");
+                if (File.Exists(cachePath)) File.Delete(cachePath);
+            }
+            catch { }
         }
 
         private static string GetSetting(string key, string defaultValue = "")

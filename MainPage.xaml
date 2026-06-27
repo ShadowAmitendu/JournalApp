@@ -143,6 +143,11 @@
 
             <!-- Main Content Container Grid -->
             <Grid>
+                <Grid.ChildrenTransitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="24" FromVerticalOffset="0" />
+                    </TransitionCollection>
+                </Grid.ChildrenTransitions>
                 <!-- Main Layout Content Pane (split into Notes List and Editor) -->
                 <Grid x:Name="MainEditorGrid" Visibility="Visible">
                 <Grid.ColumnDefinitions>
@@ -229,6 +234,12 @@
                     <ListView x:Name="NotesListView" Grid.Row="1" 
                               ItemsSource="{x:Bind NotesCVS.View, Mode=OneWay}"
                               SelectionMode="Single" SelectionChanged="NotesListView_SelectionChanged" Padding="0,2">
+                        <ListView.ItemContainerTransitions>
+                            <TransitionCollection>
+                                <AddDeleteThemeTransition />
+                                <ReorderThemeTransition />
+                            </TransitionCollection>
+                        </ListView.ItemContainerTransitions>
                         <ListView.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <ItemsStackPanel AreStickyGroupHeadersEnabled="True"/>
@@ -1679,6 +1690,11 @@
 
                             <!-- Real commits list (hidden until data loads) -->
                             <ListView x:Name="GitHubCommitsListView" SelectionMode="None" Background="Transparent" IsItemClickEnabled="False" Visibility="Collapsed">
+                                <ListView.ItemContainerTransitions>
+                                    <TransitionCollection>
+                                        <AddDeleteThemeTransition />
+                                    </TransitionCollection>
+                                </ListView.ItemContainerTransitions>
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Margin="0,0,0,8" Padding="16,12" HorizontalAlignment="Stretch">
@@ -1879,6 +1895,12 @@
                                   ItemClick="GalleryGridView_ItemClick"
                                   Visibility="Collapsed"
                                   HorizontalAlignment="Center">
+                            <GridView.ItemContainerTransitions>
+                                <TransitionCollection>
+                                    <AddDeleteThemeTransition />
+                                    <ReorderThemeTransition />
+                                </TransitionCollection>
+                            </GridView.ItemContainerTransitions>
                             <GridView.ItemContainerStyle>
                                 <Style TargetType="GridViewItem">
                                     <Setter Property="Padding" Value="0" />
@@ -1924,6 +1946,11 @@
 
                 <!-- Full Page Overlay for Note Images Viewer -->
                 <Grid x:Name="GalleryNoteViewerOverlay" Visibility="Collapsed" Background="#F2000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Grid.ChildrenTransitions>
+                        <TransitionCollection>
+                            <EntranceThemeTransition FromVerticalOffset="40" FromHorizontalOffset="0" />
+                        </TransitionCollection>
+                    </Grid.ChildrenTransitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />

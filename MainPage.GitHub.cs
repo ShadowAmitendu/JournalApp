@@ -272,8 +272,18 @@ namespace JournalApp
                 }
 
                 string cachedETag = GetSetting("GitHubCommitsCache_ETag");
-                string cachedJson = GetSetting("GitHubCommitsCache_JSON");
                 string cachedRepo = GetSetting("GitHubCommitsCache_Repo");
+                string cachedJson = null;
+
+                try
+                {
+                    string cachePath = Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "github_commits_cache.json");
+                    if (File.Exists(cachePath))
+                    {
+                        cachedJson = File.ReadAllText(cachePath);
+                    }
+                }
+                catch { }
 
                 if (!string.IsNullOrEmpty(cachedETag) && !string.IsNullOrEmpty(cachedJson) && cachedRepo == repoName)
                 {
@@ -303,8 +313,14 @@ namespace JournalApp
                     if (commitsResponse.Headers.ETag != null)
                     {
                         SaveSetting("GitHubCommitsCache_ETag", commitsResponse.Headers.ETag.ToString());
-                        SaveSetting("GitHubCommitsCache_JSON", commitsJson);
                         SaveSetting("GitHubCommitsCache_Repo", repoName);
+
+                        try
+                        {
+                            string cachePath = Path.Combine(Windows.Storage.ApplicationData.Current.LocalFolder.Path, "github_commits_cache.json");
+                            File.WriteAllText(cachePath, commitsJson);
+                        }
+                        catch { }
                     }
                 }
 
@@ -989,6 +1005,10 @@ namespace JournalApp
             GitHubSyncButton.IsEnabled = false;
             if (GitHubPullButton != null) GitHubPullButton.IsEnabled = false;
             GitHubDisconnectButton.IsEnabled = false;
+            if (MainWindow.Instance != null)
+            {
+                MainWindow.Instance.SetBackupButtonLoadingState(true);
+            }
             GitHubStatusPanel.Visibility = Visibility.Visible;
             GitHubSyncProgressBar.Visibility = Visibility.Visible;
             GitHubSyncProgressBar.IsIndeterminate = true;
@@ -1102,6 +1122,10 @@ namespace JournalApp
                 if (GitHubPullButton != null) GitHubPullButton.IsEnabled = true;
                 GitHubDisconnectButton.IsEnabled = true;
                 GitHubSyncProgressBar.Visibility = Visibility.Collapsed;
+                if (MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.SetBackupButtonLoadingState(false);
+                }
                 UpdateTitleBarBackupButtonState();
             }
         }
