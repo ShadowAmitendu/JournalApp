@@ -648,11 +648,11 @@
                                       PointerCanceled="HeroDragGrid_PointerReleased"
                                       Background="Transparent"
                                       x:Name="HeroDragGrid">
-                                    <Image x:Name="HeroImage" Height="600" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Center" IsHitTestVisible="False">
-                                        <Image.RenderTransform>
-                                            <CompositeTransform x:Name="HeroImageTransform" TranslateX="0" TranslateY="0" />
-                                        </Image.RenderTransform>
-                                    </Image>
+                                     <Image x:Name="HeroImage" Stretch="Fill" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
+                                         <Image.RenderTransform>
+                                             <CompositeTransform x:Name="HeroImageTransform" TranslateX="0" TranslateY="0" />
+                                         </Image.RenderTransform>
+                                     </Image>
 
                                     <!-- Brightness/Dimming Overlay -->
                                     <Border x:Name="CoverBrightnessOverlay" Background="Black" Opacity="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" />
@@ -1178,7 +1178,7 @@
             <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Settings Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="800"
+                    <StackPanel MaxWidth="1000"
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
@@ -1499,7 +1499,7 @@
             <Grid x:Name="GitHubGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="800"
+                    <StackPanel MaxWidth="1000"
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
@@ -1723,7 +1723,7 @@
             <Grid x:Name="StatsGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="800"
+                    <StackPanel MaxWidth="1000"
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
@@ -1846,7 +1846,7 @@
             <!-- Gallery Grid -->
             <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="800" HorizontalAlignment="Center"
+                    <StackPanel MaxWidth="1000" HorizontalAlignment="Center"
                                 Padding="40,40,40,40" Spacing="16">
 
                         <!-- Header -->
@@ -1921,6 +1921,54 @@
 
                     </StackPanel>
                 </ScrollViewer>
+
+                <!-- Full Page Overlay for Note Images Viewer -->
+                <Grid x:Name="GalleryNoteViewerOverlay" Visibility="Collapsed" Background="#F2000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Padding="40,24" Background="#1A000000">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                            <TextBlock x:Name="GalleryViewerNoteTitle" Text="Note Title" FontSize="20" FontWeight="Bold" Foreground="White" />
+                            <TextBlock x:Name="GalleryViewerNoteDate" Text="Date" FontSize="12" Foreground="#99FFFFFF" />
+                        </StackPanel>
+                        <Button x:Name="CloseGalleryViewerBtn" Grid.Column="1" Click="CloseGalleryViewerBtn_Click" Content="&#xE711;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="16" Width="40" Height="40" CornerRadius="20" Background="Transparent" Foreground="White" BorderThickness="0" Style="{StaticResource DefaultButtonStyle}" VerticalAlignment="Center" />
+                    </Grid>
+                    
+                    <!-- Images content -->
+                    <ScrollViewer Grid.Row="1" Padding="40,20" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="24" MaxWidth="1000" HorizontalAlignment="Center">
+                            <!-- FlipView for full-size viewing -->
+                            <Border CornerRadius="12" Background="#0DFFFFFF" BorderThickness="1" BorderBrush="#1BFFFFFF" Height="500" Padding="12">
+                                <FlipView x:Name="GalleryViewerFlipView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SelectionChanged="GalleryViewerFlipView_SelectionChanged">
+                                    <FlipView.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <Image Source="{Binding}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </DataTemplate>
+                                    </FlipView.ItemTemplate>
+                                </FlipView>
+                            </Border>
+
+                            <!-- Thumbnail strip -->
+                            <GridView x:Name="GalleryViewerGridView" SelectionMode="Single" SelectionChanged="GalleryViewerGridView_SelectionChanged" HorizontalAlignment="Center">
+                                <GridView.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Border CornerRadius="6" Margin="4" Width="90" Height="90" BorderThickness="2" BorderBrush="Transparent">
+                                            <Image Source="{Binding}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </DataTemplate>
+                                </GridView.ItemTemplate>
+                            </GridView>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </Grid>
         </Grid>
     </NavigationView>

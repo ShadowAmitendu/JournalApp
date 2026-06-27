@@ -188,6 +188,34 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void TitleBarBackupBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (MainPage.Instance != null)
+        {
+            MainPage.Instance.TriggerBackupFromTitleBar();
+        }
+    }
+
+    public void UpdateBackupButtonState(bool isBackupNeeded, bool isConfigured)
+    {
+        if (TitleBarBackupBtn != null)
+        {
+            TitleBarBackupBtn.IsEnabled = isBackupNeeded && isConfigured;
+            if (TitleBarBackupText != null)
+            {
+                TitleBarBackupText.Text = isBackupNeeded ? "Backup Needed" : "Backup";
+            }
+            if (!isConfigured)
+            {
+                ToolTipService.SetToolTip(TitleBarBackupBtn, "Set up GitHub in Settings tab first");
+            }
+            else
+            {
+                ToolTipService.SetToolTip(TitleBarBackupBtn, isBackupNeeded ? "Click to backup changes to GitHub" : "All changes backed up");
+            }
+        }
+    }
+
     public void SetBackdrop(string backdropType)
     {
         try

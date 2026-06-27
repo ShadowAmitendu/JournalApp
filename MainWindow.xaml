@@ -28,13 +28,21 @@
             <TextBlock x:Name="AppTitleTextBlock" Text="JournalApp" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,24,0" />
             
             <AutoSuggestBox x:Name="TitleSearchBox" Grid.Column="2" PlaceholderText="Search entries..." QueryIcon="Find" Width="300" VerticalAlignment="Center" HorizontalAlignment="Center" TextChanged="TitleSearchBox_TextChanged" Margin="0,0,140,0" />
-            <Button x:Name="TitleBarUpdateBtn" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,150,0" Style="{StaticResource AccentButtonStyle}" Visibility="Collapsed" Click="TitleBarUpdateBtn_Click" Padding="12,4" CornerRadius="4">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE896;" FontSize="13" VerticalAlignment="Center" />
-                    <TextBlock x:Name="TitleBarUpdateText" Text="Update Available" VerticalAlignment="Center" FontSize="12" />
-                    <ProgressBar x:Name="TitleBarUpdateProgress" Width="80" Height="4" VerticalAlignment="Center" Minimum="0" Maximum="100" Visibility="Collapsed" />
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,150,0" Spacing="8">
+                <Button x:Name="TitleBarUpdateBtn" Style="{StaticResource AccentButtonStyle}" Visibility="Collapsed" Click="TitleBarUpdateBtn_Click" Padding="12,4" CornerRadius="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE896;" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TitleBarUpdateText" Text="Update Available" VerticalAlignment="Center" FontSize="12" />
+                        <ProgressBar x:Name="TitleBarUpdateProgress" Width="80" Height="4" VerticalAlignment="Center" Minimum="0" Maximum="100" Visibility="Collapsed" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="TitleBarBackupBtn" Style="{StaticResource AccentButtonStyle}" Click="TitleBarBackupBtn_Click" Padding="12,4" CornerRadius="4" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE753;" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TitleBarBackupText" Text="Backup" VerticalAlignment="Center" FontSize="12" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <!--

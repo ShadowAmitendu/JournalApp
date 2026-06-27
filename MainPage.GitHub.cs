@@ -1102,6 +1102,7 @@ namespace JournalApp
                 if (GitHubPullButton != null) GitHubPullButton.IsEnabled = true;
                 GitHubDisconnectButton.IsEnabled = true;
                 GitHubSyncProgressBar.Visibility = Visibility.Collapsed;
+                UpdateTitleBarBackupButtonState();
             }
         }
 
@@ -1167,6 +1168,7 @@ namespace JournalApp
                 GitHubDisconnectButton.Visibility = Visibility.Collapsed;
 
                 await ShowAlertAsync("Disconnected", "GitHub credentials have been removed from this device.");
+                UpdateTitleBarBackupButtonState();
             }
         }
 
@@ -1499,6 +1501,75 @@ namespace JournalApp
                 }
                 e.Handled = true;
             }
+        }
+
+        public bool IsBackupNeeded()
+        {
+            string token = GetSecureToken();
+            if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
+            string repoName = GetSetting("GitHubRepo");
+
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName))
+            {
+                return false; // Cannot backup if not configured
+            }
+
+            string lastSyncStr = GetSetting("GitHubLastSynced");
+            if (string.IsNullOrEmpty(lastSyncStr))
+            {
+                return true; // Never synced, need backup
+            }
+
+            if (!DateTime.TryParse(lastSyncStr, out var lastSyncTime))
+            {
+                return true;
+            }
+
+            // Check metadata changes
+            string notesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "notes.json");
+            if (File.Exists(notesMetaPath) && File.GetLastWriteTime(notesMetaPath) > lastSyncTime)
+            {
+                return true;
+            }
+
+            string categoriesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "categories.json");
+            if (File.Exists(categoriesMetaPath) && File.GetLastWriteTime(categoriesMetaPath) > lastSyncTime)
+            {
+                return true;
+            }
+
+            // Check if any RTF note files were modified after last sync
+            if (Directory.Exists(JournalManager.Instance.NotesDir))
+            {
+                foreach (var file in Directory.GetFiles(JournalManager.Instance.NotesDir, "*.rtf"))
+                {
+                    if (File.GetLastWriteTime(file) > lastSyncTime)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public void UpdateTitleBarBackupButtonState()
+        {
+            if (MainWindow.Instance == null) return;
+
+            string token = GetSecureToken();
+            if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
+            string repoName = GetSetting("GitHubRepo");
+
+            bool isConfigured = !string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repoName);
+            bool isBackupNeeded = IsBackupNeeded();
+
+            MainWindow.Instance.UpdateBackupButtonState(isBackupNeeded, isConfigured);
+        }
+
+        public void TriggerBackupFromTitleBar()
+        {
+            GitHubSyncButton_Click(null, null);
         }
     }
 }

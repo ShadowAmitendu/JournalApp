@@ -508,6 +508,7 @@ namespace JournalApp
                 {
                     MainWindow.Instance.Closed += OnWindowClosed;
                     MainWindow.Instance.VisibilityChanged += OnWindowVisibilityChanged;
+                    UpdateTitleBarBackupButtonState();
                 }
             }
             catch (Exception ex)
@@ -1057,6 +1058,7 @@ namespace JournalApp
                     StatusMessageTextBlock.Text = $"Saved at {DateTime.Now.ToString("h:mm:ss tt")}";
                 }
                 _isDirty = false;
+                UpdateTitleBarBackupButtonState();
             }
             catch (Exception ex)
             {
@@ -1074,6 +1076,7 @@ namespace JournalApp
             }
             _autoSaveTimer.Stop();
             _autoSaveTimer.Start();
+            UpdateTitleBarBackupButtonState();
         }
 
         private void AutoSaveTimer_Tick(object sender, object e)
@@ -2321,6 +2324,9 @@ namespace JournalApp
             {
                 HeroImageContainer.Visibility = Visibility.Collapsed;
                 HeroImage.Source = null;
+                HeroImage.Width = double.NaN;
+                HeroImage.Height = double.NaN;
+                if (HeroImageTransform != null) { HeroImageTransform.TranslateX = 0; HeroImageTransform.TranslateY = 0; }
                 if (AddCoverButton != null) AddCoverButton.Visibility = Visibility.Collapsed;
                 if (CoverAttributionBorder != null) CoverAttributionBorder.Visibility = Visibility.Collapsed;
                 FadeOutTintOverlays();
@@ -2329,6 +2335,9 @@ namespace JournalApp
             {
                 HeroImageContainer.Visibility = Visibility.Collapsed;
                 HeroImage.Source = null;
+                HeroImage.Width = double.NaN;
+                HeroImage.Height = double.NaN;
+                if (HeroImageTransform != null) { HeroImageTransform.TranslateX = 0; HeroImageTransform.TranslateY = 0; }
                 if (AddCoverButton != null) AddCoverButton.Visibility = Visibility.Visible;
                 if (CoverAttributionBorder != null) CoverAttributionBorder.Visibility = Visibility.Collapsed;
                 FadeOutTintOverlays();
@@ -2349,11 +2358,15 @@ namespace JournalApp
                     try
                     {
                         HeroImage.Source = new BitmapImage(new Uri(imagePath));
+                        UpdateHeroImageSizeAndConstraints();
                     }
                     catch
                     {
                         HeroImageContainer.Visibility = Visibility.Collapsed;
                         HeroImage.Source = null;
+                        HeroImage.Width = double.NaN;
+                        HeroImage.Height = double.NaN;
+                        if (HeroImageTransform != null) { HeroImageTransform.TranslateX = 0; HeroImageTransform.TranslateY = 0; }
                         imagePath = null;
                     }
                 }
@@ -2377,6 +2390,7 @@ namespace JournalApp
                         }
                         
                         HeroImage.Source = new BitmapImage(new Uri(imagePath));
+                        UpdateHeroImageSizeAndConstraints();
                     }
                     catch
                     {
@@ -2385,6 +2399,7 @@ namespace JournalApp
                         string fallbackUrl = $"https://picsum.photos/seed/{SelectedNote.Id}/1200/600";
                         imagePath = ApplyBlurToImageUrl(fallbackUrl, SelectedNote.CoverBlur);
                         HeroImage.Source = new BitmapImage(new Uri(imagePath));
+                        UpdateHeroImageSizeAndConstraints();
                     }
                 }
 
@@ -2460,6 +2475,76 @@ namespace JournalApp
                     FadeOutTintOverlays();
                 }
             }
+        }
+
+        private void HeroImage_ImageOpened(object sender, RoutedEventArgs e)
+        {
+            UpdateHeroImageSizeAndConstraints();
+        }
+
+        private void UpdateHeroImageSizeAndConstraints()
+        {
+            if (HeroImage == null || HeroImageContainer == null || HeroImage.Source == null) return;
+
+            var bitmap = HeroImage.Source as Microsoft.UI.Xaml.Media.Imaging.BitmapImage;
+            if (bitmap == null) return;
+
+            double W = HeroImageContainer.ActualWidth;
+            double H = HeroImageContainer.ActualHeight; // usually 300
+            if (W == 0) W = 800; // fallback default
+            if (H == 0) H = 300;
+
+            double w = bitmap.PixelWidth;
+            double h = bitmap.PixelHeight;
+
+            if (w == 0 || h == 0) return; // Image not loaded yet, wait for ImageOpened
+
+            double aspectContainer = W / H;
+            double aspectImage = w / h;
+
+            if (aspectImage > aspectContainer)
+            {
+                // Image is wider than container - fit height, scroll horizontally
+                HeroImage.Height = H;
+                HeroImage.Width = H * aspectImage;
+            }
+            else
+            {
+                // Image is taller than container - fit width, scroll vertically
+                HeroImage.Height = W / aspectImage;
+                HeroImage.Width = W;
+            }
+
+            ConstrainHeroImageTranslation();
+        }
+
+        private void ConstrainHeroImageTranslation()
+        {
+            if (HeroImageTransform == null || HeroImage == null || HeroImageContainer == null) return;
+
+            double W = HeroImageContainer.ActualWidth;
+            double H = HeroImageContainer.ActualHeight;
+            if (W == 0) W = 800;
+            if (H == 0) H = 300;
+
+            double imgW = HeroImage.Width;
+            double imgH = HeroImage.Height;
+
+            if (double.IsNaN(imgW) || double.IsNaN(imgH) || imgW == 0 || imgH == 0) return;
+
+            // X constraints
+            double minX = W - imgW;
+            double maxX = 0;
+            if (minX > 0) minX = 0; // if image is smaller than container, don't allow translation
+            if (HeroImageTransform.TranslateX < minX) HeroImageTransform.TranslateX = minX;
+            if (HeroImageTransform.TranslateX > maxX) HeroImageTransform.TranslateX = maxX;
+
+            // Y constraints
+            double minY = H - imgH;
+            double maxY = 0;
+            if (minY > 0) minY = 0;
+            if (HeroImageTransform.TranslateY < minY) HeroImageTransform.TranslateY = minY;
+            if (HeroImageTransform.TranslateY > maxY) HeroImageTransform.TranslateY = maxY;
         }
 
         private string ApplyBlurToImageUrl(string url, double blurValue)
@@ -2762,8 +2847,8 @@ namespace JournalApp
                 {
                     HeroImageTransform.TranslateX = newX;
                     HeroImageTransform.TranslateY = newY;
+                    ConstrainHeroImageTranslation();
                 }
-                
                 
                 e.Handled = true;
             }
@@ -4746,6 +4831,7 @@ namespace JournalApp
                 Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height)
             };
             HeroImageContainer.Clip = clipGeometry;
+            UpdateHeroImageSizeAndConstraints();
         }
 
         // ── Feature Additions Partials ──
@@ -5026,23 +5112,85 @@ namespace JournalApp
         {
             if (e.ClickedItem is GalleryItem item && item.Note != null && !item.IsPlaceholder)
             {
-                ShowGrid(MainEditorGrid);
+                var note = item.Note;
+                var images = new List<string>();
 
-                _selectedCategory = "All Entries";
-                if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = "All Entries";
-
-                var allEntriesItem = CategoriesNavView.MenuItems
-                    .OfType<NavigationViewItem>()
-                    .FirstOrDefault(i => i.Content?.ToString() == "All Entries" || (i.Tag is JournalCategory cat && cat.Name == "All Entries"));
-                if (allEntriesItem != null)
+                // 1. Add cover image if exists
+                if (!string.IsNullOrEmpty(note.HeroImagePath) && note.HeroImagePath != "None")
                 {
-                    CategoriesNavView.SelectedItem = allEntriesItem;
-                    _previousSelectedItem = allEntriesItem;
+                    images.Add(JournalManager.Instance.GetAbsoluteMediaPath(note.HeroImagePath));
+                }
+                else if (string.IsNullOrEmpty(note.HeroImagePath))
+                {
+                    // Add default picsum fallback if they have no custom cover
+                    images.Add($"https://picsum.photos/seed/{note.Id}/1200/600");
                 }
 
-                RefreshNotesList();
-                NotesListView.SelectedItem = item.Note;
-                SelectedNote = item.Note;
+                // 2. Add all attached photos
+                if (note.AttachedPhotoPaths != null)
+                {
+                    foreach (var path in note.AttachedPhotoPaths)
+                    {
+                        images.Add(JournalManager.Instance.GetAbsoluteMediaPath(path));
+                    }
+                }
+
+                if (images.Count > 0)
+                {
+                    if (GalleryViewerNoteTitle != null) GalleryViewerNoteTitle.Text = note.Title;
+                    if (GalleryViewerNoteDate != null) GalleryViewerNoteDate.Text = note.DateCreated.ToString("MMMM d, yyyy");
+                    
+                    if (GalleryViewerFlipView != null) GalleryViewerFlipView.ItemsSource = images;
+                    if (GalleryViewerGridView != null) GalleryViewerGridView.ItemsSource = images;
+
+                    if (GalleryViewerFlipView != null) GalleryViewerFlipView.SelectedIndex = 0;
+                    if (GalleryViewerGridView != null) GalleryViewerGridView.SelectedIndex = 0;
+
+                    if (GalleryNoteViewerOverlay != null) GalleryNoteViewerOverlay.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void CloseGalleryViewerBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (GalleryNoteViewerOverlay != null) GalleryNoteViewerOverlay.Visibility = Visibility.Collapsed;
+            if (GalleryViewerFlipView != null) GalleryViewerFlipView.ItemsSource = null;
+            if (GalleryViewerGridView != null) GalleryViewerGridView.ItemsSource = null;
+        }
+
+        private bool _isSyncingGallerySelection = false;
+
+        private void GalleryViewerGridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isSyncingGallerySelection) return;
+            _isSyncingGallerySelection = true;
+            try
+            {
+                if (GalleryViewerGridView != null && GalleryViewerFlipView != null && GalleryViewerGridView.SelectedIndex >= 0)
+                {
+                    GalleryViewerFlipView.SelectedIndex = GalleryViewerGridView.SelectedIndex;
+                }
+            }
+            finally
+            {
+                _isSyncingGallerySelection = false;
+            }
+        }
+
+        private void GalleryViewerFlipView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isSyncingGallerySelection) return;
+            _isSyncingGallerySelection = true;
+            try
+            {
+                if (GalleryViewerFlipView != null && GalleryViewerGridView != null && GalleryViewerFlipView.SelectedIndex >= 0)
+                {
+                    GalleryViewerGridView.SelectedIndex = GalleryViewerFlipView.SelectedIndex;
+                }
+            }
+            finally
+            {
+                _isSyncingGallerySelection = false;
             }
         }
 
