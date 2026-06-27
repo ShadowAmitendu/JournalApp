@@ -96,12 +96,21 @@ namespace JournalApp
                 try { vault.Remove(vault.Retrieve(_vaultResource, _vaultUsername)); } catch { }
                 if (!string.IsNullOrWhiteSpace(token))
                     vault.Add(new PasswordCredential(_vaultResource, _vaultUsername, token));
+
+                RemoveSetting("GitHubUsername");
+                RemoveSetting("GitHubCommitsCache_ETag");
+                RemoveSetting("GitHubCommitsCache_JSON");
+                RemoveSetting("GitHubCommitsCache_Repo");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SaveSecureToken] Failed: {ex.Message}");
                 // Fallback to LocalSettings if Credential Manager is unavailable
                 SaveSetting("GitHubToken", token);
+                RemoveSetting("GitHubUsername");
+                RemoveSetting("GitHubCommitsCache_ETag");
+                RemoveSetting("GitHubCommitsCache_JSON");
+                RemoveSetting("GitHubCommitsCache_Repo");
             }
         }
 
@@ -117,6 +126,10 @@ namespace JournalApp
                 System.Diagnostics.Debug.WriteLine($"[RemoveSecureToken] Failed: {ex.Message}");
             }
             RemoveSetting("GitHubToken");
+            RemoveSetting("GitHubUsername");
+            RemoveSetting("GitHubCommitsCache_ETag");
+            RemoveSetting("GitHubCommitsCache_JSON");
+            RemoveSetting("GitHubCommitsCache_Repo");
         }
 
         private static string GetSetting(string key, string defaultValue = "")

@@ -254,23 +254,60 @@ namespace JournalApp
                 _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
                 _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-                var userResponse = await _httpClient.GetAsync("https://api.github.com/user");
-                if (!userResponse.IsSuccessStatusCode)
+                string username = GetSetting("GitHubUsername");
+                if (string.IsNullOrEmpty(username))
                 {
-                    throw new Exception("Failed to authenticate with GitHub. Check your token in Settings.");
+                    var userResponse = await _httpClient.GetAsync("https://api.github.com/user");
+                    if (!userResponse.IsSuccessStatusCode)
+                    {
+                        throw new Exception("Failed to authenticate with GitHub. Check your token in Settings.");
+                    }
+
+                    using var userDoc = JsonDocument.Parse(await userResponse.Content.ReadAsStringAsync());
+                    username = userDoc.RootElement.GetProperty("login").GetString() ?? "";
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        SaveSetting("GitHubUsername", username);
+                    }
                 }
 
-                using var userDoc = JsonDocument.Parse(await userResponse.Content.ReadAsStringAsync());
-                string username = userDoc.RootElement.GetProperty("login").GetString();
+                string cachedETag = GetSetting("GitHubCommitsCache_ETag");
+                string cachedJson = GetSetting("GitHubCommitsCache_JSON");
+                string cachedRepo = GetSetting("GitHubCommitsCache_Repo");
+
+                if (!string.IsNullOrEmpty(cachedETag) && !string.IsNullOrEmpty(cachedJson) && cachedRepo == repoName)
+                {
+                    if (System.Net.Http.Headers.EntityTagHeaderValue.TryParse(cachedETag, out var etagHeader))
+                    {
+                        _httpClient.DefaultRequestHeaders.IfNoneMatch.Add(etagHeader);
+                    }
+                }
 
                 var commitsResponse = await _httpClient.GetAsync($"https://api.github.com/repos/{username}/{repoName}/commits");
-                if (!commitsResponse.IsSuccessStatusCode)
+                
+                string commitsJson;
+                if (commitsResponse.StatusCode == System.Net.HttpStatusCode.NotModified)
                 {
-                    string errContent = await commitsResponse.Content.ReadAsStringAsync();
-                    throw new Exception($"Failed to fetch repository commits: {commitsResponse.ReasonPhrase}. Details: {errContent}");
+                    commitsJson = cachedJson;
+                }
+                else
+                {
+                    if (!commitsResponse.IsSuccessStatusCode)
+                    {
+                        string errContent = await commitsResponse.Content.ReadAsStringAsync();
+                        throw new Exception($"Failed to fetch repository commits: {commitsResponse.ReasonPhrase}. Details: {errContent}");
+                    }
+
+                    commitsJson = await commitsResponse.Content.ReadAsStringAsync();
+
+                    if (commitsResponse.Headers.ETag != null)
+                    {
+                        SaveSetting("GitHubCommitsCache_ETag", commitsResponse.Headers.ETag.ToString());
+                        SaveSetting("GitHubCommitsCache_JSON", commitsJson);
+                        SaveSetting("GitHubCommitsCache_Repo", repoName);
+                    }
                 }
 
-                string commitsJson = await commitsResponse.Content.ReadAsStringAsync();
                 using var commitsDoc = JsonDocument.Parse(commitsJson);
                 
                 var commitList = new List<GitHubCommitViewModel>();

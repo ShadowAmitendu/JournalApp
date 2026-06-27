@@ -1178,7 +1178,7 @@
             <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Settings Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="900"
+                    <StackPanel MaxWidth="800"
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
@@ -1499,7 +1499,7 @@
             <Grid x:Name="GitHubGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="900"
+                    <StackPanel MaxWidth="800"
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
@@ -1723,7 +1723,7 @@
             <Grid x:Name="StatsGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="900"
+                    <StackPanel MaxWidth="800"
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
@@ -1846,7 +1846,7 @@
             <!-- Gallery Grid -->
             <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,24,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
-                    <StackPanel MaxWidth="900" HorizontalAlignment="Center"
+                    <StackPanel MaxWidth="800" HorizontalAlignment="Center"
                                 Padding="40,40,40,40" Spacing="16">
 
                         <!-- Header -->
