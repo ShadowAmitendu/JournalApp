@@ -1193,6 +1193,8 @@
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
+                        <!-- Hidden element to force uniform 1000px layout width -->
+                        <Border Width="1000" Height="0" HorizontalAlignment="Stretch" Visibility="Visible" IsHitTestVisible="False" />
                         
                         <!-- Settings Header -->
                         <TextBlock Text="Settings" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
@@ -1514,6 +1516,8 @@
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
+                        <!-- Hidden element to force uniform 1000px layout width -->
+                        <Border Width="1000" Height="0" HorizontalAlignment="Stretch" Visibility="Visible" IsHitTestVisible="False" />
                         
                         <!-- Header inside the scroll stack -->
                         <Grid Margin="0,0,0,16" HorizontalAlignment="Stretch">
@@ -1743,6 +1747,8 @@
                                 HorizontalAlignment="Center"
                                 Padding="40,40,40,40"
                                 Spacing="8">
+                        <!-- Hidden element to force uniform 1000px layout width -->
+                        <Border Width="1000" Height="0" HorizontalAlignment="Stretch" Visibility="Visible" IsHitTestVisible="False" />
                         
                         <!-- Header inside scroll stack -->
                         <TextBlock Text="Writing Stats &amp; Insights" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
@@ -1864,6 +1870,8 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000" HorizontalAlignment="Center"
                                 Padding="40,40,40,40" Spacing="16">
+                        <!-- Hidden element to force uniform 1000px layout width -->
+                        <Border Width="1000" Height="0" HorizontalAlignment="Stretch" Visibility="Visible" IsHitTestVisible="False" />
 
                         <!-- Header -->
                         <TextBlock Text="Photo Gallery" FontSize="28" FontWeight="Bold" />
