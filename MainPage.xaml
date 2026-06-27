@@ -652,35 +652,18 @@
                             <!-- Hero Image Banner (Stretches full width, overlay cover actions) -->
                             <Grid x:Name="HeroImageContainer" Grid.Row="0" Height="300" Background="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" HorizontalAlignment="Stretch" SizeChanged="HeroImageContainer_SizeChanged">
                                 <!-- Clipped container for image positioning -->
-                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                      PointerPressed="HeroDragGrid_PointerPressed"
-                                      PointerMoved="HeroDragGrid_PointerMoved"
-                                      PointerReleased="HeroDragGrid_PointerReleased"
-                                      PointerCanceled="HeroDragGrid_PointerReleased"
-                                      Background="Transparent"
-                                      x:Name="HeroDragGrid">
-                                     <Image x:Name="HeroImage" Stretch="Fill" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
+                                 <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                       Background="Transparent"
+                                       x:Name="HeroDragGrid">
+                                     <Image x:Name="HeroImage" Stretch="UniformToFill" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False">
                                          <Image.RenderTransform>
                                              <CompositeTransform x:Name="HeroImageTransform" TranslateX="0" TranslateY="0" />
                                          </Image.RenderTransform>
                                      </Image>
 
-                                    <!-- Brightness/Dimming Overlay -->
-                                    <Border x:Name="CoverBrightnessOverlay" Background="Black" Opacity="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" />
-
-                                    <!-- Reposition-mode hint overlay (shown only while dragging is active) -->
-                                    <Border x:Name="CoverRepositionOverlay" Visibility="Collapsed"
-                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                            Background="#33000000" IsHitTestVisible="False">
-                                        <Border.BorderBrush>
-                                            <SolidColorBrush Color="White" />
-                                        </Border.BorderBrush>
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-                                            <FontIcon Glyph="&#xE7B5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="22" Foreground="White" HorizontalAlignment="Center" />
-                                            <TextBlock Text="Drag to reposition" FontSize="13" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
+                                     <!-- Brightness/Dimming Overlay -->
+                                     <Border x:Name="CoverBrightnessOverlay" Background="Black" Opacity="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" />
+                                 </Grid>
 
                                 <!-- Attribution Badge (Bottom Left) -->
                                 <Border x:Name="CoverAttributionBorder" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="16" Background="#99000000" CornerRadius="12" Padding="8,4" Visibility="Collapsed">
@@ -758,27 +741,10 @@
                                                      <!-- Header -->
                                                      <StackPanel Padding="20,16,20,14">
                                                          <TextBlock Text="Adjust Cover Banner" FontSize="14" FontWeight="SemiBold" Foreground="White" />
-                                                         <TextBlock Text="Drag the image to reposition, or use brightness/blur below." FontSize="11" Foreground="#888888" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                         <TextBlock Text="Adjust the brightness and blur of the cover banner below." FontSize="11" Foreground="#888888" TextWrapping="Wrap" Margin="0,4,0,0" />
                                                      </StackPanel>
+
                                                      <Border Height="1" Background="#333333" />
-
-                                                     <!-- Reposition action -->
-                                                     <StackPanel Padding="20,12,20,4">
-                                                         <Button x:Name="EnterRepositionModeButton" Click="EnterRepositionMode_Click"
-                                                                 HorizontalAlignment="Stretch" Padding="0,10"
-                                                                 CornerRadius="8" FontSize="12"
-                                                                 Background="#2A2A2A" Foreground="#E0E0E0"
-                                                                 BorderBrush="#444444" BorderThickness="1">
-                                                             <Button.Content>
-                                                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                                                     <FontIcon Glyph="&#xE7B5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="13" />
-                                                                     <TextBlock Text="Drag to Reposition Image" FontSize="12" />
-                                                                 </StackPanel>
-                                                             </Button.Content>
-                                                         </Button>
-                                                     </StackPanel>
-
-                                                     <Border Height="1" Background="#333333" Margin="0,12,0,0" />
 
                                                      <!-- Sliders -->
                                                      <StackPanel Spacing="0" Padding="20,12,20,12">

@@ -2497,89 +2497,19 @@ namespace JournalApp
         {
             if (HeroImage == null || HeroImageContainer == null || HeroImage.Source == null) return;
 
-            var bitmap = HeroImage.Source as Microsoft.UI.Xaml.Media.Imaging.BitmapImage;
-            if (bitmap == null) return;
+            HeroImage.Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill;
+            HeroImage.Width = double.NaN;
+            HeroImage.Height = double.NaN;
+            HeroImage.HorizontalAlignment = HorizontalAlignment.Stretch;
+            HeroImage.VerticalAlignment = VerticalAlignment.Stretch;
 
-            double W = HeroImageContainer.ActualWidth;
-            double H = HeroImageContainer.ActualHeight; // usually 300
-            if (W == 0) W = 800;
-            if (H == 0) H = 300;
-
-            double w = bitmap.PixelWidth;
-            double h = bitmap.PixelHeight;
-
-            if (w == 0 || h == 0) return;
-
-            double aspectContainer = W / H;
-            double aspectImage = w / h;
-
-            if (aspectImage > aspectContainer)
+            if (HeroImageTransform != null)
             {
-                // Image is wider than container - fit height, scroll horizontally
-                HeroImage.Height = H;
-                HeroImage.Width = H * aspectImage;
+                HeroImageTransform.TranslateX = 0;
+                HeroImageTransform.TranslateY = 0;
             }
-            else
-            {
-                // Image is taller than container - fit width, scroll vertically
-                HeroImage.Height = W / aspectImage;
-                HeroImage.Width = W;
-            }
-
-            HeroImage.Stretch = Microsoft.UI.Xaml.Media.Stretch.Fill;
-            HeroImage.HorizontalAlignment = HorizontalAlignment.Left;
-            HeroImage.VerticalAlignment = VerticalAlignment.Top;
-
-            // Center the image in the container on initial load if no offset is saved
-            if (HeroImageTransform != null && SelectedNote != null)
-            {
-                if (SelectedNote.CoverOffsetX == 0 && SelectedNote.CoverOffsetY == 0)
-                {
-                    double centerX = (W - HeroImage.Width) / 2.0;
-                    double centerY = (H - HeroImage.Height) / 2.0;
-                    HeroImageTransform.TranslateX = centerX;
-                    HeroImageTransform.TranslateY = centerY;
-                    SelectedNote.CoverOffsetX = centerX;
-                    SelectedNote.CoverOffsetY = centerY;
-                }
-                else
-                {
-                    HeroImageTransform.TranslateX = SelectedNote.CoverOffsetX;
-                    HeroImageTransform.TranslateY = SelectedNote.CoverOffsetY;
-                }
-            }
-
-            ConstrainHeroImageTranslation();
         }
 
-        private void ConstrainHeroImageTranslation()
-        {
-            if (HeroImageTransform == null || HeroImage == null || HeroImageContainer == null) return;
-
-            double W = HeroImageContainer.ActualWidth;
-            double H = HeroImageContainer.ActualHeight;
-            if (W == 0) W = 800;
-            if (H == 0) H = 300;
-
-            double imgW = HeroImage.Width;
-            double imgH = HeroImage.Height;
-
-            if (double.IsNaN(imgW) || double.IsNaN(imgH) || imgW == 0 || imgH == 0) return;
-
-            // X constraints
-            double minX = W - imgW;
-            double maxX = 0;
-            if (minX > 0) minX = 0; // if image is smaller than container, don't allow translation
-            if (HeroImageTransform.TranslateX < minX) HeroImageTransform.TranslateX = minX;
-            if (HeroImageTransform.TranslateX > maxX) HeroImageTransform.TranslateX = maxX;
-
-            // Y constraints
-            double minY = H - imgH;
-            double maxY = 0;
-            if (minY > 0) minY = 0;
-            if (HeroImageTransform.TranslateY < minY) HeroImageTransform.TranslateY = minY;
-            if (HeroImageTransform.TranslateY > maxY) HeroImageTransform.TranslateY = maxY;
-        }
 
         private string ApplyBlurToImageUrl(string url, double blurValue)
         {
@@ -2839,93 +2769,7 @@ namespace JournalApp
         private void HeroDragGrid_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) { }
         private void HeroDragGrid_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) { }
 
-        private void EnterRepositionMode_Click(object sender, RoutedEventArgs e)
-        {
-            if (SelectedNote == null) return;
-            if (HeroImage?.Source == null) return;
 
-            var bitmap = HeroImage.Source as Microsoft.UI.Xaml.Media.Imaging.BitmapImage;
-            if (bitmap == null || bitmap.PixelWidth == 0) return;
-
-            if (AdjustHeroFlyout != null) AdjustHeroFlyout.Hide();
-
-            double bannerW = HeroImageContainer?.ActualWidth > 0 ? HeroImageContainer.ActualWidth : 800.0;
-            double bannerH = 300.0;
-
-            // Determine current percentage offset of image
-            double pctX = 0.5;
-            double pctY = 0.5;
-
-            double aspectContainer = bannerW / bannerH;
-            double aspectImage = bitmap.PixelWidth / (double)bitmap.PixelHeight;
-
-            double imgW, imgH;
-            if (aspectImage > aspectContainer)
-            {
-                imgH = bannerH;
-                imgW = bannerH * aspectImage;
-            }
-            else
-            {
-                imgH = bannerW / aspectImage;
-                imgW = bannerW;
-            }
-
-            if (SelectedNote.CoverOffsetX < 0)
-            {
-                double minX = bannerW - imgW;
-                pctX = minX < 0 ? Math.Clamp(SelectedNote.CoverOffsetX / minX, 0.0, 1.0) : 0.5;
-            }
-            else if (SelectedNote.CoverOffsetX > 0 && SelectedNote.CoverOffsetX <= 1.0)
-            {
-                pctX = SelectedNote.CoverOffsetX;
-            }
-
-            if (SelectedNote.CoverOffsetY < 0)
-            {
-                double minY = bannerH - imgH;
-                pctY = minY < 0 ? Math.Clamp(SelectedNote.CoverOffsetY / minY, 0.0, 1.0) : 0.5;
-            }
-            else if (SelectedNote.CoverOffsetY > 0 && SelectedNote.CoverOffsetY <= 1.0)
-            {
-                pctY = SelectedNote.CoverOffsetY;
-            }
-
-            if (SelectedNote.CoverOffsetX == 0 && SelectedNote.CoverOffsetY == 0)
-            {
-                pctX = 0.5;
-                pctY = 0.5;
-            }
-            else if (SelectedNote.CoverOffsetX == 0)
-            {
-                pctX = 0.0;
-            }
-            else if (SelectedNote.CoverOffsetY == 0)
-            {
-                pctY = 0.0;
-            }
-
-            var repoWin = new CoverRepositionWindow(
-                HeroImage.Source,
-                bitmap.PixelWidth, bitmap.PixelHeight,
-                bannerW, bannerH,
-                pctX, pctY);
-
-            repoWin.RepositionConfirmed += (s, result) =>
-            {
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    if (SelectedNote == null) return;
-                    SelectedNote.CoverOffsetX = result.pctX;
-                    SelectedNote.CoverOffsetY = result.pctY;
-                    UpdateHeroImageSizeAndConstraints();
-                    MarkDirty();
-                    ShowStatusMessage("Cover position saved");
-                });
-            };
-
-            repoWin.Activate();
-        }
 
 
         // Photographer attribution is now handled natively via Hyperlink NavigateUri in XAML.
