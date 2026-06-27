@@ -803,7 +803,14 @@ namespace JournalApp
                     string lastSyncStr = GetSetting("GitHubLastSynced");
                     if (!string.IsNullOrEmpty(lastSyncStr))
                     {
-                        GitHubStatusDetails.Text = $"Last synced: {lastSyncStr}";
+                        if (DateTime.TryParse(lastSyncStr, out var parsedTime))
+                        {
+                            GitHubStatusDetails.Text = $"Last synced: {parsedTime.ToString("g")}";
+                        }
+                        else
+                        {
+                            GitHubStatusDetails.Text = $"Last synced: {lastSyncStr}";
+                        }
                     }
                     else
                     {
@@ -1100,11 +1107,11 @@ namespace JournalApp
                 SaveSetting("GitHubToken", token);
                 SaveSetting("GitHubRepo", repoName);
                 
-                string syncTime = DateTime.Now.ToString("g");
-                SaveSetting("GitHubLastSynced", syncTime);
+                DateTime now = DateTime.Now;
+                SaveSetting("GitHubLastSynced", now.ToString("o"));
 
                 GitHubStatusTitle.Text = "Status: Connected & Synced";
-                GitHubStatusDetails.Text = $"Last synced: {syncTime}";
+                GitHubStatusDetails.Text = $"Last synced: {now.ToString("g")}";
                 if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Visible;
                 GitHubDisconnectButton.Visibility = Visibility.Visible;
 
@@ -1407,11 +1414,11 @@ namespace JournalApp
                 SaveSecureToken(token);
                 SaveSetting("GitHubRepo", repoName);
                 
-                string syncTime = DateTime.Now.ToString("g");
-                SaveSetting("GitHubLastSynced", syncTime);
+                DateTime now = DateTime.Now;
+                SaveSetting("GitHubLastSynced", now.ToString("o"));
 
                 GitHubStatusTitle.Text = "Status: Connected & Merged";
-                GitHubStatusDetails.Text = $"Last pulled/synced: {syncTime}";
+                GitHubStatusDetails.Text = $"Last pulled/synced: {now.ToString("g")}";
                 if (GitHubPullButton != null) GitHubPullButton.Visibility = Visibility.Visible;
                 GitHubDisconnectButton.Visibility = Visibility.Visible;
 
@@ -1559,13 +1566,13 @@ namespace JournalApp
 
             // Check metadata changes
             string notesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "notes.json");
-            if (File.Exists(notesMetaPath) && File.GetLastWriteTime(notesMetaPath) > lastSyncTime)
+            if (File.Exists(notesMetaPath) && File.GetLastWriteTime(notesMetaPath) > lastSyncTime.AddSeconds(1))
             {
                 return true;
             }
 
             string categoriesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "categories.json");
-            if (File.Exists(categoriesMetaPath) && File.GetLastWriteTime(categoriesMetaPath) > lastSyncTime)
+            if (File.Exists(categoriesMetaPath) && File.GetLastWriteTime(categoriesMetaPath) > lastSyncTime.AddSeconds(1))
             {
                 return true;
             }
@@ -1575,7 +1582,7 @@ namespace JournalApp
             {
                 foreach (var file in Directory.GetFiles(JournalManager.Instance.NotesDir, "*.rtf"))
                 {
-                    if (File.GetLastWriteTime(file) > lastSyncTime)
+                    if (File.GetLastWriteTime(file) > lastSyncTime.AddSeconds(1))
                     {
                         return true;
                     }

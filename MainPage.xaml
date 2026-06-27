@@ -1902,7 +1902,7 @@
                                   IsItemClickEnabled="True"
                                   ItemClick="GalleryGridView_ItemClick"
                                   Visibility="Collapsed"
-                                  HorizontalAlignment="Center">
+                                  HorizontalAlignment="Left">
                             <GridView.ItemContainerTransitions>
                                 <TransitionCollection>
                                     <AddDeleteThemeTransition />
