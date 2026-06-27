@@ -10,39 +10,39 @@ namespace JournalApp
 {
     /// <summary>
     /// Popup window for repositioning the cover image.
-    /// The crop frame is fixed in the center; the user drags the IMAGE underneath it
-    /// to choose which region appears in the 300px cover banner — just like Windows Photos.
+    ///
+    /// Design:
+    ///   - The CROP FRAME is fixed in the centre of the window (represents the 300 px banner).
+    ///   - The IMAGE moves underneath it (user drags to choose which region appears).
+    ///   - Internal state is kept in banner-display-pixel coordinates (_currentTX/_currentTY)
+    ///     so that window resizes never corrupt the saved position.
     /// </summary>
     public sealed partial class CoverRepositionWindow : Window
     {
         // ── Public result ────────────────────────────────────────────────────────
         public bool Confirmed { get; private set; }
 
-        /// <summary>Raised on the caller's thread when Done is clicked.</summary>
+        /// <summary>Raised (on caller's dispatcher) when Done is clicked.</summary>
         public event EventHandler<(double tx, double ty)> RepositionConfirmed;
 
         // ── Construction parameters ──────────────────────────────────────────────
         private readonly double _imgNativeW, _imgNativeH;
         private readonly double _bannerW, _bannerH;
-        private readonly double _initialTX, _initialTY;
+        private readonly double _bannerScale;   // banner display-px per native-px
 
-        // ── Scale factors ─────────────────────────────────────────────────────────
-        // bannerScale   : banner display pixels per native image pixel
-        // overlayScale  : popup display pixels per native image pixel
-        // cropDispScale : popup display pixels per banner display pixel  (= overlayScale / bannerScale)
-        private double _bannerScale;
-        private double _overlayScale;
-        private double _cropDispScale;
+        // ── Current reposition state (in BANNER display pixels) ──────────────────
+        // These are the source of truth and survive window resizes.
+        private double _currentTX, _currentTY;
 
-        // ── Layout ────────────────────────────────────────────────────────────────
-        private bool   _layoutDone;
-        private double _cropX, _cropY, _cropW, _cropH; // crop frame (fixed, canvas coords)
-        private double _imgLeft, _imgTop;               // image top-left (canvas coords, changes on drag)
+        // ── Per-layout computed values (recalculated on every SizeChanged) ───────
+        private double _overlayScale;   // overlay display-px per native-px = bannerScale × cs
+        private double _cropDispScale;  // overlay display-px per banner display-px (= cs)
+        private double _cropX, _cropY, _cropW, _cropH;  // crop frame (canvas coords)
 
         // ── Drag state ────────────────────────────────────────────────────────────
         private bool   _isDragging;
         private Point  _dragStartPt;
-        private double _imgLeftAtStart, _imgTopAtStart;
+        private double _imgLeftAtDragStart, _imgTopAtDragStart;
 
         // ─────────────────────────────────────────────────────────────────────────
         public CoverRepositionWindow(
@@ -57,28 +57,29 @@ namespace JournalApp
             _imgNativeH = nativeH;
             _bannerW    = bannerW;
             _bannerH    = bannerH;
-            _initialTX  = currentTX;
-            _initialTY  = currentTY;
 
-            // Compute banner scale
+            // Banner scale: how many banner-display-pixels per native pixel
             double bannerAspect = bannerW / bannerH;
             double imgAspect    = nativeW / nativeH;
             _bannerScale = (imgAspect > bannerAspect)
-                ? bannerH / nativeH   // image wider than banner → fit by height
-                : bannerW / nativeW;  // image taller than banner → fit by width
+                ? bannerH / nativeH   // wide image → fit by height
+                : bannerW / nativeW;  // tall/square image → fit by width
 
-            // Set image source
+            // Current offset in banner display pixels — start from caller's saved offset
+            _currentTX = currentTX;
+            _currentTY = currentTY;
+
             RepoImage.Source = imageSource;
 
-            // Size and center the window
+            // Size and centre the window
             AppWindow.Resize(new SizeInt32(960, 640));
             try
             {
                 var display = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(
                     AppWindow.Id,
                     Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
-                int x = (display.WorkArea.Width  - 960) / 2;
-                int y = (display.WorkArea.Height - 640) / 2;
+                int x = Math.Max(0, (display.WorkArea.Width  - 960) / 2);
+                int y = Math.Max(0, (display.WorkArea.Height - 640) / 2);
                 AppWindow.Move(new PointInt32(x, y));
             }
             catch { /* ignore positioning errors */ }
@@ -95,109 +96,96 @@ namespace JournalApp
             if (_imgNativeW == 0 || _imgNativeH == 0) return;
             if (areaW < 50 || areaH < 50) return;
 
-            // Crop frame: represent the banner area, sized to fill 70% of the window
+            // ── Crop frame dimensions ───────────────────────────────────────────
+            // Scale the crop frame to fill ~80 % of window width / ~70 % of canvas height
             double maxCropW = areaW * 0.82;
             double maxCropH = areaH * 0.70;
-            double cs = Math.Min(maxCropW / _bannerW, maxCropH / _bannerH); // crop display scale
+            double cs = Math.Min(maxCropW / _bannerW, maxCropH / _bannerH);
             _cropDispScale = cs;
+
             _cropW = _bannerW * cs;
             _cropH = _bannerH * cs;
 
-            // Center the crop frame in the canvas
+            // Centre the crop frame
             _cropX = (areaW - _cropW) / 2.0;
             _cropY = (areaH - _cropH) / 2.0;
 
-            // Image overlay scale: overlayScale = bannerScale × cropDispScale
-            // This guarantees the image is always ≥ crop frame (covers it completely)
+            // ── Image dimensions in the overlay ─────────────────────────────────
+            // overlayScale = bannerScale × cs  → guarantees image ≥ crop frame
             _overlayScale = _bannerScale * cs;
 
             double dispImgW = _imgNativeW * _overlayScale;
             double dispImgH = _imgNativeH * _overlayScale;
 
-            // Resize the canvas to fill the container
+            // ── Resize canvas / image ────────────────────────────────────────────
             MainCanvas.Width  = areaW;
             MainCanvas.Height = areaH;
+            RepoImage.Width   = dispImgW;
+            RepoImage.Height  = dispImgH;
 
-            // Resize the image
-            RepoImage.Width  = dispImgW;
-            RepoImage.Height = dispImgH;
-
-            // Position the crop frame
+            // ── Position crop frame ──────────────────────────────────────────────
             Canvas.SetLeft(CropFrameGrid, _cropX);
             Canvas.SetTop(CropFrameGrid,  _cropY);
             CropFrameGrid.Width  = _cropW;
             CropFrameGrid.Height = _cropH;
 
-            // Compute initial image position from current banner offsets (only once)
-            if (!_layoutDone)
-            {
-                _layoutDone = true;
-                // imgLeft = cropX + TX * cropDispScale
-                // (derived from: visible-start in crop = -TX in banner → cropX - imgLeft in overlay)
-                _imgLeft = _cropX + _initialTX * _cropDispScale;
-                _imgTop  = _cropY + _initialTY * _cropDispScale;
-            }
+            // ── Derive image position from _currentTX/_currentTY ─────────────────
+            // Relationship (derived from coordinate mapping):
+            //   cropX - imgLeft  = -_currentTX * _cropDispScale
+            //   ⟹ imgLeft       = cropX + _currentTX * _cropDispScale
+            double imgLeft = _cropX + _currentTX * _cropDispScale;
+            double imgTop  = _cropY + _currentTY * _cropDispScale;
 
-            // Constrain and apply
-            ConstrainImagePosition(dispImgW, dispImgH);
-            Canvas.SetLeft(RepoImage, _imgLeft);
-            Canvas.SetTop(RepoImage,  _imgTop);
+            // Constrain so the image always covers the crop frame
+            imgLeft = ConstrainToRange(imgLeft, _cropX + _cropW - dispImgW, _cropX);
+            imgTop  = ConstrainToRange(imgTop,  _cropY + _cropH - dispImgH, _cropY);
+
+            Canvas.SetLeft(RepoImage, imgLeft);
+            Canvas.SetTop(RepoImage,  imgTop);
+
+            // Sync _currentTX/_currentTY back from constrained position
+            _currentTX = -((_cropX - imgLeft) * _bannerScale / _overlayScale);
+            _currentTY = -((_cropY - imgTop)  * _bannerScale / _overlayScale);
 
             UpdateDimRects(areaW, areaH);
         }
 
-        /// <summary>
-        /// Ensures the image always fully covers the crop frame
-        /// (the crop frame must never show the canvas background).
-        /// </summary>
-        private void ConstrainImagePosition(double dispImgW, double dispImgH)
-        {
-            // Image left edge must be ≤ crop left edge
-            _imgLeft = Math.Min(_imgLeft, _cropX);
-            // Image right edge must be ≥ crop right edge
-            _imgLeft = Math.Max(_imgLeft, _cropX + _cropW - dispImgW);
-            // Image top edge must be ≤ crop top edge
-            _imgTop = Math.Min(_imgTop, _cropY);
-            // Image bottom edge must be ≥ crop bottom edge
-            _imgTop = Math.Max(_imgTop, _cropY + _cropH - dispImgH);
-        }
+        private static double ConstrainToRange(double value, double min, double max)
+            => Math.Max(min, Math.Min(max, value));
 
-        /// <summary>
-        /// Positions the 4 dark rectangles that dim everything outside the crop frame.
-        /// </summary>
         private void UpdateDimRects(double canvasW, double canvasH)
         {
-            // Top: above crop frame
+            // Top
             Canvas.SetLeft(DimTop, 0); Canvas.SetTop(DimTop, 0);
             DimTop.Width  = canvasW;
             DimTop.Height = Math.Max(0, _cropY);
 
-            // Bottom: below crop frame
+            // Bottom
             double by = _cropY + _cropH;
             Canvas.SetLeft(DimBottom, 0); Canvas.SetTop(DimBottom, by);
             DimBottom.Width  = canvasW;
             DimBottom.Height = Math.Max(0, canvasH - by);
 
-            // Left: beside crop frame (between top and bottom crop edges)
+            // Left
             Canvas.SetLeft(DimLeft, 0); Canvas.SetTop(DimLeft, _cropY);
             DimLeft.Width  = Math.Max(0, _cropX);
             DimLeft.Height = _cropH;
 
-            // Right: beside crop frame
+            // Right
             double rx = _cropX + _cropW;
             Canvas.SetLeft(DimRight, rx); Canvas.SetTop(DimRight, _cropY);
             DimRight.Width  = Math.Max(0, canvasW - rx);
             DimRight.Height = _cropH;
         }
 
-        // ── Drag handlers (image moves, crop frame stays fixed) ──────────────────
+        // ── Drag: image moves, crop frame stays fixed ─────────────────────────────
         private void RepoImage_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             (sender as UIElement)?.CapturePointer(e.Pointer);
-            _dragStartPt    = e.GetCurrentPoint(MainCanvas).Position;
-            _imgLeftAtStart = _imgLeft;
-            _imgTopAtStart  = _imgTop;
-            _isDragging     = true;
+            _dragStartPt       = e.GetCurrentPoint(MainCanvas).Position;
+            _imgLeftAtDragStart  = Canvas.GetLeft(RepoImage);
+            _imgTopAtDragStart   = Canvas.GetTop(RepoImage);
+            _isDragging = true;
             e.Handled = true;
         }
 
@@ -210,13 +198,24 @@ namespace JournalApp
             double dx = pt.Position.X - _dragStartPt.X;
             double dy = pt.Position.Y - _dragStartPt.Y;
 
-            _imgLeft = _imgLeftAtStart + dx;
-            _imgTop  = _imgTopAtStart  + dy;
+            double dispImgW = RepoImage.Width;
+            double dispImgH = RepoImage.Height;
 
-            ConstrainImagePosition(RepoImage.Width, RepoImage.Height);
+            double newLeft = ConstrainToRange(
+                _imgLeftAtDragStart + dx,
+                _cropX + _cropW - dispImgW, _cropX);
 
-            Canvas.SetLeft(RepoImage, _imgLeft);
-            Canvas.SetTop(RepoImage,  _imgTop);
+            double newTop = ConstrainToRange(
+                _imgTopAtDragStart + dy,
+                _cropY + _cropH - dispImgH, _cropY);
+
+            Canvas.SetLeft(RepoImage, newLeft);
+            Canvas.SetTop(RepoImage,  newTop);
+
+            // Update authoritative state in banner-display-pixel space
+            _currentTX = -((_cropX - newLeft) * _bannerScale / _overlayScale);
+            _currentTY = -((_cropY - newTop)  * _bannerScale / _overlayScale);
+
             e.Handled = true;
         }
 
@@ -230,16 +229,9 @@ namespace JournalApp
         // ── Action buttons ────────────────────────────────────────────────────────
         private void DoneButton_Click(object sender, RoutedEventArgs e)
         {
-            // Convert image position back to banner TranslateX/Y
-            // visible-start in overlay = cropX - imgLeft
-            // visible-start in native  = (cropX - imgLeft) / overlayScale
-            // visible-start in banner  = (cropX - imgLeft) / overlayScale * bannerScale
-            // TranslateX = -visible-start-in-banner = -(cropX - imgLeft) * bannerScale / overlayScale
-            double tx = -(_cropX - _imgLeft) * _bannerScale / _overlayScale;
-            double ty = -(_cropY - _imgTop)  * _bannerScale / _overlayScale;
-
+            // _currentTX/_currentTY are already in banner display-pixel space — pass directly
             Confirmed = true;
-            RepositionConfirmed?.Invoke(this, (tx, ty));
+            RepositionConfirmed?.Invoke(this, (_currentTX, _currentTY));
             Close();
         }
 
