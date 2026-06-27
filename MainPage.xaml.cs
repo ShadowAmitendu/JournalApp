@@ -2837,104 +2837,203 @@ namespace JournalApp
             // Handled automatically by XAML Flyout, but method required for compilation
         }
 
+        // Legacy HeroDragGrid handlers — inline drag replaced by Photos-like modal
+        private void HeroDragGrid_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) { }
+        private void HeroDragGrid_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) { }
+        private void HeroDragGrid_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) { }
+
         private void EnterRepositionMode_Click(object sender, RoutedEventArgs e)
         {
             if (SelectedNote == null) return;
-            _isRepositionMode = true;
-            
+            if (HeroImage?.Source == null) return;
+
+            var bitmap = HeroImage.Source as Microsoft.UI.Xaml.Media.Imaging.BitmapImage;
+            if (bitmap == null || bitmap.PixelWidth == 0) return;
+
             if (AdjustHeroFlyout != null) AdjustHeroFlyout.Hide();
-            if (CoverRepositionOverlay != null) CoverRepositionOverlay.Visibility = Visibility.Visible;
-            if (RepositionDoneBar != null) RepositionDoneBar.Visibility = Visibility.Visible;
+
+            // Snapshot native image dimensions
+            _repoImgNativeW = bitmap.PixelWidth;
+            _repoImgNativeH = bitmap.PixelHeight;
+            _repoLayoutDone = false;
+
+            // Set image in modal
+            RepositionFullImage.Source = HeroImage.Source;
+
+            // Show modal (layout triggers RepositionArea_SizeChanged)
+            CoverRepositionModal.Visibility = Visibility.Visible;
         }
 
-        private void HeroDragGrid_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        // ── Reposition Modal state ────────────────────────────────────────────────
+        private double _repoImgNativeW, _repoImgNativeH;
+        private double _repoOverlayScale;   // overlay display pixels per native pixel
+        private double _repoBannerScale;    // banner display pixels per native pixel
+        private double _repoCropLeft, _repoCropTop;
+        private double _repoCropW, _repoCropH;
+        private Windows.Foundation.Point _repoDragStart;
+        private double _repoCropLeftAtStart, _repoCropTopAtStart;
+        private bool _repoIsDragging;
+        private bool _repoLayoutDone;
+
+        private void RepositionArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (!_isRepositionMode || SelectedNote == null) return;
-            
-            var grid = sender as UIElement;
-            if (grid == null) return;
-            
-            grid.CapturePointer(e.Pointer);
-            
-            var ptrPt = e.GetCurrentPoint(grid);
-            _dragStart = ptrPt.Position;
-            _dragStartX = HeroImageTransform != null ? HeroImageTransform.TranslateX : SelectedNote.CoverOffsetX;
-            _dragStartY = HeroImageTransform != null ? HeroImageTransform.TranslateY : SelectedNote.CoverOffsetY;
-            
+            LayoutRepositionModal(e.NewSize.Width, e.NewSize.Height);
+        }
+
+        private void LayoutRepositionModal(double areaW, double areaH)
+        {
+            if (_repoImgNativeW == 0 || _repoImgNativeH == 0) return;
+            if (areaW < 50 || areaH < 50) return;
+
+            // Leave a comfortable margin around the image
+            double maxW = Math.Max(50, areaW - 48);
+            double maxH = Math.Max(50, areaH - 48);
+
+            // Scale image to fit within available area (Uniform)
+            double scaleX = maxW / _repoImgNativeW;
+            double scaleY = maxH / _repoImgNativeH;
+            _repoOverlayScale = Math.Min(scaleX, scaleY);
+
+            double dispImgW = _repoImgNativeW * _repoOverlayScale;
+            double dispImgH = _repoImgNativeH * _repoOverlayScale;
+
+            // Size canvas + image
+            RepositionCanvas.Width  = dispImgW;
+            RepositionCanvas.Height = dispImgH;
+            RepositionFullImage.Width  = dispImgW;
+            RepositionFullImage.Height = dispImgH;
+
+            // Compute banner display scale (how image is scaled inside the 300px banner)
+            double bannerW = HeroImageContainer?.ActualWidth > 0 ? HeroImageContainer.ActualWidth : 800.0;
+            double bannerH = 300.0;
+            double bannerAspect = bannerW / bannerH;
+            double imgAspect   = _repoImgNativeW / _repoImgNativeH;
+            _repoBannerScale = (imgAspect > bannerAspect)
+                ? bannerH / _repoImgNativeH   // fit height
+                : bannerW / _repoImgNativeW;  // fit width
+
+            // Crop frame size in overlay coords
+            double ratio = _repoOverlayScale / _repoBannerScale;
+            _repoCropW = Math.Min(bannerW * ratio, dispImgW);
+            _repoCropH = Math.Min(bannerH * ratio, dispImgH);
+
+            RepoCropFrame.Width  = _repoCropW;
+            RepoCropFrame.Height = _repoCropH;
+
+            if (!_repoLayoutDone)
+            {
+                _repoLayoutDone = true;
+
+                // Initial position from current banner translate
+                double tx = HeroImageTransform?.TranslateX ?? (SelectedNote?.CoverOffsetX ?? 0);
+                double ty = HeroImageTransform?.TranslateY ?? (SelectedNote?.CoverOffsetY ?? 0);
+
+                _repoCropLeft = Math.Clamp(-tx * ratio, 0, dispImgW - _repoCropW);
+                _repoCropTop  = Math.Clamp(-ty * ratio, 0, dispImgH - _repoCropH);
+            }
+
+            Canvas.SetLeft(RepoCropFrame, _repoCropLeft);
+            Canvas.SetTop(RepoCropFrame,  _repoCropTop);
+            UpdateRepoDimRects(dispImgW, dispImgH);
+        }
+
+        private void UpdateRepoDimRects(double imgW, double imgH)
+        {
+            // Top
+            Canvas.SetLeft(RepoDimTop, 0); Canvas.SetTop(RepoDimTop, 0);
+            RepoDimTop.Width = imgW; RepoDimTop.Height = Math.Max(0, _repoCropTop);
+
+            // Bottom
+            double by = _repoCropTop + _repoCropH;
+            Canvas.SetLeft(RepoDimBottom, 0); Canvas.SetTop(RepoDimBottom, by);
+            RepoDimBottom.Width = imgW; RepoDimBottom.Height = Math.Max(0, imgH - by);
+
+            // Left
+            Canvas.SetLeft(RepoDimLeft, 0); Canvas.SetTop(RepoDimLeft, _repoCropTop);
+            RepoDimLeft.Width = Math.Max(0, _repoCropLeft); RepoDimLeft.Height = _repoCropH;
+
+            // Right
+            double rx = _repoCropLeft + _repoCropW;
+            Canvas.SetLeft(RepoDimRight, rx); Canvas.SetTop(RepoDimRight, _repoCropTop);
+            RepoDimRight.Width = Math.Max(0, imgW - rx); RepoDimRight.Height = _repoCropH;
+        }
+
+        private void RepoCropFrame_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var el = sender as UIElement;
+            el?.CapturePointer(e.Pointer);
+            _repoDragStart = e.GetCurrentPoint(RepositionCanvas).Position;
+            _repoCropLeftAtStart = _repoCropLeft;
+            _repoCropTopAtStart  = _repoCropTop;
+            _repoIsDragging = true;
             e.Handled = true;
         }
 
-        private void HeroDragGrid_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void RepoCropFrame_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (!_isRepositionMode || SelectedNote == null) return;
-            
-            var grid = sender as UIElement;
-            if (grid == null) return;
-            
-            var ptrPt = e.GetCurrentPoint(grid);
-            if (ptrPt.Properties.IsLeftButtonPressed)
-            {
-                double deltaX = ptrPt.Position.X - _dragStart.X;
-                double deltaY = ptrPt.Position.Y - _dragStart.Y;
-                
-                double newX = _dragStartX + deltaX;
-                double newY = _dragStartY + deltaY;
-                
-                if (HeroImageTransform != null)
-                {
-                    HeroImageTransform.TranslateX = newX;
-                    HeroImageTransform.TranslateY = newY;
-                    ConstrainHeroImageTranslation();
-                }
-                
-                e.Handled = true;
-            }
-        }
+            if (!_repoIsDragging) return;
+            var pt = e.GetCurrentPoint(RepositionCanvas);
+            if (!pt.Properties.IsLeftButtonPressed) return;
 
-        private void HeroDragGrid_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (!_isRepositionMode) return;
-            var grid = sender as UIElement;
-            if (grid != null)
-            {
-                grid.ReleasePointerCapture(e.Pointer);
-            }
+            double dx = pt.Position.X - _repoDragStart.X;
+            double dy = pt.Position.Y - _repoDragStart.Y;
+
+            double imgW = RepositionCanvas.Width;
+            double imgH = RepositionCanvas.Height;
+
+            _repoCropLeft = Math.Clamp(_repoCropLeftAtStart + dx, 0, imgW - _repoCropW);
+            _repoCropTop  = Math.Clamp(_repoCropTopAtStart  + dy, 0, imgH - _repoCropH);
+
+            Canvas.SetLeft(RepoCropFrame, _repoCropLeft);
+            Canvas.SetTop(RepoCropFrame,  _repoCropTop);
+            UpdateRepoDimRects(imgW, imgH);
             e.Handled = true;
         }
 
-        private void RepositionDone_Click(object sender, RoutedEventArgs e)
+        private void RepoCropFrame_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            _repoIsDragging = false;
+            (sender as UIElement)?.ReleasePointerCapture(e.Pointer);
+            e.Handled = true;
+        }
+
+        private void RepoDoneButton_Click(object sender, RoutedEventArgs e)
         {
             if (SelectedNote == null) return;
-            
+
+            // Convert crop frame position → banner TranslateX/Y
+            double ratio = _repoBannerScale / _repoOverlayScale;
+            double tx = -_repoCropLeft * ratio;
+            double ty = -_repoCropTop  * ratio;
+
             if (HeroImageTransform != null)
             {
+                HeroImageTransform.TranslateX = tx;
+                HeroImageTransform.TranslateY = ty;
+                ConstrainHeroImageTranslation();
                 SelectedNote.CoverOffsetX = HeroImageTransform.TranslateX;
                 SelectedNote.CoverOffsetY = HeroImageTransform.TranslateY;
             }
-            
-            _isRepositionMode = false;
-            if (CoverRepositionOverlay != null) CoverRepositionOverlay.Visibility = Visibility.Collapsed;
-            if (RepositionDoneBar != null) RepositionDoneBar.Visibility = Visibility.Collapsed;
-            
+            else
+            {
+                SelectedNote.CoverOffsetX = tx;
+                SelectedNote.CoverOffsetY = ty;
+            }
+
+            CoverRepositionModal.Visibility = Visibility.Collapsed;
             MarkDirty();
-            ShowStatusMessage("Cover banner position saved");
+            ShowStatusMessage("Cover position saved");
         }
 
-        private void RepositionCancel_Click(object sender, RoutedEventArgs e)
+        private void RepoCancelButton_Click(object sender, RoutedEventArgs e)
         {
-            if (SelectedNote == null) return;
-            
-            if (HeroImageTransform != null)
-            {
-                HeroImageTransform.TranslateX = SelectedNote.CoverOffsetX;
-                HeroImageTransform.TranslateY = SelectedNote.CoverOffsetY;
-            }
-            
-            
-            _isRepositionMode = false;
-            if (CoverRepositionOverlay != null) CoverRepositionOverlay.Visibility = Visibility.Collapsed;
-            if (RepositionDoneBar != null) RepositionDoneBar.Visibility = Visibility.Collapsed;
+            CoverRepositionModal.Visibility = Visibility.Collapsed;
         }
+
+        // Legacy handlers kept for XAML references (old inline-drag path no longer active)
+        private void RepositionDone_Click(object sender, RoutedEventArgs e) { }
+        private void RepositionCancel_Click(object sender, RoutedEventArgs e) { }
+
 
         // Photographer attribution is now handled natively via Hyperlink NavigateUri in XAML.
 

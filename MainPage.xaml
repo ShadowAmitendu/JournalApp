@@ -659,7 +659,7 @@
                                       PointerCanceled="HeroDragGrid_PointerReleased"
                                       Background="Transparent"
                                       x:Name="HeroDragGrid">
-                                     <Image x:Name="HeroImage" Stretch="None" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
+                                     <Image x:Name="HeroImage" Stretch="Fill" ImageOpened="HeroImage_ImageOpened" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
                                          <Image.RenderTransform>
                                              <CompositeTransform x:Name="HeroImageTransform" TranslateX="0" TranslateY="0" />
                                          </Image.RenderTransform>
@@ -1164,6 +1164,97 @@
                         <!-- Right Word / Character Count -->
                         <TextBlock x:Name="WordCountTextBlock" Grid.Column="2" Text="Word Count: 0 | Characters: 0" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </Grid>
+
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <!-- Cover Reposition Modal — Photos-style crop frame editor     -->
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <Grid x:Name="CoverRepositionModal"
+                          Grid.Row="0" Grid.RowSpan="4"
+                          Visibility="Collapsed"
+                          Background="#E0000000">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Header -->
+                        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,28,0,16" Spacing="6">
+                            <TextBlock Text="Reposition Cover Image"
+                                       FontSize="18" FontWeight="SemiBold"
+                                       Foreground="White" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Drag the frame to choose which area appears in the cover banner"
+                                       FontSize="12" Foreground="#99FFFFFF" HorizontalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Canvas area: full image + draggable crop frame -->
+                        <Grid Grid.Row="1" x:Name="RepositionArea"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              SizeChanged="RepositionArea_SizeChanged">
+                            <Canvas x:Name="RepositionCanvas">
+                                <!-- Full image at overlay scale -->
+                                <Image x:Name="RepositionFullImage"
+                                       Stretch="Fill"
+                                       IsHitTestVisible="False"
+                                       Canvas.Left="0" Canvas.Top="0"/>
+                                <!-- Dim overlays (4 rects outside the crop frame) -->
+                                <Rectangle x:Name="RepoDimTop"    Fill="#AA000000" IsHitTestVisible="False"/>
+                                <Rectangle x:Name="RepoDimBottom" Fill="#AA000000" IsHitTestVisible="False"/>
+                                <Rectangle x:Name="RepoDimLeft"   Fill="#AA000000" IsHitTestVisible="False"/>
+                                <Rectangle x:Name="RepoDimRight"  Fill="#AA000000" IsHitTestVisible="False"/>
+                                <!-- Crop frame (draggable) -->
+                                <Grid x:Name="RepoCropFrame"
+                                      Canvas.Left="0" Canvas.Top="0"
+                                      PointerPressed="RepoCropFrame_PointerPressed"
+                                      PointerMoved="RepoCropFrame_PointerMoved"
+                                      PointerReleased="RepoCropFrame_PointerReleased"
+                                      PointerCanceled="RepoCropFrame_PointerReleased">
+                                    <Border BorderBrush="White" BorderThickness="2" Background="Transparent"/>
+                                    <!-- Rule-of-thirds grid lines -->
+                                    <Grid IsHitTestVisible="False" Margin="2">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Row="0" Grid.Column="1" BorderThickness="0.5,0,0.5,0" BorderBrush="#40FFFFFF"/>
+                                        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" BorderThickness="0,0.5,0,0.5" BorderBrush="#40FFFFFF"/>
+                                        <Border Grid.Row="2" Grid.Column="1" BorderThickness="0.5,0,0.5,0" BorderBrush="#40FFFFFF"/>
+                                    </Grid>
+                                    <!-- Corner handles -->
+                                    <Border Width="14" Height="14" Background="White" CornerRadius="2" HorizontalAlignment="Left"  VerticalAlignment="Top"    IsHitTestVisible="False" Margin="-1,-1,0,0"/>
+                                    <Border Width="14" Height="14" Background="White" CornerRadius="2" HorizontalAlignment="Right" VerticalAlignment="Top"    IsHitTestVisible="False" Margin="0,-1,-1,0"/>
+                                    <Border Width="14" Height="14" Background="White" CornerRadius="2" HorizontalAlignment="Left"  VerticalAlignment="Bottom" IsHitTestVisible="False" Margin="-1,0,0,-1"/>
+                                    <Border Width="14" Height="14" Background="White" CornerRadius="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False" Margin="0,0,-1,-1"/>
+                                    <!-- Edge midpoint handles -->
+                                    <Border Width="14" Height="8"  Background="White" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Top"    IsHitTestVisible="False" Margin="0,-1,0,0"/>
+                                    <Border Width="14" Height="8"  Background="White" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" IsHitTestVisible="False" Margin="0,0,0,-1"/>
+                                    <Border Width="8"  Height="14" Background="White" CornerRadius="2" HorizontalAlignment="Left"   VerticalAlignment="Center" IsHitTestVisible="False" Margin="-1,0,0,0"/>
+                                    <Border Width="8"  Height="14" Background="White" CornerRadius="2" HorizontalAlignment="Right"  VerticalAlignment="Center" IsHitTestVisible="False" Margin="0,0,-1,0"/>
+                                </Grid>
+                            </Canvas>
+                        </Grid>
+
+                        <!-- Bottom action bar -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal"
+                                    HorizontalAlignment="Center" Spacing="12" Margin="0,20,0,32">
+                            <Button x:Name="RepoDoneButton" Click="RepoDoneButton_Click"
+                                    Style="{StaticResource AccentButtonStyle}" CornerRadius="8" Padding="28,10">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE73E;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14"/>
+                                    <TextBlock Text="Done" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="RepoCancelButton" Click="RepoCancelButton_Click"
+                                    CornerRadius="8" Padding="28,10" Content="Cancel"/>
+                        </StackPanel>
+                    </Grid>
+
                 </Grid>
 
                 <!-- Undo Trash InfoBar overlay (bottom of editor column) -->
