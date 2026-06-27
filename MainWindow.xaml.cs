@@ -24,6 +24,7 @@ public sealed partial class MainWindow : Window
         try
         {
             InitializeComponent();
+            RegisterMinSizeHandler();
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(AppTitleBar);
 
@@ -281,5 +282,60 @@ public sealed partial class MainWindow : Window
         }
         catch {}
         return defaultValue;
+    }
+
+    // ── Win32 Window Subclassing for Minimum Width Restriction (1211px) ────
+    private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData);
+
+    [System.Runtime.InteropServices.DllImport("Comctl32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, EntryPoint = "SetWindowSubclass")]
+    private static extern bool SetWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, IntPtr uIdSubclass, IntPtr dwRefData);
+
+    [System.Runtime.InteropServices.DllImport("Comctl32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, EntryPoint = "DefSubclassProc")]
+    private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int x;
+        public int y;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MINMAXINFO
+    {
+        public POINT ptReserved;
+        public POINT ptMaxSize;
+        public POINT ptMaxPosition;
+        public POINT ptMinTrackSize;
+        public POINT ptMaxTrackSize;
+    }
+
+    private SubclassProc _subclassProcDelegate;
+
+    private void RegisterMinSizeHandler()
+    {
+        try
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            _subclassProcDelegate = new SubclassProc(NewWindowProc);
+            SetWindowSubclass(hwnd, _subclassProcDelegate, IntPtr.Zero, IntPtr.Zero);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to set window subclass: {ex.Message}");
+        }
+    }
+
+    private IntPtr NewWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData)
+    {
+        const uint WM_GETMINMAXINFO = 0x0024;
+        if (uMsg == WM_GETMINMAXINFO)
+        {
+            var mmi = (MINMAXINFO)System.Runtime.InteropServices.Marshal.PtrToStructure(lParam, typeof(MINMAXINFO));
+            mmi.ptMinTrackSize.x = 1211; // minimum width constraint
+            System.Runtime.InteropServices.Marshal.StructureToPtr(mmi, lParam, false);
+            return IntPtr.Zero;
+        }
+        return DefSubclassProc(hWnd, uMsg, wParam, lParam);
     }
 }
