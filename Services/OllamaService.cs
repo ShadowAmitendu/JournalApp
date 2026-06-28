@@ -107,53 +107,36 @@ namespace JournalApp
             response.EnsureSuccessStatusCode();
 
             using var stream = await response.Content.ReadAsStreamAsync(ct);
-            var buffer = new byte[4096];
-            var leftover = string.Empty;
+            using var reader = new System.IO.StreamReader(stream, Encoding.UTF8);
 
             while (!ct.IsCancellationRequested)
             {
-                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, ct);
-                if (bytesRead == 0) break;
+                string line = await reader.ReadLineAsync(ct);
+                if (line == null) break;
 
-                var chunk = leftover + Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                leftover = string.Empty;
+                line = line.Trim();
+                if (string.IsNullOrEmpty(line))
+                    continue;
 
-                // Ollama streams newline-delimited JSON objects
-                var lines = chunk.Split('\n');
-                for (int i = 0; i < lines.Length; i++)
+                try
                 {
-                    var line = lines[i].Trim();
-                    if (string.IsNullOrEmpty(line))
-                        continue;
-
-                    // Last element may be incomplete — carry it over
-                    if (i == lines.Length - 1 && !chunk.EndsWith("\n"))
+                    using var doc = JsonDocument.Parse(line);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("message", out var msgEl) &&
+                        msgEl.TryGetProperty("content", out var contentEl))
                     {
-                        leftover = line;
-                        break;
+                        var token = contentEl.GetString();
+                        if (!string.IsNullOrEmpty(token))
+                            onToken(token);
                     }
 
-                    try
-                    {
-                        using var doc = JsonDocument.Parse(line);
-                        var root = doc.RootElement;
-                        if (root.TryGetProperty("message", out var msgEl) &&
-                            msgEl.TryGetProperty("content", out var contentEl))
-                        {
-                            var token = contentEl.GetString();
-                            if (!string.IsNullOrEmpty(token))
-                                onToken(token);
-                        }
-
-                        // Check for terminal "done" flag
-                        if (root.TryGetProperty("done", out var doneEl) && doneEl.GetBoolean())
-                            return;
-                    }
-                    catch (JsonException)
-                    {
-                        // Partial JSON — accumulate and retry on next chunk
-                        leftover = line;
-                    }
+                    // Check for terminal "done" flag
+                    if (root.TryGetProperty("done", out var doneEl) && doneEl.GetBoolean())
+                        return;
+                }
+                catch (JsonException)
+                {
+                    // If parse fails, ignore
                 }
             }
         }

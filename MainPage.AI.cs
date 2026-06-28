@@ -18,6 +18,7 @@ namespace JournalApp
         private CancellationTokenSource _aiCts;
         private bool _aiPanelOpen = false;
         private string _aiLastResponse = string.Empty;
+        private string _chatTranscript = string.Empty;
 
         // ── Panel Toggle ──────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ namespace JournalApp
 
         // ── Core Streaming Runner ─────────────────────────────────────────────
 
-        private async Task RunAIActionAsync(string systemPrompt, bool useFullNote, string promptOverride = null)
+        private async Task RunAIActionAsync(string systemPrompt, bool useFullNote, string promptOverride = null, bool isChatMode = false)
         {
             if (AIResponseBox == null) return;
 
@@ -135,7 +136,7 @@ namespace JournalApp
                 }
             }
 
-            if (string.IsNullOrWhiteSpace(userText))
+            if (string.IsNullOrWhiteSpace(userText) && !isChatMode)
             {
                 await ShowAlertAsync("Empty Entry", "Please write something in your journal entry first.");
                 return;
@@ -146,7 +147,12 @@ namespace JournalApp
             _aiCts = new CancellationTokenSource();
 
             _aiLastResponse = string.Empty;
-            AIResponseBox.Text = string.Empty;
+            if (!isChatMode)
+            {
+                _chatTranscript = string.Empty;
+                AIResponseBox.Text = string.Empty;
+            }
+
             AIStopButton.Visibility = Visibility.Visible;
             AIInsertButton.IsEnabled = false;
 
@@ -162,10 +168,20 @@ namespace JournalApp
                         DispatcherQueue.TryEnqueue(() =>
                         {
                             _aiLastResponse += token;
-                            AIResponseBox.Text = _aiLastResponse;
+                            if (isChatMode)
+                            {
+                                AIResponseBox.Text = _chatTranscript + _aiLastResponse;
+                            }
+                            else
+                            {
+                                AIResponseBox.Text = _aiLastResponse;
+                            }
+
                             // Auto-scroll
-                            var scrollViewer = FindScrollViewer(AIResponseBox);
-                            scrollViewer?.ChangeView(null, scrollViewer.ScrollableHeight, null);
+                            if (AIResponseScrollViewer != null)
+                            {
+                                AIResponseScrollViewer.ChangeView(null, AIResponseScrollViewer.ScrollableHeight, null);
+                            }
                         });
                     },
                     _aiCts.Token);
@@ -175,7 +191,17 @@ namespace JournalApp
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     if (!string.IsNullOrEmpty(_aiLastResponse))
-                        AIResponseBox.Text += "\n\n[Generation stopped]";
+                    {
+                        if (isChatMode)
+                        {
+                            _chatTranscript += _aiLastResponse + "\n\n[Generation stopped]";
+                            AIResponseBox.Text = _chatTranscript;
+                        }
+                        else
+                        {
+                            AIResponseBox.Text += "\n\n[Generation stopped]";
+                        }
+                    }
                 });
             }
             catch (Exception ex)
@@ -187,6 +213,10 @@ namespace JournalApp
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     AIStopButton.Visibility = Visibility.Collapsed;
+                    if (isChatMode && !string.IsNullOrEmpty(_aiLastResponse))
+                    {
+                        _chatTranscript += _aiLastResponse;
+                    }
                     AIInsertButton.IsEnabled = !string.IsNullOrEmpty(_aiLastResponse);
                 });
             }
@@ -217,7 +247,63 @@ namespace JournalApp
         {
             if (AIResponseBox != null) AIResponseBox.Text = string.Empty;
             _aiLastResponse = string.Empty;
+            _chatTranscript = string.Empty;
             if (AIInsertButton != null) AIInsertButton.IsEnabled = false;
+            if (AIChatInputBox != null) AIChatInputBox.Text = string.Empty;
+        }
+
+        // ── Chat Input Handlers ──────────────────────────────────────────────
+
+        private async void AIChatSendButton_Click(object sender, RoutedEventArgs e)
+        {
+            await RunChatPromptAsync();
+        }
+
+        private async void AIChatInputBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                var shiftState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Shift);
+                if (shiftState == Windows.UI.Core.CoreVirtualKeyStates.None)
+                {
+                    e.Handled = true;
+                    await RunChatPromptAsync();
+                }
+            }
+        }
+
+        private async Task RunChatPromptAsync()
+        {
+            if (AIChatInputBox == null) return;
+            string userPrompt = AIChatInputBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(userPrompt)) return;
+
+            AIChatInputBox.Text = string.Empty;
+
+            if (string.IsNullOrEmpty(_chatTranscript))
+            {
+                _chatTranscript = $"User: {userPrompt}\n\nAI: ";
+            }
+            else
+            {
+                _chatTranscript += $"\n\nUser: {userPrompt}\n\nAI: ";
+            }
+
+            if (AIResponseBox != null) AIResponseBox.Text = _chatTranscript;
+
+            // Enclose active journal context
+            string contextNote = GetFullNoteText();
+            string systemPrompt = "You are a helpful writing assistant. ";
+            if (!string.IsNullOrEmpty(contextNote))
+            {
+                systemPrompt += $"Below is the content of the user's current journal entry. Answer the user's questions or help them write, edit, or analyze it.\n\nJournal Entry:\n{contextNote}";
+            }
+            else
+            {
+                systemPrompt += "Help the user write, edit, or brainstorm their journal entry.";
+            }
+
+            await RunAIActionAsync(systemPrompt, useFullNote: false, promptOverride: userPrompt, isChatMode: true);
         }
 
         private async void AICheckConnectionButton_Click(object sender, RoutedEventArgs e)

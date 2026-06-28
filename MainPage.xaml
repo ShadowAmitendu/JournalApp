@@ -1257,6 +1257,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <!-- Header -->
@@ -1302,7 +1303,7 @@
 
                                 <!-- Response Text -->
                                 <Border Grid.Row="3" Margin="12,0,12,8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="10">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ScrollViewer x:Name="AIResponseScrollViewer" VerticalScrollBarVisibility="Auto">
                                         <TextBlock x:Name="AIResponseBox"
                                                    TextWrapping="Wrap"
                                                    FontSize="13"
@@ -1313,8 +1314,34 @@
                                     </ScrollViewer>
                                 </Border>
 
+                                <!-- Chat Input Box -->
+                                <Grid Grid.Row="4" Margin="12,0,12,8" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="AIChatInputBox" 
+                                             Grid.Column="0" 
+                                             PlaceholderText="Ask the AI anything..." 
+                                             AcceptsReturn="True" 
+                                             MaxHeight="80" 
+                                             KeyDown="AIChatInputBox_KeyDown" 
+                                             CornerRadius="8" />
+                                    <Button x:Name="AIChatSendButton" 
+                                            Grid.Column="1" 
+                                            Content="&#xE724;" 
+                                            FontFamily="{ThemeResource SymbolThemeFontFamily}" 
+                                            Click="AIChatSendButton_Click" 
+                                            VerticalAlignment="Bottom"
+                                            Height="36"
+                                            Width="36"
+                                            Padding="0"
+                                            CornerRadius="8" 
+                                            Style="{StaticResource AccentButtonStyle}" />
+                                </Grid>
+
                                 <!-- Footer -->
-                                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Padding="12,0,12,12" HorizontalAlignment="Right">
+                                <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8" Padding="12,0,12,12" HorizontalAlignment="Right">
                                     <Button x:Name="AIStopButton" Content="⏹ Stop" Click="AIStopButton_Click" Visibility="Collapsed" CornerRadius="8" />
                                     <Button x:Name="AIClearButton" Content="Clear" Click="AIClearButton_Click" CornerRadius="8" />
                                     <Button x:Name="AIInsertButton" Content="⬇ Insert" Click="AIInsertButton_Click" IsEnabled="False" CornerRadius="8" Style="{StaticResource AccentButtonStyle}" />
