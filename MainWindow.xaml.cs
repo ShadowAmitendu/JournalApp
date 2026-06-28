@@ -226,15 +226,29 @@ public sealed partial class MainWindow : Window
             {
                 TitleBarBackupIcon.Visibility = isLoading ? Visibility.Collapsed : Visibility.Visible;
             }
-            if (TitleBarBackupProgressRing != null)
+            if (TitleBarBackupProgressBar != null)
             {
-                TitleBarBackupProgressRing.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
-                TitleBarBackupProgressRing.IsActive = isLoading;
+                TitleBarBackupProgressBar.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+                TitleBarBackupProgressBar.IsIndeterminate = isLoading;
+                if (!isLoading)
+                {
+                    TitleBarBackupProgressBar.Value = 0;
+                }
             }
             if (TitleBarBackupText != null)
             {
                 TitleBarBackupText.Text = isLoading ? "Backing up..." : "Backup";
             }
+        }
+    }
+
+    public void SetBackupProgress(double current, double maximum)
+    {
+        if (TitleBarBackupProgressBar != null)
+        {
+            TitleBarBackupProgressBar.IsIndeterminate = false;
+            TitleBarBackupProgressBar.Maximum = maximum;
+            TitleBarBackupProgressBar.Value = current;
         }
     }
 

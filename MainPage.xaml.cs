@@ -3126,9 +3126,89 @@ namespace JournalApp
             string result = await PromptForTextInputAsync("Location", "Enter a place or address:", current.Length > 0 ? current : "e.g. New York, NY");
             if (result != null)
             {
-                SelectedNote.LocationTag = result;
+                await SearchLocationAndWeatherAsync(result);
+            }
+        }
+
+        private async Task SearchLocationAndWeatherAsync(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return;
+            
+            try
+            {
+                if (AutoDetectMomentsProgress != null)
+                {
+                    AutoDetectMomentsProgress.Visibility = Visibility.Visible;
+                    AutoDetectMomentsProgress.IsActive = true;
+                }
+                if (AutoDetectMomentsIcon != null)
+                {
+                    AutoDetectMomentsIcon.Visibility = Visibility.Collapsed;
+                }
+                
+                string searchUrl = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(query)}&count=1&language=en&format=json";
+                string searchJson = await _httpClient.GetStringAsync(searchUrl);
+                using var searchDoc = JsonDocument.Parse(searchJson);
+                var root = searchDoc.RootElement;
+                
+                if (root.TryGetProperty("results", out var resultsEl) && resultsEl.ValueKind == JsonValueKind.Array && resultsEl.GetArrayLength() > 0)
+                {
+                    var firstResult = resultsEl[0];
+                    string name = firstResult.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : "";
+                    string admin1 = firstResult.TryGetProperty("admin1", out var admin1Prop) ? admin1Prop.GetString() : "";
+                    string country = firstResult.TryGetProperty("country", out var countryProp) ? countryProp.GetString() : "";
+                    double lat = firstResult.TryGetProperty("latitude", out var latProp) ? latProp.GetDouble() : 0.0;
+                    double lon = firstResult.TryGetProperty("longitude", out var lonProp) ? lonProp.GetDouble() : 0.0;
+
+                    string formattedLocation = name;
+                    if (!string.IsNullOrEmpty(admin1))
+                        formattedLocation += $", {admin1}";
+                    if (!string.IsNullOrEmpty(country))
+                        formattedLocation += $", {country}";
+
+                    SelectedNote.LocationTag = formattedLocation;
+
+                    string weatherTag = "Sunny";
+                    if (lat != 0.0 || lon != 0.0)
+                    {
+                        string weatherUrl = $"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true";
+                        string weatherJson = await _httpClient.GetStringAsync(weatherUrl);
+                        using var weatherDoc = JsonDocument.Parse(weatherJson);
+                        var weatherRoot = weatherDoc.RootElement;
+                        if (weatherRoot.TryGetProperty("current_weather", out var cwProp))
+                        {
+                            int weatherCode = cwProp.TryGetProperty("weathercode", out var wcProp) ? wcProp.GetInt32() : 0;
+                            weatherTag = MapWmoCodeToWeatherTag(weatherCode);
+                        }
+                    }
+                    SelectedNote.WeatherTag = weatherTag;
+                }
+                else
+                {
+                    SelectedNote.LocationTag = query;
+                }
+                
                 UpdateMomentsUI();
                 MarkDirty();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to search location/weather: {ex.Message}");
+                SelectedNote.LocationTag = query;
+                UpdateMomentsUI();
+                MarkDirty();
+            }
+            finally
+            {
+                if (AutoDetectMomentsProgress != null)
+                {
+                    AutoDetectMomentsProgress.Visibility = Visibility.Collapsed;
+                    AutoDetectMomentsProgress.IsActive = false;
+                }
+                if (AutoDetectMomentsIcon != null)
+                {
+                    AutoDetectMomentsIcon.Visibility = Visibility.Visible;
+                }
             }
         }
 

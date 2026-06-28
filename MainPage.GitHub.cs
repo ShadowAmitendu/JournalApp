@@ -1337,6 +1337,10 @@ namespace JournalApp
                 GitHubSyncProgressBar.IsIndeterminate = false;
                 GitHubSyncProgressBar.Maximum = filesToSync.Count;
                 GitHubSyncProgressBar.Value = 0;
+                if (MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.SetBackupProgress(0, filesToSync.Count);
+                }
 
                 // 4. Sync files sequentially
                 for (int i = 0; i < filesToSync.Count; i++)
@@ -1347,6 +1351,10 @@ namespace JournalApp
                     await SyncFileToGitHub(username, repoName, file.LocalPath, file.GitHubPath, file.Message);
                     
                     GitHubSyncProgressBar.Value = i + 1;
+                    if (MainWindow.Instance != null)
+                    {
+                        MainWindow.Instance.SetBackupProgress(i + 1, filesToSync.Count);
+                    }
                 }
 
                 // Save credentials and last sync time on success
