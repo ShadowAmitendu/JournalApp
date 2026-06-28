@@ -482,18 +482,19 @@ namespace JournalApp
 <body>
     <div class=""nav-back"">
         <a href=""../index.html"">← Back to Blog</a>
+        <button class=""share-btn"" onclick=""copyShareLink()"" style=""margin-left: 20px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem;"">🔗 Share</button>
     </div>
 
     <article class=""post-detail"">
         {coverHtml}
         
         <header class=""post-header"">
-            <h1 class=""post-title"">{System.Net.WebUtility.HtmlEncode(title)}</h1>
-            <div class=""post-meta-container"">
+            <h1 class=""post-title-detail"">{System.Net.WebUtility.HtmlEncode(title)}</h1>
+            <div class=""post-meta"">
                 <span class=""post-date"">{dateString}</span>
-                <span class=""category-badge"" style=""background-color: {badgeColor}12; color: {badgeColor}; border: 1px solid {badgeColor}25;"">{System.Net.WebUtility.HtmlEncode(category)}</span>
-                {moodBadgeHtml}
-                <div class=""tags-list"">{tagsHtml}</div>
+                <span class=""post-divider"">•</span>
+                <span class=""post-category"" style=""color: {badgeColor}; font-weight: 600;"">{System.Net.WebUtility.HtmlEncode(category)}</span>
+                {(!string.IsNullOrEmpty(note.Mood) && note.Mood != "None" ? $" <span class=\"post-divider\">•</span> <span class=\"post-mood\">{System.Net.WebUtility.HtmlEncode(note.Mood)}</span>" : "")}
             </div>
         </header>
 
@@ -505,6 +506,13 @@ namespace JournalApp
     <footer>
         <p>&copy; {DateTime.Now.Year} {System.Net.WebUtility.HtmlEncode(blogTitle)}. Generated via JournalApp.</p>
     </footer>
+
+    <script>
+        function copyShareLink() {{
+            navigator.clipboard.writeText(window.location.href);
+            alert('Link copied to clipboard!');
+        }}
+    </script>
 </body>
 </html>";
         }
@@ -520,40 +528,22 @@ namespace JournalApp
             {
                 foreach (var post in posts)
                 {
-                    string coverSnippet = "";
-                    if (!string.IsNullOrEmpty(post.CoverImage))
-                    {
-                        coverSnippet = $"<div class=\"post-card-cover\"><img src=\"{post.CoverImage}\" alt=\"Post cover\"></div>";
-                    }
-
                     string moodHtml = "";
                     if (!string.IsNullOrEmpty(post.Mood) && post.Mood != "None")
                     {
-                        moodHtml = $"<span class=\"mood-badge\">{System.Net.WebUtility.HtmlEncode(post.Mood)}</span>";
-                    }
-
-                    string tagsHtml = "";
-                    if (post.Tags != null && post.Tags.Count > 0)
-                    {
-                        foreach (var tag in post.Tags)
-                        {
-                            tagsHtml += $"<span class=\"tag-badge\">#{System.Net.WebUtility.HtmlEncode(tag.TrimStart('#'))}</span>";
-                        }
+                        moodHtml = $" <span class=\"post-divider\">•</span> <span class=\"post-mood\">{System.Net.WebUtility.HtmlEncode(post.Mood)}</span>";
                     }
 
                     postsHtml += $@"
-            <article class=""post-card"">
-                {coverSnippet}
-                <div class=""post-card-content"">
-                    <div class=""post-card-meta"">
-                        <span class=""post-card-date"">{post.DateCreated.ToString("MMMM d, yyyy")}</span>
-                        <span class=""category-badge"" style=""background-color: {post.CategoryColor}12; color: {post.CategoryColor}; border: 1px solid {post.CategoryColor}25;"">{System.Net.WebUtility.HtmlEncode(post.Category)}</span>
-                        {moodHtml}
-                    </div>
-                    <h2 class=""post-card-title""><a href=""{post.LinkUrl}"">{System.Net.WebUtility.HtmlEncode(post.Title)}</a></h2>
-                    <p class=""post-card-snippet"">{System.Net.WebUtility.HtmlEncode(post.Snippet)}</p>
-                    <div class=""post-card-tags"">{tagsHtml}</div>
+            <article class=""post-item"">
+                <div class=""post-meta"">
+                    <span class=""post-date"">{post.DateCreated.ToString("MMMM d, yyyy")}</span>
+                    <span class=""post-divider"">•</span>
+                    <span class=""post-category"" style=""color: {post.CategoryColor};"">{System.Net.WebUtility.HtmlEncode(post.Category)}</span>
+                    {moodHtml}
                 </div>
+                <h2 class=""post-title""><a href=""{post.LinkUrl}"">{System.Net.WebUtility.HtmlEncode(post.Title)}</a></h2>
+                <p class=""post-snippet"">{System.Net.WebUtility.HtmlEncode(post.Snippet)}</p>
             </article>";
                 }
             }
@@ -571,14 +561,12 @@ namespace JournalApp
 </head>
 <body>
     <header class=""blog-header"">
-        <div class=""header-container"">
-            <h1 class=""blog-title"">{System.Net.WebUtility.HtmlEncode(blogTitle)}</h1>
-            <p class=""blog-description"">{System.Net.WebUtility.HtmlEncode(blogDesc)}</p>
-        </div>
+        <h1 class=""blog-title"">{System.Net.WebUtility.HtmlEncode(blogTitle)}</h1>
+        <p class=""blog-description"">{System.Net.WebUtility.HtmlEncode(blogDesc)}</p>
     </header>
 
     <main class=""blog-container"">
-        <div class=""posts-grid"">
+        <div class=""posts-list"">
             {postsHtml}
         </div>
     </main>
@@ -592,34 +580,25 @@ namespace JournalApp
 
         private string GetBlogStylesheetContent()
         {
-            return @"/* premium blog styles */
+            return @"/* premium simple blog styles */
 :root {
-    --bg-color: #f7fafc;
-    --card-bg: #ffffff;
-    --text-primary: #1a202c;
-    --text-secondary: #4a5568;
-    --text-muted: #718096;
-    --border-color: #e2e8f0;
+    --bg-color: #ffffff;
+    --text-primary: #111111;
+    --text-secondary: #555555;
+    --text-muted: #888888;
+    --border-color: #eaeaea;
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-serif: 'Playfair Display', Georgia, Cambria, serif;
-    --accent-color: #0078D4;
+    --font-serif: 'Playfair Display', Georgia, serif;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg-color: #0f172a;
-        --card-bg: #1e293b;
-        --text-primary: #f8fafc;
-        --text-secondary: #cbd5e1;
-        --text-muted: #94a3b8;
-        --border-color: #334155;
+        --bg-color: #121212;
+        --text-primary: #eeeeee;
+        --text-secondary: #aaaaaa;
+        --text-muted: #666666;
+        --border-color: #2c2c2c;
     }
-}
-
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
 }
 
 body {
@@ -627,195 +606,89 @@ body {
     color: var(--text-primary);
     font-family: var(--font-sans);
     line-height: 1.8;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 60px 24px;
 }
 
 .blog-header {
-    background: linear-gradient(135deg, rgba(0,120,212,0.05) 0%, rgba(227,0,140,0.05) 100%);
+    margin-bottom: 60px;
     border-bottom: 1px solid var(--border-color);
-    padding: 60px 20px;
-    text-align: center;
-}
-
-.header-container {
-    max-width: 800px;
-    margin: 0 auto;
+    padding-bottom: 30px;
 }
 
 .blog-title {
     font-family: var(--font-serif);
-    font-size: 3rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    margin-bottom: 12px;
-    background: linear-gradient(to right, #0078D4, #E3008C);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
 }
 
 .blog-description {
     color: var(--text-secondary);
-    font-size: 1.15rem;
-    font-weight: 500;
+    font-size: 1rem;
 }
 
-.blog-container {
-    max-width: 900px;
-    margin: 40px auto;
-    padding: 0 20px;
-    flex-grow: 1;
-    width: 100%;
-}
-
-.posts-grid {
+.posts-list {
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: 40px;
 }
 
-.post-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+.post-item {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 30px;
 }
 
-@media (min-width: 640px) {
-    .post-card {
-        flex-direction: row;
-    }
-    .post-card-cover {
-        width: 35%;
-        min-width: 240px;
-        flex-shrink: 0;
-    }
+.post-item:last-child {
+    border-bottom: none;
 }
 
-.post-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08);
-}
-
-.post-card-cover {
-    position: relative;
-    overflow: hidden;
-    background-color: var(--border-color);
-    min-height: 180px;
-}
-
-.post-card-cover img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    position: absolute;
-    top: 0;
-    left: 0;
-}
-
-.post-card-content {
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-}
-
-.post-card-meta {
+.post-meta {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-    font-size: 0.8rem;
+    gap: 8px;
 }
 
-.post-card-date {
-    color: var(--text-muted);
-    font-weight: 500;
+.post-divider {
+    color: var(--border-color);
 }
 
-.category-badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.mood-badge {
-    display: inline-block;
-    background-color: rgba(245, 158, 11, 0.1);
-    color: #d97706;
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.post-card-title {
+.post-title {
     font-family: var(--font-serif);
     font-size: 1.6rem;
+    font-weight: 700;
     line-height: 1.3;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
-.post-card-title a {
+.post-title a {
     color: var(--text-primary);
     text-decoration: none;
-    transition: color 0.15s ease;
 }
 
-.post-card-title a:hover {
-    color: #0078D4;
+.post-title a:hover {
+    text-decoration: underline;
 }
 
-.post-card-snippet {
+.post-snippet {
     color: var(--text-secondary);
     font-size: 0.95rem;
-    margin-bottom: 16px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
 }
 
-.post-card-tags, .tags-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.tag-badge {
-    display: inline-block;
-    background-color: rgba(74, 85, 104, 0.06);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-/* Post Detail styling */
+/* Detail page styling */
 .nav-back {
-    max-width: 760px;
-    margin: 40px auto 0 auto;
-    padding: 0 20px;
+    margin-bottom: 40px;
 }
 
 .nav-back a {
     color: var(--text-muted);
     text-decoration: none;
     font-size: 0.9rem;
-    font-weight: 500;
-    transition: color 0.15s ease;
 }
 
 .nav-back a:hover {
@@ -823,57 +696,24 @@ body {
 }
 
 .post-detail {
-    max-width: 760px;
-    margin: 20px auto 40px auto;
-    padding: 0 20px;
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-}
-
-.cover-container {
-    width: 100%;
-    height: 320px;
-    overflow: hidden;
-    background-color: var(--border-color);
-}
-
-.cover-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    margin-bottom: 60px;
 }
 
 .post-header {
-    padding: 40px 40px 20px 40px;
+    margin-bottom: 30px;
     border-bottom: 1px solid var(--border-color);
+    padding-bottom: 20px;
 }
 
-.post-title {
+.post-title-detail {
     font-family: var(--font-serif);
-    font-size: 2.8rem;
+    font-size: 2.5rem;
     line-height: 1.2;
     margin-bottom: 16px;
     font-weight: 700;
 }
 
-.post-meta-container {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    font-size: 0.85rem;
-}
-
-.post-date {
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
 .post-content {
-    padding: 40px;
     font-size: 1.1rem;
     line-height: 1.8;
 }
@@ -884,16 +724,15 @@ body {
 
 .post-content h1, .post-content h2, .post-content h3 {
     font-family: var(--font-serif);
-    margin: 32px 0 16px 0;
-    line-height: 1.3;
+    margin: 40px 0 20px 0;
 }
 
-.post-content h1 { font-size: 2rem; }
-.post-content h2 { font-size: 1.6rem; }
-.post-content h3 { font-size: 1.3rem; }
+.post-content h1 { font-size: 1.8rem; }
+.post-content h2 { font-size: 1.5rem; }
+.post-content h3 { font-size: 1.2rem; }
 
 .post-content blockquote {
-    border-left: 4px solid #0078D4;
+    border-left: 3px solid var(--text-primary);
     padding-left: 20px;
     margin: 24px 0;
     font-style: italic;
@@ -909,14 +748,20 @@ body {
 }
 
 .post-content pre {
-    background-color: var(--bg-color);
+    background-color: #fafafa;
     border: 1px solid var(--border-color);
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 6px;
     overflow-x: auto;
     font-family: monospace;
     font-size: 0.9rem;
     margin-bottom: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .post-content pre {
+        background-color: #1e1e1e;
+    }
 }
 
 .post-content hr {
@@ -929,21 +774,20 @@ body {
 /* Footer style */
 footer {
     border-top: 1px solid var(--border-color);
-    padding: 30px 20px;
+    padding: 30px 0;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.85rem;
-    margin-top: auto;
+    font-size: 0.8rem;
+    margin-top: 60px;
 }
 
 .no-posts {
     text-align: center;
-    padding: 60px;
+    padding: 40px;
     color: var(--text-muted);
-    font-size: 1.1rem;
-    border: 2px dashed var(--border-color);
-    border-radius: 12px;
-    background-color: var(--card-bg);
+    font-size: 1rem;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
 }
 ";
         }
