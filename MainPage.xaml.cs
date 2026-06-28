@@ -5623,7 +5623,7 @@ namespace JournalApp
 
         private void ShowGrid(Grid gridToShow)
         {
-            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid };
+            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid, BlogPageGrid };
             foreach (var g in allGrids)
             {
                 if (g == null) continue;
