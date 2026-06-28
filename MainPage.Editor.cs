@@ -211,7 +211,7 @@ namespace JournalApp
         {
             if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
             {
-                ChangeActiveBlockType("bullet");
+                InsertLinePrefix("- ");
                 return;
             }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
@@ -227,7 +227,7 @@ namespace JournalApp
         {
             if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
             {
-                ChangeActiveBlockType("numbered");
+                InsertLinePrefix("1. ");
                 return;
             }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
@@ -264,7 +264,7 @@ namespace JournalApp
         {
             if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
             {
-                ChangeActiveBlockType("todo");
+                InsertLinePrefix("- [ ] ");
                 return;
             }
             var selection = NoteRichEditBox.Document.Selection;

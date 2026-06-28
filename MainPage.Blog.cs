@@ -320,54 +320,60 @@ namespace JournalApp
 
         private string GetNotePlainText(JournalNote note)
         {
+            if (note == null) return string.Empty;
+
+            if (_rtfTextCache.TryGetValue(note.Id, out string cachedText) && !string.IsNullOrEmpty(cachedText))
+            {
+                return cachedText;
+            }
+
+            string plainText = string.Empty;
             try
             {
-                string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(note.RtfFileName);
-                if (!File.Exists(rtfPath)) return string.Empty;
-
-                byte[] fileBytes = File.ReadAllBytes(rtfPath);
-                bool isEncrypted = false;
-                if (fileBytes.Length >= 5)
+                if (note.ContentFormat == "markdown")
                 {
-                    if (!(fileBytes[0] == 123 && fileBytes[1] == 92 && fileBytes[2] == 114 && fileBytes[3] == 116 && fileBytes[4] == 102))
+                    string mdPath = GetMarkdownFilePath(note);
+                    if (File.Exists(mdPath))
                     {
-                        isEncrypted = true;
+                        byte[] raw = File.ReadAllBytes(mdPath);
+                        if (_lockedCategories.Contains(note.Category) && !string.IsNullOrEmpty(_masterPassword))
+                        {
+                            try { raw = EncryptionHelper.Decrypt(raw, _masterPassword); }
+                            catch { }
+                        }
+                        plainText = System.Text.Encoding.UTF8.GetString(raw);
                     }
                 }
-
-                byte[] loadedBytes = fileBytes;
-                if (isEncrypted)
+                else
                 {
-                    if (!string.IsNullOrEmpty(_masterPassword))
+                    string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(note.RtfFileName);
+                    if (File.Exists(rtfPath))
                     {
-                        try
+                        byte[] raw = File.ReadAllBytes(rtfPath);
+                        if (_lockedCategories.Contains(note.Category) && !string.IsNullOrEmpty(_masterPassword))
                         {
-                            loadedBytes = EncryptionHelper.Decrypt(fileBytes, _masterPassword);
+                            try { raw = EncryptionHelper.Decrypt(raw, _masterPassword); }
+                            catch { }
                         }
-                        catch
-                        {
-                            return "[Decryption Failed - Check Master Password]";
-                        }
-                    }
-                    else
-                    {
-                        return "[Encrypted Note - Unlock Settings First]";
+                        string rawStr = System.Text.Encoding.UTF8.GetString(raw);
+                        // Parse using headless RichEditBox for perfect accuracy
+                        var tempBox = new Microsoft.UI.Xaml.Controls.RichEditBox();
+                        tempBox.Document.SetText(Microsoft.UI.Text.TextSetOptions.FormatRtf, rawStr);
+                        tempBox.Document.GetText(Microsoft.UI.Text.TextGetOptions.UseLf, out plainText);
+                        plainText = plainText?.Trim() ?? string.Empty;
                     }
                 }
-
-                string rtfText = System.Text.Encoding.UTF8.GetString(loadedBytes);
-                
-                // Headless RichEditBox to parse RTF to PlainText
-                var tempBox = new Microsoft.UI.Xaml.Controls.RichEditBox();
-                tempBox.Document.SetText(Microsoft.UI.Text.TextSetOptions.FormatRtf, rtfText);
-                tempBox.Document.GetText(Microsoft.UI.Text.TextGetOptions.UseLf, out string plainText);
-                return plainText?.Trim() ?? string.Empty;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to parse note text: {ex.Message}");
-                return string.Empty;
+                System.Diagnostics.Debug.WriteLine($"[GetNotePlainText] Failed to parse: {ex.Message}");
             }
+
+            if (!string.IsNullOrEmpty(plainText))
+            {
+                _rtfTextCache[note.Id] = plainText;
+            }
+            return plainText;
         }
 
         private string GenerateBlogPostHtml(JournalNote note, string plainText, string blogTitle, string coverImagePath, List<string> blogPhotoUrls)

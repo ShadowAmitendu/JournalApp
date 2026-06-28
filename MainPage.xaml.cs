@@ -368,7 +368,12 @@ namespace JournalApp
                         }
                         if (NoteRichEditBox != null)
                         {
-                            NoteRichEditBox.Visibility = Visibility.Visible;
+                            // Only show the legacy RichEditBox for non-markdown notes.
+                            // Markdown notes use NativeBlockEditorScroll; showing the RichEditBox here
+                            // would overlay and hide the block editor since both share Grid.Column=0.
+                            NoteRichEditBox.Visibility = (_selectedNote?.ContentFormat == "markdown")
+                                ? Visibility.Collapsed
+                                : Visibility.Visible;
                         }
                         if (MarkdownPreviewTextBlock != null)
                         {
@@ -378,22 +383,8 @@ namespace JournalApp
                         // Apply note's saved editor width
                         ApplyEditorWidth(_selectedNote.EditorWidth);
 
-                        // Load RTF file
-                        LoadNoteContent();
-                        UpdateWordCount();
-                        UpdateMomentsUI();
-                        if (StatusMessageTextBlock != null)
-                        {
-                            StatusMessageTextBlock.Text = "All changes saved locally";
-                        }
-
-                        _isDirty = false;
-                        this.DispatcherQueue.TryEnqueue(() =>
-                        {
-                            _isDirty = false;
-                            _isLoadingNote = false;
-                            _isDataLoaded = true;
-                        });
+                        // Load note content asynchronously
+                        _ = LoadNoteContentAsync(_selectedNote);
                     }
                     else
                     {
@@ -441,6 +432,7 @@ namespace JournalApp
         private readonly List<string> _lockedCategories = new();
         private string _masterPassword = "";
         private bool _disableSavingCurrentNote = false;
+        private string _currentMarkdownContent = "";   // Raw markdown text in the MarkdownEditorBox
         private static readonly System.Threading.SemaphoreSlim _dialogSemaphore = new(1, 1);
 
         // User-configurable settings state
@@ -575,6 +567,8 @@ namespace JournalApp
                 UpdateSaveSettingsButtonState();
                 TriggerUpdateCheckStartup();
                 UpdateStreakUI();
+                InitMarkdownEditorEvents(); // Wire MarkdownEditorBox TextChanged → autosave
+                InitZenMode(); // Initialize Zen mode keyboard sound handlers
 
                 // Save on window close / deactivate (WinUI 3 safe pattern)
                 if (MainWindow.Instance != null)
@@ -833,7 +827,31 @@ namespace JournalApp
 
         private void LoadCategoriesList()
         {
+            // Preserve sidebar selection
+            string selectedCategoryName = null;
+            string selectedTagStr = null;
+            object selectedFooterItem = null;
+
+            if (CategoriesNavView.SelectedItem is NavigationViewItem oldItem)
+            {
+                if (oldItem.Tag is JournalCategory cat)
+                {
+                    selectedCategoryName = cat.Name;
+                }
+                else if (oldItem.Tag is string str)
+                {
+                    selectedTagStr = str;
+                }
+                else
+                {
+                    // Footer items like Trash, Favorites etc.
+                    selectedFooterItem = CategoriesNavView.SelectedItem;
+                }
+            }
+
             CategoriesNavView.MenuItems.Clear();
+            NavigationViewItem itemToSelect = null;
+
             var categories = JournalManager.Instance.Categories;
             foreach (var category in categories)
             {
@@ -862,6 +880,11 @@ namespace JournalApp
                 navItem.ContextFlyout = CreateCategoryMenuFlyout();
 
                 CategoriesNavView.MenuItems.Add(navItem);
+
+                if (selectedCategoryName != null && category.Name.Equals(selectedCategoryName, StringComparison.OrdinalIgnoreCase))
+                {
+                    itemToSelect = navItem;
+                }
             }
 
             // Append separator and "Add Category" item programmatically
@@ -874,6 +897,11 @@ namespace JournalApp
                 Tag = "AddCategory"
             };
             CategoriesNavView.MenuItems.Add(addCategoryItem);
+
+            if (selectedTagStr != null && selectedTagStr.Equals("AddCategory", StringComparison.OrdinalIgnoreCase))
+            {
+                itemToSelect = addCategoryItem;
+            }
 
             // Gather all tags from notes
             var uniqueTags = new HashSet<string>();
@@ -912,6 +940,36 @@ namespace JournalApp
                         Icon = new FontIcon { Glyph = "\uE1CB", FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] }
                     };
                     CategoriesNavView.MenuItems.Add(navItem);
+
+                    if (selectedTagStr != null && selectedTagStr.Equals($"Tag:{tag}", StringComparison.OrdinalIgnoreCase))
+                    {
+                        itemToSelect = navItem;
+                    }
+                }
+            }
+
+            if (itemToSelect != null)
+            {
+                _isNavigating = true;
+                try
+                {
+                    CategoriesNavView.SelectedItem = itemToSelect;
+                }
+                finally
+                {
+                    _isNavigating = false;
+                }
+            }
+            else if (selectedFooterItem != null)
+            {
+                _isNavigating = true;
+                try
+                {
+                    CategoriesNavView.SelectedItem = selectedFooterItem;
+                }
+                finally
+                {
+                    _isNavigating = false;
                 }
             }
         }
@@ -1186,201 +1244,223 @@ namespace JournalApp
             UpdateStreakUI();
         }
 
-        private async void LoadNoteContent()
+        private async Task LoadNoteContentAsync(JournalNote note)
         {
-            if (SelectedNote == null) return;
+            if (note == null) return;
 
-            if (TitleTextBox != null) TitleTextBox.IsEnabled = true;
-            UpdateLockNoteButtonState();
+            _isLoadingNote = true;
+            _isDataLoaded = false;
+            _disableSavingCurrentNote = true;
+            _autoSaveTimer.Stop();
 
-            // ── Route to block editor for markdown notes ──────────────────────
-            if (SelectedNote.ContentFormat == "markdown")
+            try
             {
-                if (NoteRichEditBox != null) NoteRichEditBox.IsEnabled = false;
-                await LoadMarkdownNoteAsync(SelectedNote);
-                return;
-            }
+                if (TitleTextBox != null) TitleTextBox.IsEnabled = true;
+                UpdateLockNoteButtonState();
 
-            // ── Legacy RTF path ───────────────────────────────────────────────
-            // Ensure RTF editor is visible and WebView2 is hidden
-            if (NoteRichEditBox != null)
-            {
-                NoteRichEditBox.Visibility = Visibility.Visible;
-                NoteRichEditBox.IsEnabled = true;
-            }
-            if (NoteEditorWebView != null) NoteEditorWebView.Visibility = Visibility.Collapsed;
-            if (NativeBlockEditorScroll != null) NativeBlockEditorScroll.Visibility = Visibility.Collapsed;
-
-            if (SelectedNote.IsLocked)
-            {
-                bool verified = false;
-                try
+                // ── Route to block editor for markdown notes ──────────────────────
+                if (note.ContentFormat == "markdown")
                 {
-                    var verResult = await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync($"Unlock journal entry: {SelectedNote.Title}");
-                    if (verResult == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified)
-                    {
-                        verified = true;
-                    }
+                    if (NoteRichEditBox != null) NoteRichEditBox.IsEnabled = false;
+                    await LoadMarkdownNoteAsync(note);
+                    return;
                 }
-                catch (Exception ex)
+
+                // ── Legacy RTF path ───────────────────────────────────────────────
+                // Ensure RTF editor is visible and WebView2 is hidden
+                if (NoteRichEditBox != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"UserConsentVerifier error: {ex.Message}");
-                    if (!string.IsNullOrEmpty(_masterPassword))
+                    NoteRichEditBox.Visibility = Visibility.Visible;
+                    NoteRichEditBox.IsEnabled = true;
+                }
+                if (NoteEditorWebView != null) NoteEditorWebView.Visibility = Visibility.Collapsed;
+                if (NativeBlockEditorScroll != null) NativeBlockEditorScroll.Visibility = Visibility.Collapsed;
+
+                if (note.IsLocked)
+                {
+                    bool verified = false;
+                    try
                     {
-                        string pwdInput = await PromptForPasswordInputAsync("Locked Entry", "Enter master password to unlock:");
-                        if (pwdInput == _masterPassword)
+                        var verResult = await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync($"Unlock journal entry: {note.Title}");
+                        if (verResult == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified)
                         {
                             verified = true;
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        verified = true;
-                    }
-                }
-
-                if (!verified)
-                {
-                    if (NoteRichEditBox != null)
-                    {
-                        NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Locked Entry - Biometric Verification Failed]");
-                        NoteRichEditBox.IsEnabled = false;
-                    }
-                    if (TitleTextBox != null)
-                    {
-                        TitleTextBox.IsEnabled = false;
-                    }
-                    _disableSavingCurrentNote = true;
-                    return;
-                }
-            }
-
-            try
-            {
-                string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(SelectedNote.RtfFileName);
-                if (File.Exists(rtfPath))
-                {
-                    byte[] fileBytes = File.ReadAllBytes(rtfPath);
-                    // Default to NOT encrypted. Only mark encrypted when file is long enough
-                    // to check the header AND it does NOT start with "{\rtf"
-                    bool isEncrypted = false;
-                    if (fileBytes.Length >= 5)
-                    {
-                        // Check if it starts with "{\rtf" (ASCII: 123, 92, 114, 116, 102)
-                        if (!(fileBytes[0] == 123 && fileBytes[1] == 92 && fileBytes[2] == 114 && fileBytes[3] == 116 && fileBytes[4] == 102))
+                        System.Diagnostics.Debug.WriteLine($"UserConsentVerifier error: {ex.Message}");
+                        if (!string.IsNullOrEmpty(_masterPassword))
                         {
-                            isEncrypted = true;
-                        }
-                    }
-
-                    byte[] loadedBytes = fileBytes;
-                    bool decryptionFailedOrSkipped = false;
-                    if (isEncrypted)
-                    {
-                        if (_lockedCategories.Contains(SelectedNote.Category) && !string.IsNullOrEmpty(_masterPassword))
-                        {
-                            try
+                            string pwdInput = await PromptForPasswordInputAsync("Locked Entry", "Enter master password to unlock:");
+                            if (pwdInput == _masterPassword)
                             {
-                                loadedBytes = EncryptionHelper.Decrypt(fileBytes, _masterPassword);
-                            }
-                            catch (Exception decryptEx)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"[LoadNoteContent] Decryption failed: {decryptEx.Message}");
-                                NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Decryption Failed]");
-                                decryptionFailedOrSkipped = true;
+                                verified = true;
                             }
                         }
                         else
                         {
-                            System.Diagnostics.Debug.WriteLine("[LoadNoteContent] Encrypted note skipped (not in locked category or empty password)");
-                            NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Locked]");
-                            decryptionFailedOrSkipped = true;
+                            verified = true;
                         }
                     }
 
-                    if (decryptionFailedOrSkipped)
+                    if (!verified)
                     {
-                        _disableSavingCurrentNote = true;
+                        if (NoteRichEditBox != null)
+                        {
+                            NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Locked Entry - Biometric Verification Failed]");
+                            NoteRichEditBox.IsEnabled = false;
+                        }
+                        if (TitleTextBox != null)
+                        {
+                            TitleTextBox.IsEnabled = false;
+                        }
                         return;
                     }
+                }
 
-                    _disableSavingCurrentNote = false;
-
-                    using (var ms = new MemoryStream(loadedBytes))
+                try
+                {
+                    string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(note.RtfFileName);
+                    if (File.Exists(rtfPath))
                     {
-                        var winrtStream = ms.AsRandomAccessStream();
-                        NoteRichEditBox.Document.LoadFromStream(TextSetOptions.FormatRtf, winrtStream);
+                        byte[] fileBytes = File.ReadAllBytes(rtfPath);
+                        // Default to NOT encrypted. Only mark encrypted when file is long enough
+                        // to check the header AND it does NOT start with "{\rtf"
+                        bool isEncrypted = false;
+                        if (fileBytes.Length >= 5)
+                        {
+                            // Check if it starts with "{\rtf" (ASCII: 123, 92, 114, 116, 102)
+                            if (!(fileBytes[0] == 123 && fileBytes[1] == 92 && fileBytes[2] == 114 && fileBytes[3] == 116 && fileBytes[4] == 102))
+                            {
+                                isEncrypted = true;
+                            }
+                        }
+
+                        byte[] loadedBytes = fileBytes;
+                        bool decryptionFailedOrSkipped = false;
+                        if (isEncrypted)
+                        {
+                            if (_lockedCategories.Contains(note.Category) && !string.IsNullOrEmpty(_masterPassword))
+                            {
+                                try
+                                {
+                                    loadedBytes = EncryptionHelper.Decrypt(fileBytes, _masterPassword);
+                                }
+                                catch (Exception decryptEx)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"[LoadNoteContent] Decryption failed: {decryptEx.Message}");
+                                    NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Decryption Failed]");
+                                    decryptionFailedOrSkipped = true;
+                                }
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine("[LoadNoteContent] Encrypted note skipped (not in locked category or empty password)");
+                                NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Encrypted Note - Locked]");
+                                decryptionFailedOrSkipped = true;
+                            }
+                        }
+
+                        if (decryptionFailedOrSkipped)
+                        {
+                            return;
+                        }
+
+                        using (var ms = new MemoryStream(loadedBytes))
+                        {
+                            var winrtStream = ms.AsRandomAccessStream();
+                            NoteRichEditBox.Document.LoadFromStream(TextSetOptions.FormatRtf, winrtStream);
+                        }
+
+                        // Prevent hardcoded black text in dark theme or white text in light theme
+                        NoteRichEditBox.Document.GetText(TextGetOptions.None, out string rtfText);
+                        if (!string.IsNullOrEmpty(rtfText))
+                        {
+                            var start = NoteRichEditBox.Document.Selection.StartPosition;
+                            var length = NoteRichEditBox.Document.Selection.Length;
+
+                            NoteRichEditBox.Document.Selection.SetRange(0, rtfText.Length);
+                            var format = NoteRichEditBox.Document.Selection.CharacterFormat;
+
+                            if (this.ActualTheme == ElementTheme.Dark)
+                            {
+                                if (format.ForegroundColor.R == 0 && format.ForegroundColor.G == 0 && format.ForegroundColor.B == 0)
+                                {
+                                    format.ForegroundColor = Microsoft.UI.Colors.White;
+                                    NoteRichEditBox.Document.Selection.CharacterFormat = format;
+                                }
+                            }
+                            else if (this.ActualTheme == ElementTheme.Light)
+                            {
+                                if (format.ForegroundColor.R == 255 && format.ForegroundColor.G == 255 && format.ForegroundColor.B == 255)
+                                {
+                                    format.ForegroundColor = Microsoft.UI.Colors.Black;
+                                    NoteRichEditBox.Document.Selection.CharacterFormat = format;
+                                }
+                            }
+
+                            // Apply Paragraph Spacing (SpaceAfter)
+                            var paraFormat = NoteRichEditBox.Document.Selection.ParagraphFormat;
+                            paraFormat.SpaceAfter = 10f;
+                            NoteRichEditBox.Document.Selection.ParagraphFormat = paraFormat;
+
+                            NoteRichEditBox.Document.Selection.SetRange(start, start + length);
+                        }
+                    }
+                    else
+                    {
+                        NoteRichEditBox.Document.SetText(TextSetOptions.None, "");
                     }
 
-                    // Prevent hardcoded black text in dark theme or white text in light theme
-                    NoteRichEditBox.Document.GetText(TextGetOptions.None, out string rtfText);
-                    if (!string.IsNullOrEmpty(rtfText))
+                    // Apply correct default text color for new typing/empty states based on active theme
+                    var defaultFormat = NoteRichEditBox.Document.GetDefaultCharacterFormat();
+                    if (this.ActualTheme == ElementTheme.Dark)
                     {
-                        var start = NoteRichEditBox.Document.Selection.StartPosition;
-                        var length = NoteRichEditBox.Document.Selection.Length;
+                        defaultFormat.ForegroundColor = Microsoft.UI.Colors.White;
+                    }
+                    else
+                    {
+                        defaultFormat.ForegroundColor = Microsoft.UI.Colors.Black;
+                    }
+                    NoteRichEditBox.Document.SetDefaultCharacterFormat(defaultFormat);
 
-                        NoteRichEditBox.Document.Selection.SetRange(0, rtfText.Length);
-                        var format = NoteRichEditBox.Document.Selection.CharacterFormat;
+                    var defaultPara = NoteRichEditBox.Document.GetDefaultParagraphFormat();
+                    defaultPara.SpaceAfter = 10f;
+                    NoteRichEditBox.Document.SetDefaultParagraphFormat(defaultPara);
 
-                        if (this.ActualTheme == ElementTheme.Dark)
-                        {
-                            if (format.ForegroundColor.R == 0 && format.ForegroundColor.G == 0 && format.ForegroundColor.B == 0)
-                            {
-                                format.ForegroundColor = Microsoft.UI.Colors.White;
-                                NoteRichEditBox.Document.Selection.CharacterFormat = format;
-                            }
-                        }
-                        else if (this.ActualTheme == ElementTheme.Light)
-                        {
-                            if (format.ForegroundColor.R == 255 && format.ForegroundColor.G == 255 && format.ForegroundColor.B == 255)
-                            {
-                                format.ForegroundColor = Microsoft.UI.Colors.Black;
-                                NoteRichEditBox.Document.Selection.CharacterFormat = format;
-                            }
-                        }
-
-                        // Apply Paragraph Spacing (SpaceAfter)
-                        var paraFormat = NoteRichEditBox.Document.Selection.ParagraphFormat;
-                        paraFormat.SpaceAfter = 10f;
-                        NoteRichEditBox.Document.Selection.ParagraphFormat = paraFormat;
-
-                        NoteRichEditBox.Document.Selection.SetRange(start, start + length);
+                    // Load Blog toggle state
+                    if (PublishToBlogToggle != null)
+                    {
+                        bool prevLoading = _isLoadingNote;
+                        _isLoadingNote = true;
+                        PublishToBlogToggle.IsChecked = note.IsBlogPublished;
+                        _isLoadingNote = prevLoading;
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _disableSavingCurrentNote = false;
+                    System.Diagnostics.Debug.WriteLine($"Failed to load RTF content: {ex.Message}");
                     NoteRichEditBox.Document.SetText(TextSetOptions.None, "");
                 }
-
-                // Apply correct default text color for new typing/empty states based on active theme
-                var defaultFormat = NoteRichEditBox.Document.GetDefaultCharacterFormat();
-                if (this.ActualTheme == ElementTheme.Dark)
-                {
-                    defaultFormat.ForegroundColor = Microsoft.UI.Colors.White;
-                }
-                else
-                {
-                    defaultFormat.ForegroundColor = Microsoft.UI.Colors.Black;
-                }
-                NoteRichEditBox.Document.SetDefaultCharacterFormat(defaultFormat);
-
-                var defaultPara = NoteRichEditBox.Document.GetDefaultParagraphFormat();
-                defaultPara.SpaceAfter = 10f;
-                NoteRichEditBox.Document.SetDefaultParagraphFormat(defaultPara);
-
-                // Load Blog toggle state
-                if (PublishToBlogToggle != null)
-                {
-                    _isLoadingNote = true;
-                    PublishToBlogToggle.IsChecked = SelectedNote.IsBlogPublished;
-                    _isLoadingNote = false;
-                }
             }
-            catch (Exception ex)
+            finally
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to load RTF content: {ex.Message}");
-                NoteRichEditBox.Document.SetText(TextSetOptions.None, "");
+                // Ensure all pending/deferred UI and layout TextChanged events are processed 
+                // BEFORE we set _isLoadingNote = false and _isDataLoaded = true.
+                this.DispatcherQueue.TryEnqueue(() =>
+                {
+                    _isDirty = false;
+                    _isLoadingNote = false;
+                    _isDataLoaded = true;
+                    _disableSavingCurrentNote = false;
+                    UpdateWordCount();
+                    UpdateMomentsUI();
+                    if (StatusMessageTextBlock != null)
+                    {
+                        StatusMessageTextBlock.Text = "All changes saved locally";
+                    }
+                });
             }
         }
 
@@ -1456,9 +1536,20 @@ namespace JournalApp
                 
                 // Refresh list visually (but don't reset selection to avoid focus jumping)
                 var currentSelection = SelectedNote;
-                LoadCategoriesList(); // Re-populate tags list in case tags changed
-                RefreshNotesList();
-                SelectedNote = currentSelection;
+                _disableSavingCurrentNote = true;
+                try
+                {
+                    LoadCategoriesList(); // Re-populate tags list in case tags changed
+                    RefreshNotesList();
+                    SelectedNote = currentSelection;
+                }
+                finally
+                {
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        _disableSavingCurrentNote = false;
+                    });
+                }
                 
                 if (StatusMessageTextBlock != null)
                 {
@@ -3720,30 +3811,8 @@ namespace JournalApp
             if (note.Snippet.Contains(search, StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            // Fall back to full RTF file content (cached)
-            try
-            {
-                if (!_rtfTextCache.TryGetValue(note.Id, out string cachedText))
-                {
-                    string rtfPath = JournalManager.Instance.GetAbsoluteRtfPath(note.RtfFileName);
-                    if (!string.IsNullOrEmpty(rtfPath) && File.Exists(rtfPath))
-                    {
-                        string raw = File.ReadAllText(rtfPath);
-                        // Strip RTF control words with a lightweight regex
-                        cachedText = System.Text.RegularExpressions.Regex.Replace(raw, @"\\[a-z]+\-?\d*\s?|[{}]", " ");
-                        cachedText = System.Text.RegularExpressions.Regex.Replace(cachedText, @"\s+", " ").Trim();
-                        _rtfTextCache[note.Id] = cachedText;
-                    }
-                    else
-                    {
-                        _rtfTextCache[note.Id] = string.Empty;
-                        cachedText = string.Empty;
-                    }
-                }
-                return !string.IsNullOrEmpty(cachedText) &&
-                       cachedText.Contains(search, StringComparison.OrdinalIgnoreCase);
-            }
-            catch { return false; }
+            string content = GetNotePlainText(note);
+            return !string.IsNullOrEmpty(content) && content.Contains(search, StringComparison.OrdinalIgnoreCase);
         }
 
 
@@ -3825,6 +3894,12 @@ namespace JournalApp
                 ApplyCustomThemeBrushes(themeTag);
                 SyncBlockEditorTheme();
             }
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void DefaultEditorStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
             UpdateSaveSettingsButtonState();
         }
 
@@ -4088,16 +4163,24 @@ namespace JournalApp
 
         private void ToolbarFontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!_isDataLoaded || NoteRichEditBox == null || ToolbarFontComboBox == null) return;
+            if (!_isDataLoaded || ToolbarFontComboBox == null) return;
             if (ToolbarFontComboBox.SelectedItem is ComboBoxItem item)
             {
                 string fontName = item.Tag?.ToString();
                 if (!string.IsNullOrEmpty(fontName))
                 {
-                    var format = NoteRichEditBox.Document.Selection.CharacterFormat;
-                    format.Name = fontName;
-                    NoteRichEditBox.Document.Selection.CharacterFormat = format;
-                    MarkDirty();
+                    if (NativeBlockEditorScroll != null && NativeBlockEditorScroll.Visibility == Visibility.Visible)
+                    {
+                        NativeBlockEditorScroll.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(fontName);
+                        MarkDirty();
+                    }
+                    else if (NoteRichEditBox != null)
+                    {
+                        var format = NoteRichEditBox.Document.Selection.CharacterFormat;
+                        format.Name = fontName;
+                        NoteRichEditBox.Document.Selection.CharacterFormat = format;
+                        MarkDirty();
+                    }
                 }
             }
         }
@@ -4661,37 +4744,51 @@ namespace JournalApp
         // Markdown Preview Event Handlers
         private void MarkdownPreviewToggle_Checked(object sender, RoutedEventArgs e)
         {
-            if (NoteRichEditBox == null || MarkdownPreviewTextBlock == null) return;
+            if (MarkdownPreviewTextBlock == null) return;
 
-            // Retrieve plain text from RichEditBox
-            string plainText;
-            NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out plainText);
+            string plainText = "";
+            if (NativeBlockEditorScroll != null && NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                plainText = NativeBlockEditorScroll.RawMarkdown ?? "";
+            }
+            else if (NoteRichEditBox != null)
+            {
+                NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out plainText);
+            }
 
-            // Render Markdown into RichTextBlock
             RenderMarkdownToRichTextBlock(plainText, MarkdownPreviewTextBlock);
 
-            // Toggle visibility to show preview only (full-width)
             if (EditorColumn != null) EditorColumn.Width = new GridLength(0, GridUnitType.Pixel);
             if (PreviewColumn != null) PreviewColumn.Width = new GridLength(1, GridUnitType.Star);
             if (EditorPreviewDivider != null) EditorPreviewDivider.Visibility = Visibility.Collapsed;
 
-            NoteRichEditBox.Visibility = Visibility.Collapsed;
+            if (NoteRichEditBox != null) NoteRichEditBox.Visibility = Visibility.Collapsed;
+            if (NativeBlockEditorScroll != null) NativeBlockEditorScroll.Visibility = Visibility.Collapsed;
             MarkdownPreviewTextBlock.Visibility = Visibility.Visible;
             ShowStatusMessage("Markdown Preview Mode");
         }
 
         private void MarkdownPreviewToggle_Unchecked(object sender, RoutedEventArgs e)
         {
-            if (NoteRichEditBox == null || MarkdownPreviewTextBlock == null) return;
+            if (MarkdownPreviewTextBlock == null) return;
 
-            // Restore editor only (full-width)
             if (EditorColumn != null) EditorColumn.Width = new GridLength(1, GridUnitType.Star);
             if (PreviewColumn != null) PreviewColumn.Width = new GridLength(0, GridUnitType.Pixel);
             if (EditorPreviewDivider != null) EditorPreviewDivider.Visibility = Visibility.Collapsed;
 
-            NoteRichEditBox.Visibility = Visibility.Visible;
+            if (SelectedNote != null && SelectedNote.ContentFormat == "markdown")
+            {
+                if (NoteRichEditBox != null) NoteRichEditBox.Visibility = Visibility.Collapsed;
+                if (NativeBlockEditorScroll != null) NativeBlockEditorScroll.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                if (NoteRichEditBox != null) NoteRichEditBox.Visibility = Visibility.Visible;
+                if (NativeBlockEditorScroll != null) NativeBlockEditorScroll.Visibility = Visibility.Collapsed;
+            }
+
             MarkdownPreviewTextBlock.Visibility = Visibility.Collapsed;
-            ShowStatusMessage("Edit Mode");
+            ShowStatusMessage("Editor Mode");
         }
 
         private void RenderMarkdownToRichTextBlock(string markdownText, RichTextBlock richTextBlock)

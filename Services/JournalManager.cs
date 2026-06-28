@@ -149,13 +149,39 @@ namespace JournalApp
             string targetCategory = (category == "All Entries") ? "Personal" : category;
 
             string noteId = Guid.NewGuid().ToString();
+
+            // Read default editor style from settings
+            string defaultStyle = "rtf";
+            try
+            {
+                var localSettings = Windows.Storage.ApplicationData.Current.LocalSettings;
+                if (localSettings.Values.TryGetValue("DefaultEditorStyle", out object val) && val is string str)
+                {
+                    defaultStyle = str;
+                }
+                else
+                {
+                    string path = Path.Combine(DataDir, "appsettings.json");
+                    if (File.Exists(path))
+                    {
+                        string json = File.ReadAllText(path);
+                        var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                        if (dict != null && dict.TryGetValue("DefaultEditorStyle", out string fallbackVal))
+                        {
+                            defaultStyle = fallbackVal;
+                        }
+                    }
+                }
+            }
+            catch {}
+
             var note = new JournalNote
             {
                 Id = noteId,
                 Title = "New Journal Entry",
                 Category = targetCategory,
                 RtfFileName = $"note_{noteId}.rtf",          // kept for legacy compat
-                ContentFormat = "markdown",                   // new notes use block editor
+                ContentFormat = defaultStyle,
                 MarkdownContentFileName = $"note_{noteId}.md"
             };
 

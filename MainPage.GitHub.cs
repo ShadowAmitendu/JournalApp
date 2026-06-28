@@ -510,6 +510,17 @@ namespace JournalApp
                 var response = await _httpClient.SendAsync(request);
                 if (!response.IsSuccessStatusCode)
                 {
+                    if ((response.StatusCode == System.Net.HttpStatusCode.Forbidden || response.StatusCode == System.Net.HttpStatusCode.Unauthorized) && !string.IsNullOrEmpty(savedToken))
+                    {
+                        // Retry without authorization header (fallback for public repo when user token is expired or unauthorized)
+                        using var retryRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/ShadowAmitendu/JournalApp/releases/latest");
+                        retryRequest.Headers.UserAgent.TryParseAdd("JournalApp");
+                        response = await _httpClient.SendAsync(retryRequest);
+                    }
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
                     if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
                         if (UpdateStatusTextBlock != null)
@@ -517,6 +528,10 @@ namespace JournalApp
                         if (LastCheckedTextBlock != null)
                             LastCheckedTextBlock.Text = "Create a release on GitHub first to enable updates.";
                         return;
+                    }
+                    if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                    {
+                        throw new Exception("GitHub API rate limit exceeded or access forbidden (403). Please try again later.");
                     }
                     throw new Exception($"GitHub API returned: {response.ReasonPhrase} ({response.StatusCode})");
                 }
@@ -766,6 +781,10 @@ namespace JournalApp
                 // Window backdrop
                 if (BackdropComboBox?.SelectedItem is ComboBoxItem backdropItem)
                     SaveSetting("AppBackdrop", backdropItem.Tag?.ToString());
+
+                // Default editor style format (rtf vs markdown)
+                if (DefaultEditorStyleComboBox?.SelectedItem is ComboBoxItem editorStyleItem)
+                    SaveSetting("DefaultEditorStyle", editorStyleItem.Tag?.ToString());
 
 
                 // Editor font
@@ -1044,6 +1063,15 @@ namespace JournalApp
             string currentBlogCss = BlogCustomCssTextBox != null ? BlogCustomCssTextBox.Text : "";
             if (currentBlogCss != savedBlogCss) isDirty = true;
 
+            // Check Default Editor Style (rtf vs markdown)
+            string savedDefaultStyle = GetSetting("DefaultEditorStyle", "rtf");
+            string currentDefaultStyle = "rtf";
+            if (DefaultEditorStyleComboBox?.SelectedItem is ComboBoxItem defaultStyleItem)
+            {
+                currentDefaultStyle = defaultStyleItem.Tag?.ToString() ?? "rtf";
+            }
+            if (currentDefaultStyle != savedDefaultStyle) isDirty = true;
+
             SaveSettingsButton.IsEnabled = isDirty;
         }
 
@@ -1186,6 +1214,20 @@ namespace JournalApp
                         if (obj is ComboBoxItem item && item.Tag?.ToString() == savedSort)
                         {
                             DefaultSortComboBox.SelectedItem = item;
+                            break;
+                        }
+                    }
+                }
+
+                // Load Default Editor Style combobox (rtf vs markdown)
+                string savedStyle = GetSetting("DefaultEditorStyle", "rtf");
+                if (DefaultEditorStyleComboBox != null)
+                {
+                    foreach (object obj in DefaultEditorStyleComboBox.Items)
+                    {
+                        if (obj is ComboBoxItem item && item.Tag?.ToString() == savedStyle)
+                        {
+                            DefaultEditorStyleComboBox.SelectedItem = item;
                             break;
                         }
                     }

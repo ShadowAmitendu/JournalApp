@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.26100.0</TargetFramework>
-    <Version>1.6.3.0</Version>
+    <Version>1.6.5.0</Version>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>JournalApp</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -137,4 +137,13 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
+
+  <!-- Exclude the 'test editor' prototype folder from ALL build steps -->
+  <ItemGroup>
+    <Compile Remove="test editor\**" />
+    <Page    Remove="test editor\**" />
+    <Content Remove="test editor\**" />
+    <None  Include="test editor\**" />
+  </ItemGroup>
+
 </Project>

@@ -292,20 +292,57 @@ namespace JournalApp
 
             if (AIResponseBox != null) AIResponseBox.Text = _chatTranscript;
 
-            // Enclose active journal context
-            string contextNote = GetFullNoteText();
-            string systemPrompt = "You are a helpful writing assistant. ";
-            if (!string.IsNullOrEmpty(contextNote))
+            // Enclose context based on RAG setting
+            string systemPrompt = "You are a helpful journal writing assistant. ";
+            
+            if (AIRagToggle != null && AIRagToggle.IsOn)
             {
-                systemPrompt += $"Below is the content of the user's current journal entry. Answer the user's questions or help them write, edit, or analyze it.\n\nJournal Entry:\n{contextNote}";
+                // Retrieve all un-deleted notes
+                var activeNotes = JournalManager.Instance.Notes.Where(n => !n.IsDeleted).ToList();
+                var noteDocs = new List<(JournalNote note, string text)>();
+                foreach (var note in activeNotes)
+                {
+                    string txt = GetNotePlainText(note);
+                    if (!string.IsNullOrWhiteSpace(txt))
+                    {
+                        noteDocs.Add((note, txt));
+                    }
+                }
+
+                // Rank using custom TF-IDF matching
+                var ranked = TFIDFSearch.RankNotes(userPrompt, noteDocs, maxResults: 4);
+
+                if (ranked.Count > 0)
+                {
+                    systemPrompt += "Use the following highly relevant past entries from the user's journal history to answer their question, summarize themes, or analyze patterns. Refer to the entries by their date and title when mentioning them:\n\n";
+                    foreach (var match in ranked)
+                    {
+                        systemPrompt += $"--- \n[Date: {match.note.DateCreated.ToString("yyyy-MM-dd")}, Title: {match.note.Title}]\n{GetNotePlainText(match.note)}\n---\n\n";
+                    }
+                }
+                else
+                {
+                    systemPrompt += "No highly relevant historical entries were found matching the query. Answer the user generally or help them write.";
+                }
             }
             else
             {
-                systemPrompt += "Help the user write, edit, or brainstorm their journal entry.";
+                // Current note only context
+                string contextNote = GetFullNoteText();
+                if (!string.IsNullOrEmpty(contextNote))
+                {
+                    systemPrompt += $"Below is the content of the user's current journal entry. Answer the user's questions or help them write, edit, or analyze it.\n\nJournal Entry:\n{contextNote}";
+                }
+                else
+                {
+                    systemPrompt += "Help the user write, edit, or brainstorm their journal entry.";
+                }
             }
 
             await RunAIActionAsync(systemPrompt, useFullNote: false, promptOverride: userPrompt, isChatMode: true);
         }
+
+
 
         private async void AICheckConnectionButton_Click(object sender, RoutedEventArgs e)
         {

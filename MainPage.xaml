@@ -20,6 +20,12 @@
         <local:HexToBrushConverter x:Key="HexToBrushConverter" />
         <local:BoolInverseConverter x:Key="BoolInverseConverter" />
 
+        <!-- MarkdownEditorBox: transparent background/border on all states -->
+        <Style TargetType="local:MarkdownEditorBox" BasedOn="{StaticResource DefaultRichEditBoxStyle}">
+            <Setter Property="Background"       Value="Transparent" />
+            <Setter Property="BorderThickness"  Value="0" />
+        </Style>
+
         <!-- Shimmer gradient brush for skeleton loaders -->
         <LinearGradientBrush x:Key="ShimmerBrush" StartPoint="0,0.5" EndPoint="1,0.5">
             <GradientStop Color="#1AFFFFFF" Offset="0" />
@@ -632,6 +638,40 @@
                                     <FontIcon Glyph="&#xE749;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
                                 </Button.Content>
                             </Button>
+
+                            <!-- Zen Focus Mode -->
+                            <Button x:Name="ZenModeButton" ToolTipService.ToolTip="Zen Focus Mode" Width="44" Height="32" Padding="0">
+                                <Button.Content>
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Padding="6,0">
+                                        <FontIcon Glyph="&#xE71A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                        <FontIcon Glyph="&#xE0E5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="8" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button.Content>
+                                <Button.Flyout>
+                                    <Flyout x:Name="ZenModeFlyout" Placement="Bottom">
+                                        <StackPanel Width="240" Spacing="12" Padding="4">
+                                            <TextBlock Text="Zen Focus Mode" FontWeight="SemiBold" FontSize="14" />
+                                            
+                                            <ToggleSwitch x:Name="ZenModeToggle" Header="Fullscreen Focus" IsOn="False" Toggled="ZenModeToggle_Toggled" OnContent="Active" OffContent="Inactive" />
+                                            
+                                            <MenuFlyoutSeparator />
+                                            
+                                            <ToggleSwitch x:Name="TypewriterSoundToggle" Header="Typewriter Key Clicks" IsOn="True" Toggled="TypewriterSoundToggle_Toggled" OnContent="Enabled" OffContent="Disabled" />
+                                            
+                                            <TextBlock Text="Ambient Background" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" />
+                                            <ComboBox x:Name="AmbientSoundComboBox" HorizontalAlignment="Stretch" SelectionChanged="AmbientSoundComboBox_SelectionChanged">
+                                                <ComboBoxItem Content="None" Tag="none" IsSelected="True" />
+                                                <ComboBoxItem Content="Gentle Rain" Tag="rain" />
+                                                <ComboBoxItem Content="Lo-Fi Writing Beats" Tag="lofi" />
+                                                <ComboBoxItem Content="Ocean Waves" Tag="waves" />
+                                            </ComboBox>
+                                            
+                                            <TextBlock Text="Ambient Volume" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <Slider x:Name="AmbientVolumeSlider" Minimum="0" Maximum="100" Value="50" ValueChanged="AmbientVolumeSlider_ValueChanged" />
+                                        </StackPanel>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
                         </StackPanel>
 
                         <!-- Actions Controls -->
@@ -1108,22 +1148,16 @@
                                           </RichEditBox.Resources>
                                       </RichEditBox>
 
-                                      <!-- Left: Native Block Editor (dynamic list of block text boxes) -->
-                                      <ScrollViewer x:Name="NativeBlockEditorScroll"
-                                                    Grid.Column="0"
-                                                    Visibility="Collapsed"
-                                                    VerticalScrollBarVisibility="Auto"
-                                                    HorizontalAlignment="Stretch"
-                                                    VerticalAlignment="Stretch"
-                                                    Background="Transparent"
-                                                    MinHeight="500"
-                                                    Tapped="NativeBlockEditorScroll_Tapped">
-                                          <StackPanel x:Name="NativeBlockEditorContainer"
-                                                      Spacing="12"
-                                                      Padding="10,0,10,200"
-                                                      HorizontalAlignment="Stretch"
-                                                      VerticalAlignment="Top" />
-                                      </ScrollViewer>
+                                      <!-- Native Markdown Editor (Obsidian-style inline rendering, no WebView2) -->
+                                      <local:MarkdownEditorBox x:Name="NativeBlockEditorScroll"
+                                                               Grid.Column="0"
+                                                               Visibility="Collapsed"
+                                                               MinHeight="500"
+                                                               AcceptsReturn="True"
+                                                               TextWrapping="Wrap"
+                                                               BorderThickness="0"
+                                                               VerticalAlignment="Stretch"
+                                                               HorizontalAlignment="Stretch" />
 
                                      <!-- Left: NoteEditorWebView (Markdown block editor for new/markdown notes) -->
                                      <WebView2 x:Name="NoteEditorWebView"
@@ -1354,6 +1388,13 @@
                                 <StackPanel Grid.Row="1" Padding="12,0,12,8" Spacing="6">
                                     <ComboBox x:Name="AIModelCombo" HorizontalAlignment="Stretch" PlaceholderText="Select model…" />
                                     <Button x:Name="AICheckConnectionButton" Content="Check Connection" HorizontalAlignment="Stretch" Click="AICheckConnectionButton_Click" Padding="8,4" />
+                                    <ToggleSwitch x:Name="AIRagToggle" 
+                                                  Header="Search History (Local RAG)" 
+                                                  FontSize="12" 
+                                                  OnContent="Enabled" 
+                                                  OffContent="Disabled" 
+                                                  IsOn="False" 
+                                                  Margin="0,4,0,0"/>
                                 </StackPanel>
 
                                 <!-- Action Buttons grid -->
@@ -1550,6 +1591,26 @@
                                         <ComboBoxItem Content="Mica Alt" Tag="MicaAlt" />
                                         <ComboBoxItem Content="Mica" Tag="Mica" />
                                         <ComboBoxItem Content="Acrylic" Tag="Acrylic" />
+                                    </ComboBox>
+                                </Grid>
+                            </Border>
+
+                            <!-- Markdown vs Rich Text Editor Style -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE90A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Default Editor Format" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Select default text format for newly created journal entries" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="DefaultEditorStyleComboBox" Grid.Column="2" Width="150" VerticalAlignment="Center" SelectionChanged="DefaultEditorStyleComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="Rich Text (Recommended)" Tag="rtf" IsSelected="True" />
+                                        <ComboBoxItem Content="Markdown (Beta)" Tag="markdown" />
                                     </ComboBox>
                                 </Grid>
                             </Border>

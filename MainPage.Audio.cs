@@ -473,11 +473,15 @@ namespace JournalApp
 
             if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
             {
-                var newBlock = new EditorBlock { Type = "quote", Content = $"🎙️ Voice Memo Transcription: {text}" };
-                _nativeBlocks.Add(newBlock);
-                _currentMarkdownContent = ExportBlocksToMarkdown();
+                // Append transcription as a blockquote line into the markdown editor
+                string quote = $"\r> 🎙️ {text}";
+                var doc = NativeBlockEditorScroll.Document;
+                doc.GetText(Microsoft.UI.Text.TextGetOptions.None, out string current);
+                int end = current.TrimEnd().Length;
+                var range = doc.GetRange(end, end);
+                range.Text = quote;
+                _currentMarkdownContent = NativeBlockEditorScroll.RawMarkdown;
                 MarkDirty();
-                RenderNativeBlocks();
                 UpdateWordCount();
             }
             else
