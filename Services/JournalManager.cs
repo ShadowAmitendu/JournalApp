@@ -147,12 +147,16 @@ namespace JournalApp
         {
             // If category is "All Entries", default to the first custom one or just "Personal"
             string targetCategory = (category == "All Entries") ? "Personal" : category;
-            
+
+            string noteId = Guid.NewGuid().ToString();
             var note = new JournalNote
             {
+                Id = noteId,
                 Title = "New Journal Entry",
                 Category = targetCategory,
-                RtfFileName = $"note_{Guid.NewGuid()}.rtf"
+                RtfFileName = $"note_{noteId}.rtf",          // kept for legacy compat
+                ContentFormat = "markdown",                   // new notes use block editor
+                MarkdownContentFileName = $"note_{noteId}.md"
             };
 
             Notes.Insert(0, note); // Newest at top

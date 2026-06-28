@@ -134,6 +134,11 @@
                         <FontIcon Glyph="&#xEB9F;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Name="BlogPageNavItem" Content="Blog" ToolTipService.ToolTip="GitHub Pages Blog Publisher">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE774;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem x:Name="SettingsNavItem" Content="Settings" ToolTipService.ToolTip="Settings">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE713;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
@@ -928,86 +933,8 @@
                                         </Button.Flyout>
                                     </Button>
 
-                                    <!-- Right: Add Cover Button & Category Badge Button -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <!-- AI Assistant Toggle Button -->
-                                        <Button x:Name="AIAssistantButton" CornerRadius="12" Padding="10,4" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Toggle AI Writing Assistant (Ollama)" Click="AIAssistantButton_Click">
-                                            <Button.Content>
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE99A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
-                                                    <TextBlock Text="AI Assist" FontSize="11" FontWeight="Medium" />
-                                                </StackPanel>
-                                            </Button.Content>
-                                        </Button>
-
-                                        <!-- Publish to Blog Toggle Button -->
-                                        <ToggleButton x:Name="PublishToBlogToggle" CornerRadius="12" Padding="10,4" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Publish this entry to your public GitHub Pages Blog" Checked="PublishToBlogToggle_Checked" Unchecked="PublishToBlogToggle_Unchecked">
-                                            <ToggleButton.Content>
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE774;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
-                                                    <TextBlock Text="Blog" FontSize="11" FontWeight="Medium" />
-                                                </StackPanel>
-                                            </ToggleButton.Content>
-                                        </ToggleButton>
-
-                                        <!-- Add Cover Button (Visible only when cover is hidden) -->
-                                        <Button x:Name="AddCoverButton" CornerRadius="12" Padding="10,4" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" ToolTipService.ToolTip="Add Cover Banner">
-                                            <Button.Content>
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE722;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
-                                                    <TextBlock Text="Add Cover" FontSize="11" FontWeight="Medium" />
-                                                </StackPanel>
-                                            </Button.Content>
-                                            <Button.Flyout>
-                                                <MenuFlyout>
-                                                    <MenuFlyoutItem Text="Select Local Image..." Click="SetLocalHeroImage_Click">
-                                                        <MenuFlyoutItem.Icon>
-                                                            <FontIcon Glyph="&#xE114;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
-                                                        </MenuFlyoutItem.Icon>
-                                                    </MenuFlyoutItem>
-                                                    <MenuFlyoutItem Text="Search Unsplash..." Click="SearchUnsplashHeroImage_Click">
-                                                        <MenuFlyoutItem.Icon>
-                                                            <FontIcon Glyph="&#xE128;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
-                                                        </MenuFlyoutItem.Icon>
-                                                    </MenuFlyoutItem>
-                                                    <MenuFlyoutItem Text="Set Web URL..." Click="SetUrlHeroImage_Click">
-                                                        <MenuFlyoutItem.Icon>
-                                                            <FontIcon Glyph="&#xE71B;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
-                                                        </MenuFlyoutItem.Icon>
-                                                    </MenuFlyoutItem>
-                                                    <MenuFlyoutSeparator />
-                                                    <MenuFlyoutItem Text="Reset to Default" Click="ResetHeroImage_Click">
-                                                        <MenuFlyoutItem.Icon>
-                                                            <FontIcon Glyph="&#xE777;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
-                                                        </MenuFlyoutItem.Icon>
-                                                    </MenuFlyoutItem>
-                                                </MenuFlyout>
-                                            </Button.Flyout>
-                                        </Button>
-
-                                        <!-- Mood Selector Button -->
-                                        <Button x:Name="NoteMoodButton" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="10,6" CornerRadius="12" ToolTipService.ToolTip="How are you feeling?">
-                                            <Button.Content>
-                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                    <TextBlock x:Name="NoteMoodIcon" Text="😐" FontSize="14" />
-                                                    <TextBlock x:Name="NoteMoodText" Text="Neutral" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                    <FontIcon Glyph="&#xE972;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="8" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="2,0,0,0" />
-                                                </StackPanel>
-                                            </Button.Content>
-                                            <Button.Flyout>
-                                                <MenuFlyout>
-                                                    <MenuFlyoutItem Text="😊 Happy" Click="MoodItem_Click" Tag="😊 Happy" />
-                                                    <MenuFlyoutItem Text="😐 Neutral" Click="MoodItem_Click" Tag="😐 Neutral" />
-                                                    <MenuFlyoutItem Text="😢 Sad" Click="MoodItem_Click" Tag="😢 Sad" />
-                                                    <MenuFlyoutItem Text="😫 Stressed" Click="MoodItem_Click" Tag="😫 Stressed" />
-                                                    <MenuFlyoutItem Text="😡 Angry" Click="MoodItem_Click" Tag="😡 Angry" />
-                                                    <MenuFlyoutSeparator />
-                                                    <MenuFlyoutItem Text="None (Clear)" Click="MoodItem_Click" Tag="None" />
-                                                </MenuFlyout>
-                                            </Button.Flyout>
-                                        </Button>
-
-                                        <!-- Category Badge Button -->
+                                    <!-- Right: Add Cover Button & Category Badge Button -->                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <!-- Category Badge Button (standalone) -->
                                         <Button x:Name="ChangeCategoryButton" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="10,6" CornerRadius="12" ToolTipService.ToolTip="Change Category">
                                             <Button.Content>
                                                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -1021,15 +948,94 @@
                                             </Button.Flyout>
                                         </Button>
 
-                                        <!-- Lock Note Toggle Button -->
-                                        <Button x:Name="LockNoteButton" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="10,6" CornerRadius="12" ToolTipService.ToolTip="Lock or Unlock this note" Click="LockNoteButton_Click">
-                                            <Button.Content>
-                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                    <FontIcon x:Name="LockNoteIcon" Glyph="&#xE785;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
-                                                    <TextBlock x:Name="LockNoteText" Text="Unlocked" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                </StackPanel>
-                                            </Button.Content>
-                                        </Button>
+                                        <!-- Grid for other buttons (AI Assist, Blog, Mood, Lock, Add Cover) -->
+                                        <Grid ColumnSpacing="6" RowSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Column 0: AI Assistant Toggle Button -->
+                                            <Button x:Name="AIAssistantButton" Grid.Column="0" CornerRadius="12" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Toggle AI Writing Assistant (Ollama)" Click="AIAssistantButton_Click">
+                                                <Button.Content>
+                                                    <FontIcon Glyph="&#xE99A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                                </Button.Content>
+                                            </Button>
+
+                                            <!-- Column 1: Publish to Blog Toggle Button -->
+                                            <ToggleButton x:Name="PublishToBlogToggle" Grid.Column="1" CornerRadius="12" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Publish this entry to your public GitHub Pages Blog" Checked="PublishToBlogToggle_Checked" Unchecked="PublishToBlogToggle_Unchecked">
+                                                <ToggleButton.Content>
+                                                    <FontIcon Glyph="&#xE774;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                                </ToggleButton.Content>
+                                            </ToggleButton>
+
+                                            <!-- Column 2: Mood Selector Button -->
+                                            <Button x:Name="NoteMoodButton" Grid.Column="2" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="8,6" CornerRadius="12" ToolTipService.ToolTip="How are you feeling?">
+                                                <Button.Content>
+                                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                                        <TextBlock x:Name="NoteMoodIcon" Text="😐" FontSize="14" />
+                                                        <TextBlock x:Name="NoteMoodText" Text="Neutral" FontSize="12" Visibility="Collapsed" />
+                                                        <FontIcon Glyph="&#xE972;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="8" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="2,0,0,0" />
+                                                    </StackPanel>
+                                                </Button.Content>
+                                                <Button.Flyout>
+                                                    <MenuFlyout>
+                                                        <MenuFlyoutItem Text="😊 Happy" Click="MoodItem_Click" Tag="😊 Happy" />
+                                                        <MenuFlyoutItem Text="😐 Neutral" Click="MoodItem_Click" Tag="😐 Neutral" />
+                                                        <MenuFlyoutItem Text="😢 Sad" Click="MoodItem_Click" Tag="😢 Sad" />
+                                                        <MenuFlyoutItem Text="😫 Stressed" Click="MoodItem_Click" Tag="😫 Stressed" />
+                                                        <MenuFlyoutItem Text="😡 Angry" Click="MoodItem_Click" Tag="😡 Angry" />
+                                                        <MenuFlyoutSeparator />
+                                                        <MenuFlyoutItem Text="None (Clear)" Click="MoodItem_Click" Tag="None" />
+                                                    </MenuFlyout>
+                                                </Button.Flyout>
+                                            </Button>
+
+                                            <!-- Column 3: Lock Note Toggle Button -->
+                                            <Button x:Name="LockNoteButton" Grid.Column="3" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="8,6" CornerRadius="12" ToolTipService.ToolTip="Lock or Unlock this note" Click="LockNoteButton_Click">
+                                                <Button.Content>
+                                                    <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+                                                        <FontIcon x:Name="LockNoteIcon" Glyph="&#xE785;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                                        <TextBlock x:Name="LockNoteText" Text="Unlocked" FontSize="12" Visibility="Collapsed" />
+                                                    </StackPanel>
+                                                </Button.Content>
+                                            </Button>
+
+                                            <!-- Column 4: Add Cover Button (Visible only when cover is hidden) -->
+                                            <Button x:Name="AddCoverButton" Grid.Column="4" CornerRadius="12" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" ToolTipService.ToolTip="Add Cover Banner">
+                                                <Button.Content>
+                                                    <FontIcon Glyph="&#xE722;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                                </Button.Content>
+                                                <Button.Flyout>
+                                                    <MenuFlyout>
+                                                        <MenuFlyoutItem Text="Select Local Image..." Click="SetLocalHeroImage_Click">
+                                                            <MenuFlyoutItem.Icon>
+                                                                <FontIcon Glyph="&#xE114;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                                                            </MenuFlyoutItem.Icon>
+                                                        </MenuFlyoutItem>
+                                                        <MenuFlyoutItem Text="Search Unsplash..." Click="SearchUnsplashHeroImage_Click">
+                                                            <MenuFlyoutItem.Icon>
+                                                                <FontIcon Glyph="&#xE128;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                                                            </MenuFlyoutItem.Icon>
+                                                        </MenuFlyoutItem>
+                                                        <MenuFlyoutItem Text="Set Web URL..." Click="SetUrlHeroImage_Click">
+                                                            <MenuFlyoutItem.Icon>
+                                                                <FontIcon Glyph="&#xE71B;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                                                            </MenuFlyoutItem.Icon>
+                                                        </MenuFlyoutItem>
+                                                        <MenuFlyoutSeparator />
+                                                        <MenuFlyoutItem Text="Reset to Default" Click="ResetHeroImage_Click">
+                                                            <MenuFlyoutItem.Icon>
+                                                                <FontIcon Glyph="&#xE777;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                                                            </MenuFlyoutItem.Icon>
+                                                        </MenuFlyoutItem>
+                                                    </MenuFlyout>
+                                                </Button.Flyout>
+                                            </Button>
+                                        </Grid>
                                     </StackPanel>
                                 </Grid>
 
@@ -1060,7 +1066,7 @@
                                          <ColumnDefinition x:Name="PreviewColumn" Width="0" />
                                      </Grid.ColumnDefinitions>
 
-                                     <!-- Left: NoteRichEditBox -->
+                                     <!-- Left: NoteRichEditBox (RTF notes) -->
                                      <RichEditBox x:Name="NoteRichEditBox" Grid.Column="0" Foreground="{ThemeResource TextFillColorPrimaryBrush}" TextChanged="NoteRichEditBox_TextChanged" SelectionChanged="NoteRichEditBox_SelectionChanged" PlaceholderText="Start writing your thoughts here..." MinHeight="500" Background="Transparent" BorderThickness="0" Padding="0" FontSize="16" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Disabled" DoubleTapped="NoteRichEditBox_DoubleTapped" CanDrag="True" AllowDrop="True" IsSpellCheckEnabled="True" IsTextPredictionEnabled="True">
                                          <RichEditBox.Resources>
                                              <Thickness x:Key="TextControlBorderThemeThickness">0</Thickness>
@@ -1076,6 +1082,15 @@
                                              <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="Transparent" />
                                          </RichEditBox.Resources>
                                      </RichEditBox>
+
+                                     <!-- Left: NoteEditorWebView (Markdown block editor for new/markdown notes) -->
+                                     <WebView2 x:Name="NoteEditorWebView"
+                                               Grid.Column="0"
+                                               Visibility="Collapsed"
+                                               MinHeight="500"
+                                               VerticalAlignment="Stretch"
+                                               HorizontalAlignment="Stretch"
+                                               DefaultBackgroundColor="Transparent" />
 
                                      <!-- Vertical Divider Line -->
                                      <Border x:Name="EditorPreviewDivider" Grid.Column="0" HorizontalAlignment="Right" Width="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="10,0" Visibility="Collapsed" />
@@ -2055,6 +2070,110 @@
                         </Button>
                     </Grid>
                 </Border>
+            </Grid>
+
+            <!-- Blog Publisher Page -->
+            <Grid x:Name="BlogPageGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
+                    <StackPanel MaxWidth="860" HorizontalAlignment="Stretch" Padding="40,40,40,40" Spacing="20">
+                        <Border Width="860" Height="0" HorizontalAlignment="Stretch" IsHitTestVisible="False" />
+
+                        <!-- Page Header -->
+                        <Grid HorizontalAlignment="Stretch" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
+                                <TextBlock Text="Blog Publisher" FontSize="28" FontWeight="Bold" />
+                                <TextBlock Text="Publish selected journal entries to your GitHub Pages blog" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <Button x:Name="BlogPagePublishButton" Style="{StaticResource AccentButtonStyle}" Padding="14,8" CornerRadius="6" Click="SettingsPublishBlogButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE898;" FontSize="14" />
+                                        <TextBlock Text="Publish / Sync" />
+                                    </StackPanel>
+                                </Button>
+                                <ProgressRing x:Name="BlogPageProgressRing" Width="22" Height="22" IsActive="False" Visibility="Collapsed" VerticalAlignment="Center" />
+                                <TextBlock x:Name="BlogPageStatusText" Text="Ready" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Config Card -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="24">
+                            <StackPanel Spacing="16">
+                                <TextBlock Text="Blog Configuration" FontSize="15" FontWeight="SemiBold" />
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="BlogPageRepoTextBox" Grid.Column="0" Header="Repository Name" PlaceholderText="my-journal-blog" TextChanged="BlogRepoTextBox_TextChanged" />
+                                    <TextBox x:Name="BlogPageTitleTextBox" Grid.Column="1" Header="Blog Title" PlaceholderText="My Journal Blog" TextChanged="BlogTitleTextBox_TextChanged" />
+                                </Grid>
+                                <TextBox x:Name="BlogPageDescTextBox" Header="Blog Description" PlaceholderText="A collection of my thoughts and memories." TextChanged="BlogDescTextBox_TextChanged" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <TextBlock Text="Live URL:" FontSize="12" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                    <HyperlinkButton x:Name="BlogPageLiveUrlButton" Content="Not Configured" NavigateUri="https://github.com" FontSize="12" Padding="0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Custom CSS Card -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="24">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="Custom CSS" FontSize="15" FontWeight="SemiBold" />
+                                <TextBlock Text="Override or extend the blog stylesheet. Appended after the default styles." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                <TextBox x:Name="BlogPageCustomCssTextBox" PlaceholderText="/* your custom CSS here */" AcceptsReturn="True" Height="120" TextWrapping="Wrap" TextChanged="BlogCustomCssTextBox_TextChanged" FontFamily="Cascadia Code, Consolas, monospace" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Published Entries Card -->
+                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="24">
+                            <StackPanel Spacing="12">
+                                <Grid HorizontalAlignment="Stretch">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Published Entries" FontSize="15" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="BlogPagePublishedCountText" Text="0 entries marked for publishing" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" x:Name="BlogPageRefreshBtn" Padding="10,6" CornerRadius="6" Click="BlogPageRefreshBtn_Click">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE72C;" FontSize="12" />
+                                            <TextBlock Text="Refresh" FontSize="12" />
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                                <ListView x:Name="BlogPagePublishedList" SelectionMode="None" IsItemClickEnabled="False">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Padding="0,6" ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                                                        <Run Text="{Binding DateCreated}" />
+                                                        <Run Text=" · " />
+                                                        <Run Text="{Binding Category}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <FontIcon Grid.Column="1" Glyph="&#xE774;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
 
             <!-- GitHub Commit History Grid -->

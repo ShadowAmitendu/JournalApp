@@ -1191,8 +1191,24 @@ namespace JournalApp
             if (SelectedNote == null) return;
 
             if (TitleTextBox != null) TitleTextBox.IsEnabled = true;
-            if (NoteRichEditBox != null) NoteRichEditBox.IsEnabled = true;
             UpdateLockNoteButtonState();
+
+            // ── Route to block editor for markdown notes ──────────────────────
+            if (SelectedNote.ContentFormat == "markdown")
+            {
+                if (NoteRichEditBox != null) NoteRichEditBox.IsEnabled = false;
+                await LoadMarkdownNoteAsync(SelectedNote);
+                return;
+            }
+
+            // ── Legacy RTF path ───────────────────────────────────────────────
+            // Ensure RTF editor is visible and WebView2 is hidden
+            if (NoteRichEditBox != null)
+            {
+                NoteRichEditBox.Visibility = Visibility.Visible;
+                NoteRichEditBox.IsEnabled = true;
+            }
+            if (NoteEditorWebView != null) NoteEditorWebView.Visibility = Visibility.Collapsed;
 
             if (SelectedNote.IsLocked)
             {
@@ -1322,6 +1338,11 @@ namespace JournalApp
                             }
                         }
 
+                        // Apply Paragraph Spacing (SpaceAfter)
+                        var paraFormat = NoteRichEditBox.Document.Selection.ParagraphFormat;
+                        paraFormat.SpaceAfter = 10f;
+                        NoteRichEditBox.Document.Selection.ParagraphFormat = paraFormat;
+
                         NoteRichEditBox.Document.Selection.SetRange(start, start + length);
                     }
                 }
@@ -1343,6 +1364,10 @@ namespace JournalApp
                 }
                 NoteRichEditBox.Document.SetDefaultCharacterFormat(defaultFormat);
 
+                var defaultPara = NoteRichEditBox.Document.GetDefaultParagraphFormat();
+                defaultPara.SpaceAfter = 10f;
+                NoteRichEditBox.Document.SetDefaultParagraphFormat(defaultPara);
+
                 // Load Blog toggle state
                 if (PublishToBlogToggle != null)
                 {
@@ -1361,6 +1386,13 @@ namespace JournalApp
         private void SaveCurrentNoteContent()
         {
             if (SelectedNote == null || _disableSavingCurrentNote) return;
+
+            // Block editor (markdown) notes are saved directly via WebView2 message callback
+            if (SelectedNote.ContentFormat == "markdown")
+            {
+                SaveMarkdownNoteContent();
+                return;
+            }
 
             try
             {
@@ -1618,6 +1650,11 @@ namespace JournalApp
                     {
                         ShowGrid(GalleryGrid);
                         PopulateGallery();
+                    }
+                    else if (navItem == BlogPageNavItem)
+                    {
+                        ShowGrid(BlogPageGrid);
+                        PopulateBlogPage();
                     }
                 }
             }

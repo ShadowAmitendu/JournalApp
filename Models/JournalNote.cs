@@ -27,6 +27,8 @@ namespace JournalApp
         public string EditorWidth { get; set; } = "Medium";
         public bool IsLocked { get; set; }
         public bool IsBlogPublished { get; set; } = false;
+        public string ContentFormat { get; set; } = "rtf";   // "rtf" or "markdown"
+        public string? MarkdownContentFileName { get; set; }  // e.g. "note_<id>.md"
 
         // ── Moments section ──
         public string LocationTag { get; set; } = "";

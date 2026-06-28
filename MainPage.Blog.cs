@@ -197,25 +197,32 @@ namespace JournalApp
                     BlogPublishStatusText.Text = $"Processing post {currentNoteIndex}/{publishedNotes.Count}...";
                     string plainText = GetNotePlainText(note);
                     
-                    // Sync cover image if local
+                    // Sync cover image if local or use Picsum fallback
                     string githubImagePath = null;
-                    if (!string.IsNullOrEmpty(note.HeroImagePath))
+                    if (note.HeroImagePath != "None")
                     {
-                        string localImgPath = JournalManager.Instance.GetAbsoluteMediaPath(note.HeroImagePath);
-                        if (File.Exists(localImgPath))
+                        if (string.IsNullOrEmpty(note.HeroImagePath))
                         {
-                            string ext = Path.GetExtension(localImgPath);
-                            string mediaFilename = $"cover_{note.Id}{ext}";
-                            string remoteImgPath = $"media/{mediaFilename}";
-                            
-                            // Schedule cover image upload
-                            filesToUpload.Add((localImgPath, remoteImgPath));
-                            githubImagePath = $"media/{mediaFilename}";
+                            githubImagePath = $"https://picsum.photos/seed/{note.Id}/1200/600";
                         }
-                        else if (note.HeroImagePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
-                                 note.HeroImagePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                        else
                         {
-                            githubImagePath = note.HeroImagePath;
+                            string localImgPath = JournalManager.Instance.GetAbsoluteMediaPath(note.HeroImagePath);
+                            if (File.Exists(localImgPath))
+                            {
+                                string ext = Path.GetExtension(localImgPath);
+                                string mediaFilename = $"cover_{note.Id}{ext}";
+                                string remoteImgPath = $"media/{mediaFilename}";
+                                
+                                // Schedule cover image upload
+                                filesToUpload.Add((localImgPath, remoteImgPath));
+                                githubImagePath = $"media/{mediaFilename}";
+                            }
+                            else if (note.HeroImagePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                                     note.HeroImagePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                            {
+                                githubImagePath = note.HeroImagePath;
+                            }
                         }
                     }
 
@@ -395,7 +402,11 @@ namespace JournalApp
             string coverHtml = "";
             if (!string.IsNullOrEmpty(coverImagePath))
             {
-                coverHtml = $"<div class=\"cover-container\"><img class=\"cover-img\" src=\"../{coverImagePath}\" alt=\"Cover banner\"></div>";
+                string src = (coverImagePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                              coverImagePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                             ? coverImagePath
+                             : $"../{coverImagePath}";
+                coverHtml = $"<div class=\"cover-container\"><img class=\"cover-img\" src=\"{src}\" alt=\"Cover banner\"></div>";
             }
 
             // Parse text paragraphs / lists / headers
@@ -572,7 +583,7 @@ namespace JournalApp
                     }
 
                     postsHtml += $@"
-            <article class=""post-item"">
+            <article class=""post-item"" onclick=""location.href='{post.LinkUrl}'"" style=""cursor: pointer;"">
                 <div class=""post-meta"">
                     <span class=""post-date"">{post.DateCreated.ToString("MMMM d, yyyy")}</span>
                     <span class=""post-divider"">•</span>
@@ -681,6 +692,11 @@ body {
 .post-item {
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 40px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.post-item:hover {
+    opacity: 0.85;
 }
 
 .post-item:last-child {
@@ -928,6 +944,66 @@ footer {
                 BlogLiveUrlButton.Content = $"Error: {ex.Message}";
                 BlogLiveUrlButton.NavigateUri = null;
             }
+        }
+
+        // ── Blog Page (NavItem) helpers ──────────────────────────────────────
+
+        /// <summary>Populates the Blog Publisher page when the user navigates to BlogPageNavItem.</summary>
+        private void PopulateBlogPage()
+        {
+            try
+            {
+                // Mirror config values from settings
+                if (BlogPageRepoTextBox != null)
+                    BlogPageRepoTextBox.Text = GetSetting("BlogRepo", "");
+                if (BlogPageTitleTextBox != null)
+                    BlogPageTitleTextBox.Text = GetSetting("BlogTitle", "My Journal Blog");
+                if (BlogPageDescTextBox != null)
+                    BlogPageDescTextBox.Text = GetSetting("BlogDesc", "");
+                if (BlogPageCustomCssTextBox != null)
+                    BlogPageCustomCssTextBox.Text = GetSetting("BlogCustomCss", "");
+
+                // Live URL
+                string repo = GetSetting("BlogRepo", "");
+                if (BlogPageLiveUrlButton != null)
+                {
+                    if (!string.IsNullOrEmpty(repo))
+                    {
+                        string urlText = $"https://[username].github.io/{repo}/";
+                        BlogPageLiveUrlButton.Content = urlText;
+                        try { BlogPageLiveUrlButton.NavigateUri = new Uri($"https://github.com/{repo}"); } catch { }
+                    }
+                    else
+                    {
+                        BlogPageLiveUrlButton.Content = "Not Configured";
+                    }
+                }
+
+                PopulateBlogPageList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BlogPage] PopulateBlogPage error: {ex.Message}");
+            }
+        }
+
+        private void PopulateBlogPageList()
+        {
+            if (BlogPagePublishedList == null) return;
+            var published = JournalManager.Instance.Notes
+                .Where(n => n.IsBlogPublished && !n.IsDeleted)
+                .OrderByDescending(n => n.DateCreated)
+                .ToList();
+
+            BlogPagePublishedList.ItemsSource = published;
+
+            if (BlogPagePublishedCountText != null)
+                BlogPagePublishedCountText.Text = $"{published.Count} {(published.Count == 1 ? "entry" : "entries")} marked for publishing";
+        }
+
+        private void BlogPageRefreshBtn_Click(object sender, RoutedEventArgs e)
+        {
+            PopulateBlogPageList();
         }
     }
 }

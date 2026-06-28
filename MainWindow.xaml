@@ -6,7 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:JournalApp"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Title="JournalApp"
+    Title="Journal"
     mc:Ignorable="d">
     <Window.SystemBackdrop>
         <MicaBackdrop Kind="BaseAlt" />
@@ -25,7 +25,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Image Source="ms-appx:///Assets/Square44x44Logo.scale-200.png" Width="16" Height="16" Margin="16,0,8,0" VerticalAlignment="Center" />
-            <TextBlock x:Name="AppTitleTextBlock" Text="JournalApp" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,24,0" />
+            <TextBlock x:Name="AppTitleTextBlock" Text="Journal" Grid.Column="1" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,24,0" />
             
             <AutoSuggestBox x:Name="TitleSearchBox" Grid.Column="2" PlaceholderText="Search entries..." QueryIcon="Find" Width="300" VerticalAlignment="Center" HorizontalAlignment="Center" TextChanged="TitleSearchBox_TextChanged" Margin="0,0,140,0" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,150,0" Spacing="8">
