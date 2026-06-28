@@ -1403,9 +1403,9 @@ namespace JournalApp
                 return;
             }
 
-            // Slugify repository name to match GitHub rules
+            // Slugify repository name to match GitHub rules (preserve case)
             repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
-            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "");
 
             if (string.IsNullOrEmpty(repoName))
             {
@@ -2235,7 +2235,7 @@ namespace JournalApp
             _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
             repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
-            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "");
 
             string username = await GetGitHubUsername(token);
             if (string.IsNullOrEmpty(username)) return;

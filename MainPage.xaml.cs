@@ -1564,11 +1564,22 @@ namespace JournalApp
 
                 if (AutoBackupToggle != null && AutoBackupToggle.IsOn)
                 {
-                    string token = GetSetting("GitHubToken", "");
+                    string token = GetSecureToken();
+                    if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken", "");
                     string repo = GetSetting("GitHubRepo", "");
                     if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repo))
                     {
-                        TriggerBackupFromTitleBar();
+                        // Debounce: only trigger backup if at least 5 minutes since last backup
+                        string lastSyncStr = GetSetting("GitHubLastSynced");
+                        bool shouldSync = true;
+                        if (!string.IsNullOrEmpty(lastSyncStr) && DateTime.TryParse(lastSyncStr, out var lastSync))
+                        {
+                            shouldSync = (DateTime.Now - lastSync).TotalMinutes >= 5;
+                        }
+                        if (shouldSync)
+                        {
+                            TriggerBackupFromTitleBar();
+                        }
                     }
                 }
             }
