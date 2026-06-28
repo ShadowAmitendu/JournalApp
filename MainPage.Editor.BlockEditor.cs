@@ -134,7 +134,9 @@ namespace JournalApp
             NativeBlockEditorScroll.TextChanged += (s, e) =>
             {
                 if (_disableSavingCurrentNote || !_isDataLoaded) return;
-                _currentMarkdownContent = NativeBlockEditorScroll.RawMarkdown ?? "";
+                string newMarkdown = NativeBlockEditorScroll.RawMarkdown ?? "";
+                if (newMarkdown == _currentMarkdownContent) return;
+                _currentMarkdownContent = newMarkdown;
                 MarkDirty();
                 UpdateWordCount();
             };

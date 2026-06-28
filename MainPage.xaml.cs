@@ -416,6 +416,7 @@ namespace JournalApp
         private bool _isUpdatingEffectsUI = false;
         private bool _isFilteringByTag = false;
         private bool _isNavigating = false;
+        private string _lastLoadedRtfText = string.Empty;
 
         // Undo trash
         private JournalNote _lastSoftDeletedNote;
@@ -1370,7 +1371,8 @@ namespace JournalApp
                         }
 
                         // Prevent hardcoded black text in dark theme or white text in light theme
-                        NoteRichEditBox.Document.GetText(TextGetOptions.None, out string rtfText);
+                        NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out string rtfText);
+                        _lastLoadedRtfText = rtfText;
                         if (!string.IsNullOrEmpty(rtfText))
                         {
                             var start = NoteRichEditBox.Document.Selection.StartPosition;
@@ -1407,6 +1409,7 @@ namespace JournalApp
                     else
                     {
                         NoteRichEditBox.Document.SetText(TextSetOptions.None, "");
+                        _lastLoadedRtfText = "";
                     }
 
                     // Apply correct default text color for new typing/empty states based on active theme
@@ -1556,6 +1559,7 @@ namespace JournalApp
                     StatusMessageTextBlock.Text = $"Saved at {DateTime.Now.ToString("h:mm:ss tt")}";
                 }
                 _isDirty = false;
+                _lastLoadedRtfText = plainText;
                 UpdateTitleBarBackupButtonState();
 
                 if (AutoBackupToggle != null && AutoBackupToggle.IsOn)
@@ -2021,15 +2025,20 @@ namespace JournalApp
 
         private void NoteRichEditBox_TextChanged(object sender, RoutedEventArgs e)
         {
+            if (_isLoadingNote || !_isDataLoaded || _disableSavingCurrentNote) return;
+
+            string currentText;
+            NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out currentText);
+            if (currentText == _lastLoadedRtfText) return;
+            _lastLoadedRtfText = currentText;
+
             UpdateWordCount();
             MarkDirty();
 
             // If live markdown preview is active, render it in real-time as the user types
             if (MarkdownPreviewToggle != null && MarkdownPreviewToggle.IsChecked == true && MarkdownPreviewTextBlock != null)
             {
-                string plainText;
-                NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out plainText);
-                RenderMarkdownToRichTextBlock(plainText, MarkdownPreviewTextBlock);
+                RenderMarkdownToRichTextBlock(currentText, MarkdownPreviewTextBlock);
             }
         }
 
