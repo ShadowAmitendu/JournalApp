@@ -32,6 +32,8 @@ namespace JournalApp
 
         // ── Moments section ──
         public string LocationTag { get; set; } = "";
+        public double Latitude { get; set; } = 0.0;
+        public double Longitude { get; set; } = 0.0;
         public string WeatherTag { get; set; } = "";
         public List<string> AttachedPhotoPaths { get; set; } = new List<string>();
         public List<string> AttachedAudioPaths { get; set; } = new List<string>();

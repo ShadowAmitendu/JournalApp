@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Journal Map</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body,
+      #map {
+        width: 100%;
+        height: 100%;
+        background-color: var(--bg-color, #ffffff);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+      }
+      :root {
+        --bg-color: #ffffff;
+        --text-color: #1a1a1a;
+        --popup-bg: #ffffff;
+        --popup-border: #e0e0e0;
+        --accent: #6366f1;
+      }
+      body.dark-mode {
+        --bg-color: #1a1a1a;
+        --text-color: #e8e8e8;
+        --popup-bg: #252525;
+        --popup-border: #333333;
+        --accent: #818cf8;
+      }
+      /* Custom popup styling to match app design */
+      .leaflet-popup-content-wrapper {
+        background: var(--popup-bg) !important;
+        color: var(--text-color) !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+        border: 1px solid var(--popup-border) !important;
+        padding: 4px !important;
+      }
+      .leaflet-popup-tip {
+        background: var(--popup-bg) !important;
+        border: 1px solid var(--popup-border) !important;
+      }
+      .leaflet-popup-content {
+        margin: 12px 14px !important;
+        line-height: 1.5 !important;
+        font-size: 13px !important;
+      }
+      .popup-title {
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 4px;
+        color: var(--text-color);
+      }
+      .popup-date {
+        font-size: 11px;
+        color: #888888;
+        margin-bottom: 8px;
+      }
+      .popup-snippet {
+        font-size: 12px;
+        margin-bottom: 12px;
+        color: var(--text-color);
+        opacity: 0.8;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .open-note-btn {
+        display: inline-block;
+        background: var(--accent);
+        color: #ffffff;
+        border: none;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: opacity 0.15s;
+        width: 100%;
+        text-align: center;
+      }
+      .open-note-btn:hover {
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>
+      let map;
+      let markersLayer = L.layerGroup();
+      let activeTileLayer;
+      let currentTheme = "light";
+
+      // Initialize map
+      map = L.map("map", {
+        zoomControl: true,
+        maxZoom: 18,
+      }).setView([20, 0], 2); // Default zoom out view
+
+      // Add markers layer
+      markersLayer.addTo(map);
+
+      // Tile layers
+      const tileLayers = {
+        light: L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: "abcd",
+            maxZoom: 20,
+          }
+        ),
+        dark: L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: "abcd",
+            maxZoom: 20,
+          }
+        ),
+      };
+
+      // Set initial tile layer
+      activeTileLayer = tileLayers.light;
+      activeTileLayer.addTo(map);
+
+      // Theme toggle method
+      window.setTheme = function (theme) {
+        currentTheme = theme.toLowerCase();
+        const isDark =
+          currentTheme === "dark" ||
+          currentTheme === "nord" ||
+          currentTheme === "dracula" ||
+          currentTheme === "forest";
+
+        if (isDark) {
+          document.body.classList.add("dark-mode");
+          map.removeLayer(activeTileLayer);
+          activeTileLayer = tileLayers.dark;
+          activeTileLayer.addTo(map);
+        } else {
+          document.body.classList.remove("dark-mode");
+          map.removeLayer(activeTileLayer);
+          activeTileLayer = tileLayers.light;
+          activeTileLayer.addTo(map);
+        }
+      };
+
+      // Open note click callback
+      function onOpenNoteClick(noteId) {
+        try {
+          window.chrome.webview.postMessage(
+            JSON.stringify({
+              type: "openNote",
+              noteId: noteId,
+            })
+          );
+        } catch (ex) {
+          console.error("Failed to post message to host:", ex);
+        }
+      }
+
+      // Populate notes on map
+      window.setMapData = function (notesJson) {
+        markersLayer.clearLayers();
+        const notes = JSON.parse(notesJson);
+        const markerList = [];
+
+        notes.forEach((note) => {
+          if (note.Latitude && note.Longitude) {
+            const popupContent = `
+                        <div class="popup-title">${note.Title || "Untitled Note"}</div>
+                        <div class="popup-date">${note.DateFormatted || ""}</div>
+                        <div class="popup-snippet">${note.Snippet || "No additional text"}</div>
+                        <button class="open-note-btn" onclick="onOpenNoteClick('${note.Id}')">Open Entry</button>
+                    `;
+
+            const marker = L.marker([note.Latitude, note.Longitude]).bindPopup(
+              popupContent
+            );
+            markersLayer.addLayer(marker);
+            markerList.push(marker);
+          }
+        });
+
+        // Fit map bounds to contain all markers
+        if (markerList.length > 0) {
+          const group = new L.featureGroup(markerList);
+          map.fitBounds(group.getBounds().pad(0.1));
+        }
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        margin: 0;
+        padding: 10px;
+        background-color: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        overflow: hidden;
+      }
+      .chart-container {
+        position: relative;
+        width: 100%;
+        height: 280px;
+      }
+    </style>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div class="chart-container">
+      <canvas id="moodChart"></canvas>
+    </div>
+
+    <script>
+      let chartInstance = null;
+      let activeTheme = "light";
+      let chartData = [];
+
+      const themeConfig = {
+        light: {
+          textColor: "#1a1a1a",
+          gridColor: "#e0e0e0",
+          lineColor: "#6366f1",
+          fillColor: "rgba(99,102,241,0.15)",
+        },
+        dark: {
+          textColor: "#ffffff",
+          gridColor: "#333333",
+          lineColor: "#818cf8",
+          fillColor: "rgba(129,140,248,0.15)",
+        },
+        sepia: {
+          textColor: "#5c4033",
+          gridColor: "#ded0b6",
+          lineColor: "#8c6239",
+          fillColor: "rgba(140,98,57,0.15)",
+        },
+        nord: {
+          textColor: "#d8dee9",
+          gridColor: "#434c5e",
+          lineColor: "#88c0d0",
+          fillColor: "rgba(136,192,208,0.15)",
+        },
+        dracula: {
+          textColor: "#f8f8f2",
+          gridColor: "#44475a",
+          lineColor: "#bd93f9",
+          fillColor: "rgba(189,147,249,0.15)",
+        },
+        forest: {
+          textColor: "#e3e9e6",
+          gridColor: "#2d3a34",
+          lineColor: "#68d391",
+          fillColor: "rgba(104,211,145,0.15)",
+        }
+      };
+
+      window.setTheme = function(theme) {
+        activeTheme = theme.toLowerCase();
+        if (chartInstance) {
+          renderChart();
+        }
+      };
+
+      window.setChartData = function(dataJson) {
+        try {
+          chartData = typeof dataJson === 'string' ? JSON.parse(dataJson) : dataJson;
+          renderChart();
+        } catch (e) {
+          console.error("Failed to parse chart data:", e);
+        }
+      };
+
+      function renderChart() {
+        const ctx = document.getElementById('moodChart').getContext('2d');
+        const colors = themeConfig[activeTheme] || themeConfig.light;
+
+        if (chartInstance) {
+          chartInstance.destroy();
+        }
+
+        if (!chartData || chartData.length === 0) {
+          // Draw empty state text on canvas
+          ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+          ctx.fillStyle = colors.textColor;
+          ctx.font = "14px Segoe UI";
+          ctx.textAlign = "center";
+          ctx.fillText("Not enough entries with mood data to display trend.", ctx.canvas.width / 2, ctx.canvas.height / 2);
+          return;
+        }
+
+        const labels = chartData.map(d => d.date);
+        const dataPoints = chartData.map(d => d.value);
+        const tooltips = chartData.map(d => d.mood);
+
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Mood Level',
+              data: dataPoints,
+              borderColor: colors.lineColor,
+              backgroundColor: colors.fillColor,
+              borderWidth: 3,
+              fill: true,
+              tension: 0.3,
+              pointBackgroundColor: colors.lineColor,
+              pointBorderColor: colors.lineColor,
+              pointHoverRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const idx = context.dataIndex;
+                    return `Mood: ${tooltips[idx]}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: {
+                  color: colors.gridColor
+                },
+                ticks: {
+                  color: colors.textColor,
+                  font: {
+                    family: 'Segoe UI',
+                    size: 11
+                  }
+                }
+              },
+              y: {
+                min: 0,
+                max: 6,
+                grid: {
+                  color: colors.gridColor
+                },
+                ticks: {
+                  color: colors.textColor,
+                  stepSize: 1,
+                  font: {
+                    family: 'Segoe UI',
+                    size: 11
+                  },
+                  callback: function(value) {
+                    const moodLabels = {
+                      5: '😊 Happy',
+                      3: '😐 Neutral',
+                      2: '😢 Sad / 😫 Stressed',
+                      1: '😡 Angry',
+                      0: ''
+                    };
+                    return moodLabels[value] || '';
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

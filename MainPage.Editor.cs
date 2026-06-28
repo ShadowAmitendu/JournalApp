@@ -29,6 +29,11 @@ namespace JournalApp
         /// </summary>
         private void BoldButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                FormatActiveTextBoxSelection("**", "**");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.CharacterFormat;
             format.Bold = (format.Bold == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
             NoteRichEditBox.Document.Selection.CharacterFormat = format;
@@ -40,6 +45,11 @@ namespace JournalApp
         /// </summary>
         private void ItalicButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                FormatActiveTextBoxSelection("*", "*");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.CharacterFormat;
             format.Italic = (format.Italic == FormatEffect.On) ? FormatEffect.Off : FormatEffect.On;
             NoteRichEditBox.Document.Selection.CharacterFormat = format;
@@ -51,6 +61,11 @@ namespace JournalApp
         /// </summary>
         private void UnderlineButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                FormatActiveTextBoxSelection("<u>", "</u>");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.CharacterFormat;
             format.Underline = (format.Underline == UnderlineType.Single) ? UnderlineType.None : UnderlineType.Single;
             NoteRichEditBox.Document.Selection.CharacterFormat = format;
@@ -65,6 +80,15 @@ namespace JournalApp
             if (sender is MenuFlyoutItem item)
             {
                 var hexColor = item.Tag?.ToString();
+                if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+                {
+                    string colorValue = (string.IsNullOrEmpty(hexColor) || hexColor == "None") ? "transparent" : hexColor;
+                    if (colorValue == "transparent")
+                        FormatActiveTextBoxSelection("<mark>", "</mark>");
+                    else
+                        FormatActiveTextBoxSelection($"<mark style=\"background-color: {colorValue}\">", "</mark>");
+                    return;
+                }
                 var format = NoteRichEditBox.Document.Selection.CharacterFormat;
                 
                 if (string.IsNullOrEmpty(hexColor) || hexColor == "None")
@@ -121,6 +145,11 @@ namespace JournalApp
         /// </summary>
         private void AlignLeftButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                FormatActiveTextBoxSelection("<div align=\"left\">", "</div>");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
             format.Alignment = ParagraphAlignment.Left;
             NoteRichEditBox.Document.Selection.ParagraphFormat = format;
@@ -132,6 +161,11 @@ namespace JournalApp
         /// </summary>
         private void AlignCenterButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                FormatActiveTextBoxSelection("<div align=\"center\">", "</div>");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
             format.Alignment = ParagraphAlignment.Center;
             NoteRichEditBox.Document.Selection.ParagraphFormat = format;
@@ -143,6 +177,11 @@ namespace JournalApp
         /// </summary>
         private void AlignRightButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                FormatActiveTextBoxSelection("<div align=\"right\">", "</div>");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
             format.Alignment = ParagraphAlignment.Right;
             NoteRichEditBox.Document.Selection.ParagraphFormat = format;
@@ -154,6 +193,11 @@ namespace JournalApp
         /// </summary>
         private void AlignJustifyButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                FormatActiveTextBoxSelection("<div align=\"justify\">", "</div>");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
             format.Alignment = ParagraphAlignment.Justify;
             NoteRichEditBox.Document.Selection.ParagraphFormat = format;
@@ -165,6 +209,11 @@ namespace JournalApp
         /// </summary>
         private void BulletListButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                ChangeActiveBlockType("bullet");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
             format.ListType = (format.ListType == MarkerType.Bullet) ? MarkerType.None : MarkerType.Bullet;
             NoteRichEditBox.Document.Selection.ParagraphFormat = format;
@@ -176,6 +225,11 @@ namespace JournalApp
         /// </summary>
         private async void NumberedListButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                ChangeActiveBlockType("numbered");
+                return;
+            }
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
             if (format.ListType == MarkerType.Arabic)
             {
@@ -208,6 +262,11 @@ namespace JournalApp
         /// </summary>
         private void ChecklistButton_Click(object sender, RoutedEventArgs e)
         {
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                ChangeActiveBlockType("todo");
+                return;
+            }
             var selection = NoteRichEditBox.Document.Selection;
             int start = selection.StartPosition;
             
@@ -232,6 +291,15 @@ namespace JournalApp
             if (sender is MenuFlyoutItem item)
             {
                 var hexColor = item.Tag?.ToString();
+                if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+                {
+                    string colorValue = hexColor == "Default" ? "" : hexColor;
+                    if (string.IsNullOrEmpty(colorValue))
+                        FormatActiveTextBoxSelection("<span>", "</span>");
+                    else
+                        FormatActiveTextBoxSelection($"<span style=\"color: {colorValue}\">", "</span>");
+                    return;
+                }
                 var format = NoteRichEditBox.Document.Selection.CharacterFormat;
                 
                 if (hexColor == "Default")
@@ -425,8 +493,16 @@ namespace JournalApp
 
             try
             {
-                string text;
-                NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out text);
+                string text = "";
+                if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+                {
+                    text = _currentMarkdownContent ?? "";
+                }
+                else
+                {
+                    NoteRichEditBox.Document.GetText(TextGetOptions.UseLf, out text);
+                }
+                
                 if (text == null) text = "";
 
                 if (text.EndsWith("\r"))

@@ -1645,6 +1645,7 @@ namespace JournalApp
                         PopulateMoodStats();
                         PopulateContributionGraph();
                         PopulateTagCloud();
+                        _ = LoadMoodChartAsync();
                     }
                     else if (navItem == GalleryNavItem)
                     {
@@ -1655,6 +1656,11 @@ namespace JournalApp
                     {
                         ShowGrid(BlogPageGrid);
                         PopulateBlogPage();
+                    }
+                    else if (navItem == MapNavItem)
+                    {
+                        ShowGrid(MapGrid);
+                        _ = LoadMapDataAsync();
                     }
                 }
             }
@@ -3232,6 +3238,8 @@ namespace JournalApp
                         formattedLocation += $", {country}";
 
                     SelectedNote.LocationTag = formattedLocation;
+                    SelectedNote.Latitude = lat;
+                    SelectedNote.Longitude = lon;
 
                     string weatherTag = "Sunny";
                     if (lat != 0.0 || lon != 0.0)
@@ -3347,6 +3355,8 @@ namespace JournalApp
                 if (!string.IsNullOrEmpty(locationText))
                 {
                     SelectedNote.LocationTag = locationText;
+                    SelectedNote.Latitude = lat;
+                    SelectedNote.Longitude = lon;
                 }
                 SelectedNote.WeatherTag = weatherTag;
                 
@@ -3811,18 +3821,107 @@ namespace JournalApp
             if (ThemeComboBox.SelectedItem is ComboBoxItem selectedItem)
             {
                 string themeTag = selectedItem.Tag?.ToString();
-                var window = MainWindow.Instance;
-                if (window != null && window.Content is FrameworkElement rootElement)
-                {
-                    if (themeTag == "Light")
-                        rootElement.RequestedTheme = ElementTheme.Light;
-                    else if (themeTag == "Dark")
-                        rootElement.RequestedTheme = ElementTheme.Dark;
-                    else
-                        rootElement.RequestedTheme = ElementTheme.Default;
-                }
+                ApplyCustomThemeBrushes(themeTag);
+                SyncBlockEditorTheme();
             }
             UpdateSaveSettingsButtonState();
+        }
+
+        private static Windows.UI.Color GetColorFromHex(string hex)
+        {
+            hex = hex.Replace("#", "");
+            if (hex.Length == 6)
+            {
+                byte r = byte.Parse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber);
+                byte g = byte.Parse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber);
+                byte b = byte.Parse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber);
+                return Windows.UI.Color.FromArgb(255, r, g, b);
+            }
+            else if (hex.Length == 8)
+            {
+                byte a = byte.Parse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber);
+                byte r = byte.Parse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber);
+                byte g = byte.Parse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber);
+                byte b = byte.Parse(hex.Substring(6, 2), System.Globalization.NumberStyles.HexNumber);
+                return Windows.UI.Color.FromArgb(a, r, g, b);
+            }
+            return Microsoft.UI.Colors.Transparent;
+        }
+
+        private void ApplyCustomThemeBrushes(string themeName)
+        {
+            var window = MainWindow.Instance;
+            if (window == null || !(window.Content is FrameworkElement rootElement)) return;
+
+            string[] keys = new string[]
+            {
+                "SolidBackgroundFillColorBaseBrush",
+                "SolidBackgroundFillColorBaseAltBrush",
+                "CardBackgroundFillColorDefaultBrush",
+                "CardBackgroundFillColorSecondaryBrush",
+                "CardStrokeColorDefaultBrush",
+                "TextFillColorPrimaryBrush",
+                "TextFillColorSecondaryBrush"
+            };
+
+            foreach (var key in keys)
+            {
+                rootElement.Resources.Remove(key);
+            }
+
+            if (themeName == "Sepia")
+            {
+                rootElement.RequestedTheme = ElementTheme.Light;
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#F4ECD8"));
+                rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#EFE6D1"));
+                rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#EFE6D1"));
+                rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#E9DFCA"));
+                rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#DED0B6"));
+                rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#5C4033"));
+                rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#7D6B58"));
+            }
+            else if (themeName == "Nord")
+            {
+                rootElement.RequestedTheme = ElementTheme.Dark;
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#2E3440"));
+                rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#3B4252"));
+                rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#3B4252"));
+                rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#434C5E"));
+                rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#4C566A"));
+                rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#D8DEE9"));
+                rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#E5E9F0"));
+            }
+            else if (themeName == "Dracula")
+            {
+                rootElement.RequestedTheme = ElementTheme.Dark;
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#282A36"));
+                rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#1F2029"));
+                rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#44475A"));
+                rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#6272A4"));
+                rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#BD93F9"));
+                rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#F8F8F2"));
+                rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#6272A4"));
+            }
+            else if (themeName == "Forest")
+            {
+                rootElement.RequestedTheme = ElementTheme.Dark;
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#1A2421"));
+                rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#222E2A"));
+                rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#2D3A34"));
+                rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#222E2A"));
+                rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#3B4E45"));
+                rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#E8F0EC"));
+                rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#8FA399"));
+            }
+            else
+            {
+                if (themeName == "Light")
+                    rootElement.RequestedTheme = ElementTheme.Light;
+                else if (themeName == "Dark")
+                    rootElement.RequestedTheme = ElementTheme.Dark;
+                else
+                    rootElement.RequestedTheme = ElementTheme.Default;
+            }
         }
 
         private void BackdropComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -3890,6 +3989,7 @@ namespace JournalApp
                 if (!string.IsNullOrEmpty(fontName))
                 {
                     ApplyEditorFont(fontName);
+                    SyncBlockEditorFont();
                     
                     ShowStatusMessage($"Editor default font changed to {fontName}");
                 }
@@ -5623,7 +5723,7 @@ namespace JournalApp
 
         private void ShowGrid(Grid gridToShow)
         {
-            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid, BlogPageGrid };
+            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid, BlogPageGrid, MapGrid };
             foreach (var g in allGrids)
             {
                 if (g == null) continue;

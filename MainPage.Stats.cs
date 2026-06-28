@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -339,6 +341,79 @@ namespace JournalApp
                 check = check.AddDays(-1);
             }
             return streak;
+        }
+
+        private bool _chartInitialized = false;
+
+        private async Task LoadMoodChartAsync()
+        {
+            if (MoodChartWebView == null) return;
+
+            try
+            {
+                if (!_chartInitialized)
+                {
+                    await MoodChartWebView.EnsureCoreWebView2Async();
+                    MoodChartWebView.CoreWebView2.Settings.IsScriptEnabled = true;
+                    MoodChartWebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
+                    MoodChartWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+
+                    string chartPath = Path.Combine(Windows.ApplicationModel.Package.Current.InstalledLocation.Path, "Assets", "MoodChart.html");
+                    MoodChartWebView.CoreWebView2.Navigate("file:///" + chartPath.Replace("\\", "/"));
+
+                    var tcs = new TaskCompletionSource<bool>();
+                    Windows.Foundation.TypedEventHandler<Microsoft.Web.WebView2.Core.CoreWebView2, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs> handler = null;
+                    handler = (s, e) =>
+                    {
+                        MoodChartWebView.CoreWebView2.NavigationCompleted -= handler;
+                        tcs.SetResult(true);
+                    };
+                    MoodChartWebView.CoreWebView2.NavigationCompleted += handler;
+                    await tcs.Task;
+                    _chartInitialized = true;
+                }
+
+                // Format theme style
+                string savedTheme = GetSetting("AppTheme", "Default");
+                if (savedTheme == "Default")
+                {
+                    savedTheme = this.ActualTheme == ElementTheme.Dark ? "dark" : "light";
+                }
+
+                // Sync theme
+                await MoodChartWebView.CoreWebView2.ExecuteScriptAsync($"window.setTheme('{savedTheme}')");
+
+                // Get notes in the last 30 days containing a valid mood, sorted oldest to newest
+                var cutoffDate = DateTime.Now.AddDays(-30);
+                var chartData = JournalManager.Instance.Notes
+                    .Where(n => !n.IsDeleted && n.DateCreated >= cutoffDate && !string.IsNullOrEmpty(n.Mood) && n.Mood != "None")
+                    .OrderBy(n => n.DateCreated)
+                    .Select(n => new
+                    {
+                        date = n.DateCreated.ToString("MMM d"),
+                        mood = n.Mood,
+                        value = MapMoodToValue(n.Mood)
+                    })
+                    .ToList();
+
+                var json = JsonSerializer.Serialize(chartData);
+                await MoodChartWebView.CoreWebView2.ExecuteScriptAsync($"window.setChartData({JsonSerializer.Serialize(json)})");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Stats] Chart loading failed: {ex.Message}");
+            }
+        }
+
+        private int MapMoodToValue(string mood)
+        {
+            if (string.IsNullOrEmpty(mood)) return 0;
+            if (mood.Contains("Happy")) return 5;
+            if (mood.Contains("Neutral")) return 3;
+            if (mood.Contains("Sad")) return 2;
+            if (mood.Contains("Stressed")) return 2;
+            if (mood.Contains("Angry")) return 1;
+            return 0;
         }
     }
 }

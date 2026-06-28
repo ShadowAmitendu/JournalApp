@@ -1106,16 +1106,7 @@ namespace JournalApp
                 string savedTheme = GetSetting("AppTheme");
                 if (!string.IsNullOrEmpty(savedTheme))
                 {
-                    var window = MainWindow.Instance;
-                    if (window != null && window.Content is FrameworkElement rootElement)
-                    {
-                        if (savedTheme == "Light")
-                            rootElement.RequestedTheme = ElementTheme.Light;
-                        else if (savedTheme == "Dark")
-                            rootElement.RequestedTheme = ElementTheme.Dark;
-                        else
-                            rootElement.RequestedTheme = ElementTheme.Default;
-                    }
+                    ApplyCustomThemeBrushes(savedTheme);
 
                     if (ThemeComboBox != null)
                     {

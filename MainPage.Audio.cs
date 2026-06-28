@@ -32,6 +32,9 @@ namespace JournalApp
         /// Flag indicating whether the application is currently recording audio.
         /// </summary>
         private bool _isRecording = false;
+        private Windows.Media.SpeechRecognition.SpeechRecognizer _speechRecognizer;
+        private System.Text.StringBuilder _transcriptionResult;
+        private bool _isTranscribing = false;
 
         /// <summary>
         /// Timer used to track the duration of a voice recording.
@@ -364,6 +367,7 @@ namespace JournalApp
                 }
 
                 _recordingTimer.Start();
+                await StartSpeechTranscriptionAsync();
             }
             catch (Exception ex)
             {
@@ -392,6 +396,12 @@ namespace JournalApp
                 SelectedNote.AttachedAudioPaths ??= new List<string>();
                 SelectedNote.AttachedAudioPaths.Add(_currentRecordingFile);
                 
+                string transcribedText = await StopSpeechTranscriptionAsync();
+                if (!string.IsNullOrEmpty(transcribedText))
+                {
+                    AppendTranscribedTextToNote(transcribedText);
+                }
+                
                 JournalManager.Instance.SaveNotesMetadata();
                 UpdateAttachedAudioUI();
                 MarkDirty();
@@ -403,6 +413,80 @@ namespace JournalApp
             finally
             {
                 CleanupRecordingResources();
+            }
+        }
+
+        private async Task StartSpeechTranscriptionAsync()
+        {
+            try
+            {
+                _transcriptionResult = new System.Text.StringBuilder();
+                _speechRecognizer = new Windows.Media.SpeechRecognition.SpeechRecognizer();
+                
+                var dictationConstraint = new Windows.Media.SpeechRecognition.SpeechRecognitionTopicConstraint(
+                    Windows.Media.SpeechRecognition.SpeechRecognitionScenario.Dictation, "dictation");
+                _speechRecognizer.Constraints.Add(dictationConstraint);
+                
+                await _speechRecognizer.CompileConstraintsAsync();
+                
+                _speechRecognizer.ContinuousRecognitionSession.ResultGenerated += (s, args) =>
+                {
+                    if (args.Result != null && !string.IsNullOrEmpty(args.Result.Text))
+                    {
+                        _transcriptionResult.Append(args.Result.Text + " ");
+                    }
+                };
+                
+                await _speechRecognizer.ContinuousRecognitionSession.StartAsync();
+                _isTranscribing = true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Transcription] Initialization failed: {ex.Message}");
+                _speechRecognizer?.Dispose();
+                _speechRecognizer = null;
+                _isTranscribing = false;
+            }
+        }
+
+        private async Task<string> StopSpeechTranscriptionAsync()
+        {
+            if (!_isTranscribing || _speechRecognizer == null) return null;
+            
+            try
+            {
+                await _speechRecognizer.ContinuousRecognitionSession.StopAsync();
+            }
+            catch {}
+            
+            string text = _transcriptionResult?.ToString().Trim();
+            _speechRecognizer?.Dispose();
+            _speechRecognizer = null;
+            _isTranscribing = false;
+            
+            return text;
+        }
+
+        private void AppendTranscribedTextToNote(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+
+            if (NativeBlockEditorScroll.Visibility == Visibility.Visible)
+            {
+                var newBlock = new EditorBlock { Type = "quote", Content = $"🎙️ Voice Memo Transcription: {text}" };
+                _nativeBlocks.Add(newBlock);
+                _currentMarkdownContent = ExportBlocksToMarkdown();
+                MarkDirty();
+                RenderNativeBlocks();
+                UpdateWordCount();
+            }
+            else
+            {
+                string formattedText = $"\n[Transcription]: \"{text}\"\n";
+                var selection = NoteRichEditBox.Document.Selection;
+                selection.SetText(Microsoft.UI.Text.TextSetOptions.None, formattedText);
+                MarkDirty();
+                UpdateWordCount();
             }
         }
 
