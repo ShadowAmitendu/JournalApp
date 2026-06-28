@@ -69,6 +69,12 @@ namespace JournalApp
             // Dynamically build and render the UI elements in the container
             RenderNativeBlocks();
 
+            // Auto-focus the first block so cursor/keyboard is shown immediately
+            if (_nativeBlocks.Count > 0)
+            {
+                FocusBlock(0);
+            }
+
             _disableSavingCurrentNote = false;
             await Task.CompletedTask;
         }
@@ -270,6 +276,18 @@ namespace JournalApp
                 VerticalAlignment = VerticalAlignment.Center,
                 Tag = index
             };
+
+            if (index == 0 && string.IsNullOrEmpty(block.Content))
+            {
+                tb.PlaceholderText = "Start writing your thoughts here...";
+            }
+            else if (string.IsNullOrEmpty(block.Content))
+            {
+                tb.PlaceholderText = block.Type == "todo" ? "To-do item" :
+                                     block.Type == "bullet" ? "List item" :
+                                     block.Type == "numbered" ? "List item" :
+                                     block.Type == "quote" ? "Quote" : "";
+            }
 
             // Remove box background on hover and focus
             tb.Resources.Add("TextControlBackground", new SolidColorBrush(Microsoft.UI.Colors.Transparent));
@@ -555,6 +573,14 @@ namespace JournalApp
                 fontName = selectedItem.Tag?.ToString() ?? fontName;
             }
             control.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(fontName);
+        }
+
+        private void NativeBlockEditorScroll_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+        {
+            if (_nativeBlocks.Count > 0)
+            {
+                FocusBlock(_nativeBlocks.Count - 1);
+            }
         }
     }
 

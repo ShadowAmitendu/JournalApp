@@ -1114,7 +1114,9 @@
                                                     Visibility="Collapsed"
                                                     VerticalScrollBarVisibility="Auto"
                                                     HorizontalAlignment="Stretch"
-                                                    VerticalAlignment="Stretch">
+                                                    VerticalAlignment="Stretch"
+                                                    Background="Transparent"
+                                                    Tapped="NativeBlockEditorScroll_Tapped">
                                           <StackPanel x:Name="NativeBlockEditorContainer"
                                                       Spacing="12"
                                                       Padding="10,0,10,200"
