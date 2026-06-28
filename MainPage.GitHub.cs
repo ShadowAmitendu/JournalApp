@@ -1533,12 +1533,26 @@ namespace JournalApp
             if (!File.Exists(localPath)) return;
 
             string base64Content = Convert.ToBase64String(File.ReadAllBytes(localPath));
+
+            string token = GetSecureToken();
+            if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
+
+            Action<HttpRequestMessage> applyHeaders = (req) =>
+            {
+                req.Headers.UserAgent.Clear();
+                req.Headers.UserAgent.TryParseAdd("JournalApp");
+                if (!string.IsNullOrEmpty(token))
+                {
+                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                }
+            };
             
             // Helper function to fetch the latest SHA without using any cached response
             Func<Task<string>> fetchShaFunc = async () =>
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}");
                 request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
+                applyHeaders(request);
                 
                 var fileResponse = await _httpClient.SendAsync(request);
                 if (fileResponse.IsSuccessStatusCode)
@@ -1554,34 +1568,32 @@ namespace JournalApp
 
             string sha = await fetchShaFunc();
 
-            // Create put request body
-            var putData = new 
+            // Helper function to execute the PUT request
+            Func<string, Task<HttpResponseMessage>> executePutFunc = async (currentSha) =>
             {
-                message = commitMessage,
-                content = base64Content,
-                sha = sha
+                var putData = new 
+                {
+                    message = commitMessage,
+                    content = base64Content,
+                    sha = currentSha
+                };
+                string putJson = System.Text.Json.JsonSerializer.Serialize(putData);
+                
+                var request = new HttpRequestMessage(HttpMethod.Put, $"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}");
+                applyHeaders(request);
+                request.Content = new StringContent(putJson, System.Text.Encoding.UTF8, "application/json");
+                
+                return await _httpClient.SendAsync(request);
             };
-            string putJson = System.Text.Json.JsonSerializer.Serialize(putData);
-            var putContent = new StringContent(putJson, System.Text.Encoding.UTF8, "application/json");
 
-            var putResponse = await _httpClient.PutAsync($"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}", putContent);
+            var putResponse = await executePutFunc(sha);
             
             // Auto-retry once if we get a Conflict (409), which happens if the remote ref updated in the background
             if (putResponse.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 System.Diagnostics.Debug.WriteLine($"[SyncFileToGitHub] Conflict 409 on {githubPath}. Fetching fresh SHA and retrying...");
                 sha = await fetchShaFunc();
-                
-                var retryData = new 
-                {
-                    message = commitMessage,
-                    content = base64Content,
-                    sha = sha
-                };
-                string retryJson = System.Text.Json.JsonSerializer.Serialize(retryData);
-                var retryContent = new StringContent(retryJson, System.Text.Encoding.UTF8, "application/json");
-                
-                putResponse = await _httpClient.PutAsync($"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}", retryContent);
+                putResponse = await executePutFunc(sha);
             }
 
             if (!putResponse.IsSuccessStatusCode)
