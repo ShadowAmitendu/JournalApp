@@ -869,6 +869,8 @@ namespace JournalApp
                     SaveSetting("BlogTitle", BlogTitleTextBox.Text?.Trim() ?? "My Journal Blog");
                 if (BlogDescTextBox != null)
                     SaveSetting("BlogDesc", BlogDescTextBox.Text?.Trim() ?? "A collection of my thoughts and memories.");
+                if (BlogCustomCssTextBox != null)
+                    SaveSetting("BlogCustomCss", BlogCustomCssTextBox.Text);
 
                 // Refresh UI configurations
                 LoadSavedBackupSettings();
@@ -1037,6 +1039,10 @@ namespace JournalApp
             string savedBlogDesc = GetSetting("BlogDesc", "A collection of my thoughts and memories.");
             string currentBlogDesc = BlogDescTextBox != null ? BlogDescTextBox.Text?.Trim() : "A collection of my thoughts and memories.";
             if (currentBlogDesc != savedBlogDesc) isDirty = true;
+
+            string savedBlogCss = GetSetting("BlogCustomCss", "");
+            string currentBlogCss = BlogCustomCssTextBox != null ? BlogCustomCssTextBox.Text : "";
+            if (currentBlogCss != savedBlogCss) isDirty = true;
 
             SaveSettingsButton.IsEnabled = isDirty;
         }
@@ -1231,6 +1237,9 @@ namespace JournalApp
 
                 string savedBlogDesc = GetSetting("BlogDesc", "A collection of my thoughts and memories.");
                 if (BlogDescTextBox != null) BlogDescTextBox.Text = savedBlogDesc;
+
+                string savedBlogCss = GetSetting("BlogCustomCss", "");
+                if (BlogCustomCssTextBox != null) BlogCustomCssTextBox.Text = savedBlogCss;
 
                 UpdateBlogLiveUrlLink(savedBlogRepo);
 

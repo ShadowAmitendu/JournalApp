@@ -55,6 +55,12 @@ namespace JournalApp
             UpdateSaveSettingsButtonState();
         }
 
+        private void BlogCustomCssTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            UpdateSaveSettingsButtonState();
+        }
+
         // ── Main Publishing Execution Flow ───────────────────────────────────
 
         private async void SettingsPublishBlogButton_Click(object sender, RoutedEventArgs e)
@@ -178,7 +184,8 @@ namespace JournalApp
 
                 // A. Write premium stylesheet style.css
                 string stylePath = Path.Combine(tempDir, "style.css");
-                File.WriteAllText(stylePath, GetBlogStylesheetContent());
+                string customCss = GetSetting("BlogCustomCss", "");
+                File.WriteAllText(stylePath, GetBlogStylesheetContent() + "\n" + customCss);
                 filesToUpload.Add((stylePath, "style.css"));
 
                 // B. Write individual posts and gather list details
@@ -610,24 +617,26 @@ namespace JournalApp
 
         private string GetBlogStylesheetContent()
         {
-            return @"/* premium simple blog styles */
+            return @"/* premium simple blog styles (Medium-like) */
 :root {
     --bg-color: #ffffff;
-    --text-primary: #111111;
-    --text-secondary: #555555;
-    --text-muted: #888888;
-    --border-color: #eaeaea;
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-serif: 'Playfair Display', Georgia, serif;
+    --text-primary: #292929;
+    --text-secondary: #757575;
+    --text-muted: #9e9e9e;
+    --border-color: #f2f2f2;
+    --link-color: #1a1a1a;
+    --font-sans: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif;
+    --font-serif: Charter, Georgia, Cambria, ""Times New Roman"", Times, serif;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
         --bg-color: #121212;
-        --text-primary: #eeeeee;
-        --text-secondary: #aaaaaa;
-        --text-muted: #666666;
-        --border-color: #2c2c2c;
+        --text-primary: #e6e6e6;
+        --text-secondary: #a0a0a0;
+        --text-muted: #707070;
+        --border-color: #242424;
+        --link-color: #ffffff;
     }
 }
 
@@ -635,14 +644,15 @@ body {
     background-color: var(--bg-color);
     color: var(--text-primary);
     font-family: var(--font-sans);
-    line-height: 1.8;
-    max-width: 700px;
+    line-height: 1.62;
+    max-width: 680px;
     margin: 0 auto;
-    padding: 60px 24px;
+    padding: 80px 20px;
+    -webkit-font-smoothing: antialiased;
 }
 
 .blog-header {
-    margin-bottom: 60px;
+    margin-bottom: 50px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 30px;
 }
@@ -653,11 +663,13 @@ body {
     font-weight: 700;
     margin-bottom: 8px;
     letter-spacing: -0.02em;
+    color: var(--text-primary);
 }
 
 .blog-description {
     color: var(--text-secondary);
-    font-size: 1rem;
+    font-size: 1.1rem;
+    font-family: var(--font-sans);
 }
 
 .posts-list {
@@ -668,7 +680,7 @@ body {
 
 .post-item {
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 30px;
+    padding-bottom: 40px;
 }
 
 .post-item:last-child {
@@ -677,46 +689,50 @@ body {
 
 .post-meta {
     font-size: 0.85rem;
-    color: var(--text-muted);
-    margin-bottom: 8px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
 .post-divider {
-    color: var(--border-color);
+    color: var(--text-muted);
 }
 
 .post-title {
     font-family: var(--font-serif);
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    line-height: 1.3;
-    margin-bottom: 12px;
+    line-height: 1.25;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
 }
 
 .post-title a {
-    color: var(--text-primary);
+    color: var(--link-color);
     text-decoration: none;
 }
 
 .post-title a:hover {
-    text-decoration: underline;
+    color: var(--text-primary);
 }
 
 .post-snippet {
     color: var(--text-secondary);
     font-size: 0.95rem;
+    line-height: 1.5;
 }
 
 /* Detail page styling */
 .nav-back {
     margin-bottom: 40px;
+    display: flex;
+    align-items: center;
 }
 
 .nav-back a {
-    color: var(--text-muted);
+    color: var(--text-secondary);
     text-decoration: none;
     font-size: 0.9rem;
 }
@@ -730,67 +746,75 @@ body {
 }
 
 .post-header {
-    margin-bottom: 30px;
+    margin-bottom: 35px;
     border-bottom: 1px solid var(--border-color);
-    padding-bottom: 20px;
+    padding-bottom: 25px;
 }
 
 .post-title-detail {
     font-family: var(--font-serif);
-    font-size: 2.5rem;
+    font-size: 2.6rem;
     line-height: 1.2;
     margin-bottom: 16px;
     font-weight: 700;
+    letter-spacing: -0.02em;
 }
 
 .post-content {
-    font-size: 1.1rem;
-    line-height: 1.8;
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    line-height: 1.62;
+    color: var(--text-primary);
 }
 
 .post-content p {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
 }
 
 .post-content h1, .post-content h2, .post-content h3 {
-    font-family: var(--font-serif);
-    margin: 40px 0 20px 0;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    margin: 48px 0 20px 0;
+    font-weight: 700;
+    line-height: 1.3;
 }
 
-.post-content h1 { font-size: 1.8rem; }
-.post-content h2 { font-size: 1.5rem; }
+.post-content h1 { font-size: 1.75rem; letter-spacing: -0.015em; }
+.post-content h2 { font-size: 1.5rem; letter-spacing: -0.01em; }
 .post-content h3 { font-size: 1.2rem; }
 
 .post-content blockquote {
     border-left: 3px solid var(--text-primary);
     padding-left: 20px;
-    margin: 24px 0;
+    margin: 32px 0;
     font-style: italic;
     color: var(--text-secondary);
+    font-size: 1.3rem;
 }
 
 .post-content ul, .post-content ol {
-    margin: 0 0 24px 24px;
+    margin: 0 0 28px 24px;
+    font-size: 1.15rem;
 }
 
 .post-content li {
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 .post-content pre {
     background-color: #fafafa;
     border: 1px solid var(--border-color);
-    padding: 16px;
-    border-radius: 6px;
+    padding: 18px;
+    border-radius: 4px;
     overflow-x: auto;
     font-family: monospace;
     font-size: 0.9rem;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
 }
 
 @media (prefers-color-scheme: dark) {
     .post-content pre {
-        background-color: #1e1e1e;
+        background-color: #1a1a1a;
     }
 }
 
@@ -798,38 +822,38 @@ body {
     border: 0;
     height: 1px;
     background-color: var(--border-color);
-    margin: 40px 0;
+    margin: 48px 0;
 }
 
 /* Footer style */
 footer {
     border-top: 1px solid var(--border-color);
-    padding: 30px 0;
+    padding: 40px 0;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.8rem;
-    margin-top: 60px;
+    font-size: 0.85rem;
+    margin-top: 80px;
 }
 
 .no-posts {
     text-align: center;
-    padding: 40px;
-    color: var(--text-muted);
+    padding: 50px;
+    color: var(--text-secondary);
     font-size: 1rem;
     border: 1px dashed var(--border-color);
-    border-radius: 8px;
+    border-radius: 6px;
 }
 
 /* Gallery styles */
 .post-gallery {
-    margin-top: 40px;
+    margin-top: 50px;
     border-top: 1px solid var(--border-color);
     padding-top: 30px;
 }
 
 .post-gallery h3 {
-    font-family: var(--font-serif);
-    font-size: 1.3rem;
+    font-family: var(--font-sans);
+    font-size: 1.2rem;
     margin-bottom: 20px;
     color: var(--text-secondary);
 }
@@ -844,14 +868,14 @@ footer {
     width: 100%;
     height: 140px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: 4px;
     border: 1px solid var(--border-color);
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transition: opacity 0.2s ease;
 }
 
 .gallery-grid img:hover {
-    transform: scale(1.02);
+    opacity: 0.85;
 }
 ";
         }

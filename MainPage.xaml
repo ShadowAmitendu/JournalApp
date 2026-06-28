@@ -1933,6 +1933,7 @@
                                     <TextBox x:Name="BlogRepoTextBox" Header="Blog Repository Name" PlaceholderText="my-journal-blog" Text="my-journal-blog" TextChanged="BlogRepoTextBox_TextChanged" />
                                     <TextBox x:Name="BlogTitleTextBox" Header="Blog Title" PlaceholderText="My Journal Blog" Text="My Journal Blog" TextChanged="BlogTitleTextBox_TextChanged" />
                                     <TextBox x:Name="BlogDescTextBox" Header="Blog Description" PlaceholderText="A collection of my thoughts and memories." Text="A collection of my thoughts and memories." TextChanged="BlogDescTextBox_TextChanged" />
+                                    <TextBox x:Name="BlogCustomCssTextBox" Header="Custom CSS Styles (Optional)" PlaceholderText="e.g. body { font-family: monospace; }" AcceptsReturn="True" Height="100" TextWrapping="Wrap" TextChanged="BlogCustomCssTextBox_TextChanged" />
 
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                                         <TextBlock Text="Live URL:" FontSize="12" VerticalAlignment="Center" FontWeight="SemiBold" />
