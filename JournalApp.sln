@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -14,9 +14,9 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Debug|Any CPU.ActiveCfg = Debug|x86
-		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Debug|Any CPU.Build.0 = Debug|x86
-		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Release|Any CPU.ActiveCfg = Release|x86
-		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Release|Any CPU.Build.0 = Release|x86
+		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Debug|Any CPU.Build.0 = Debug|x64
+		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Release|Any CPU.ActiveCfg = Release|x64
+		{525022EC-36D8-43F5-B06F-C93EEF06B785}.Release|Any CPU.Build.0 = Release|x64
 	EndGlobalSection
 EndGlobal
