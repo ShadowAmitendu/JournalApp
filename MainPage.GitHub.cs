@@ -696,7 +696,7 @@ namespace JournalApp
                         {
                             if (!string.IsNullOrEmpty(releaseHtmlUrl))
                             {
-                                await Windows.System.Launcher.LaunchUriAsync(new Uri(releaseHtmlUrl));
+                                await OpenUriWithBrowserSelectionAsync(new Uri(releaseHtmlUrl));
                             }
                         }
                         else
@@ -829,6 +829,29 @@ namespace JournalApp
 
                 string lockedCatsStr = string.Join(",", _lockedCategories);
                 SaveSetting("LockedCategories", lockedCatsStr);
+
+                // Local Backup Path
+                if (LocalBackupSelectedPathText != null)
+                {
+                    string pathStr = LocalBackupSelectedPathText.Text;
+                    if (pathStr == "No folder selected") pathStr = "";
+                    SaveSetting("LocalBackupPath", pathStr);
+                }
+
+                // Google Drive Token
+                if (GoogleDriveTokenPasswordBox != null)
+                    SaveSetting("GoogleDriveToken", GoogleDriveTokenPasswordBox.Password?.Trim());
+
+                // OneDrive Token
+                if (OneDriveTokenPasswordBox != null)
+                    SaveSetting("OneDriveToken", OneDriveTokenPasswordBox.Password?.Trim());
+
+                // Dropbox Token
+                if (DropboxTokenPasswordBox != null)
+                    SaveSetting("DropboxToken", DropboxTokenPasswordBox.Password?.Trim());
+
+                // Refresh UI configurations
+                LoadSavedBackupSettings();
             }
             catch (Exception ex)
             {
@@ -910,6 +933,27 @@ namespace JournalApp
             string savedGitHubRepo = GetSetting("GitHubRepo", "My-JournalApp-Backup");
             string currentGitHubRepo = GitHubRepoTextBox != null ? GitHubRepoTextBox.Text?.Trim() : "My-JournalApp-Backup";
             if (currentGitHubRepo != savedGitHubRepo) isDirty = true;
+
+            // Check Local Backup Path
+            string savedLocalPath = GetSetting("LocalBackupPath", "");
+            string currentLocalPath = LocalBackupSelectedPathText != null ? LocalBackupSelectedPathText.Text : "";
+            if (currentLocalPath == "No folder selected") currentLocalPath = "";
+            if (currentLocalPath != savedLocalPath) isDirty = true;
+
+            // Check Google Drive Token
+            string savedGDToken = GetSetting("GoogleDriveToken", "");
+            string currentGDToken = GoogleDriveTokenPasswordBox != null ? GoogleDriveTokenPasswordBox.Password?.Trim() : "";
+            if (currentGDToken != savedGDToken) isDirty = true;
+
+            // Check OneDrive Token
+            string savedODToken = GetSetting("OneDriveToken", "");
+            string currentODToken = OneDriveTokenPasswordBox != null ? OneDriveTokenPasswordBox.Password?.Trim() : "";
+            if (currentODToken != savedODToken) isDirty = true;
+
+            // Check Dropbox Token
+            string savedDBToken = GetSetting("DropboxToken", "");
+            string currentDBToken = DropboxTokenPasswordBox != null ? DropboxTokenPasswordBox.Password?.Trim() : "";
+            if (currentDBToken != savedDBToken) isDirty = true;
 
             // Check Master Password
             string savedPassword = GetSecureMasterPassword();
@@ -1131,6 +1175,7 @@ namespace JournalApp
                     var split = lockedCatsStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
                     _lockedCategories.AddRange(split);
                 }
+                LoadSavedBackupSettings();
             }
             catch (Exception ex)
             {
@@ -1800,77 +1845,280 @@ namespace JournalApp
             }
         }
 
-        public bool IsBackupNeeded()
+        private bool IsBackupNeededForProvider(string lastSyncKey)
         {
-            string token = GetSecureToken();
-            if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
-            string repoName = GetSetting("GitHubRepo");
+            string lastSyncStr = GetSetting(lastSyncKey);
+            if (string.IsNullOrEmpty(lastSyncStr)) return true; // Never synced, need backup
+            if (!DateTime.TryParse(lastSyncStr, out var lastSyncTime)) return true;
 
-            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName))
-            {
-                return false; // Cannot backup if not configured
-            }
-
-            string lastSyncStr = GetSetting("GitHubLastSynced");
-            if (string.IsNullOrEmpty(lastSyncStr))
-            {
-                return true; // Never synced, need backup
-            }
-
-            if (!DateTime.TryParse(lastSyncStr, out var lastSyncTime))
-            {
-                return true;
-            }
-
-            // Check metadata changes
             string notesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "notes.json");
-            if (File.Exists(notesMetaPath) && File.GetLastWriteTime(notesMetaPath) > lastSyncTime.AddSeconds(1))
-            {
-                return true;
-            }
+            if (File.Exists(notesMetaPath) && File.GetLastWriteTime(notesMetaPath) > lastSyncTime.AddSeconds(1)) return true;
 
             string categoriesMetaPath = Path.Combine(JournalManager.Instance.DataDir, "categories.json");
-            if (File.Exists(categoriesMetaPath) && File.GetLastWriteTime(categoriesMetaPath) > lastSyncTime.AddSeconds(1))
-            {
-                return true;
-            }
+            if (File.Exists(categoriesMetaPath) && File.GetLastWriteTime(categoriesMetaPath) > lastSyncTime.AddSeconds(1)) return true;
 
-            // Check if any RTF note files were modified after last sync
             if (Directory.Exists(JournalManager.Instance.NotesDir))
             {
                 foreach (var file in Directory.GetFiles(JournalManager.Instance.NotesDir, "*.rtf"))
                 {
-                    if (File.GetLastWriteTime(file) > lastSyncTime.AddSeconds(1))
-                    {
-                        return true;
-                    }
+                    if (File.GetLastWriteTime(file) > lastSyncTime.AddSeconds(1)) return true;
                 }
             }
 
             return false;
         }
 
-        public void UpdateTitleBarBackupButtonState()
+        public bool IsBackupNeeded()
+        {
+            // GitHub
+            string ghToken = GetSecureToken();
+            if (string.IsNullOrEmpty(ghToken)) ghToken = GetSetting("GitHubToken");
+            string ghRepo = GetSetting("GitHubRepo");
+            if (!string.IsNullOrEmpty(ghToken) && !string.IsNullOrEmpty(ghRepo))
+            {
+                if (IsBackupNeededForProvider("GitHubLastSynced")) return true;
+            }
+
+            // Local
+            if (!string.IsNullOrEmpty(GetSetting("LocalBackupPath")))
+            {
+                if (IsBackupNeededForProvider("LocalLastSynced")) return true;
+            }
+
+            // Google Drive
+            if (!string.IsNullOrEmpty(GetSetting("GoogleDriveToken")))
+            {
+                if (IsBackupNeededForProvider("GoogleDriveLastSynced")) return true;
+            }
+
+            // OneDrive
+            if (!string.IsNullOrEmpty(GetSetting("OneDriveToken")))
+            {
+                if (IsBackupNeededForProvider("OneDriveLastSynced")) return true;
+            }
+
+            // Dropbox
+            if (!string.IsNullOrEmpty(GetSetting("DropboxToken")))
+            {
+                if (IsBackupNeededForProvider("DropboxLastSynced")) return true;
+            }
+
+            return false;
+        }
+
+        private async Task<bool> IsRemoteAheadAsync()
+        {
+            try
+            {
+                string token = GetSecureToken();
+                if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
+                string repoName = GetSetting("GitHubRepo");
+                if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName)) return false;
+
+                repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
+                repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
+
+                string username = await GetGitHubUsername(token);
+                if (string.IsNullOrEmpty(username)) return false;
+
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                
+                var response = await client.GetAsync($"https://api.github.com/repos/{username}/{repoName}/commits?per_page=1");
+                if (response.IsSuccessStatusCode)
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+                    {
+                        var firstCommit = doc.RootElement[0];
+                        string dateStr = firstCommit.GetProperty("commit").GetProperty("committer").GetProperty("date").GetString();
+                        if (DateTime.TryParse(dateStr, out var remoteCommitTime))
+                        {
+                            string lastSyncStr = GetSetting("GitHubLastSynced");
+                            if (!string.IsNullOrEmpty(lastSyncStr) && DateTime.TryParse(lastSyncStr, out var localSyncTime))
+                            {
+                                return remoteCommitTime > localSyncTime.AddSeconds(2);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"IsRemoteAhead error: {ex.Message}");
+            }
+            return false;
+        }
+
+        public async void UpdateTitleBarBackupButtonState()
         {
             string token = GetSecureToken();
             if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
             string repoName = GetSetting("GitHubRepo");
 
-            bool isConfigured = !string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repoName);
+            bool isConfigured = (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repoName)) ||
+                                !string.IsNullOrEmpty(GetSetting("LocalBackupPath")) ||
+                                !string.IsNullOrEmpty(GetSetting("GoogleDriveToken")) ||
+                                !string.IsNullOrEmpty(GetSetting("OneDriveToken")) ||
+                                !string.IsNullOrEmpty(GetSetting("DropboxToken"));
 
             if (GitHubNavItem != null)
             {
-                GitHubNavItem.Visibility = isConfigured ? Visibility.Visible : Visibility.Collapsed;
+                GitHubNavItem.Visibility = (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repoName)) ? Visibility.Visible : Visibility.Collapsed;
             }
 
             if (MainWindow.Instance == null) return;
             bool isBackupNeeded = IsBackupNeeded();
+            
+            bool remoteAhead = false;
+            if (!string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(repoName))
+            {
+                remoteAhead = await IsRemoteAheadAsync();
+            }
+
             MainWindow.Instance.UpdateBackupButtonState(isBackupNeeded, isConfigured);
+
+            if (remoteAhead)
+            {
+                MainWindow.Instance.SetPullChangesState();
+            }
         }
 
-        public void TriggerBackupFromTitleBar()
+        public async void TriggerBackupFromTitleBar()
         {
-            GitHubSyncButton_Click(null, null);
+            if (MainWindow.Instance != null && MainWindow.Instance.IsPullChangesState)
+            {
+                GitHubPullButton_Click(null, null);
+                return;
+            }
+
+            if (MainWindow.Instance != null)
+            {
+                MainWindow.Instance.SetBackupButtonLoadingState(true);
+            }
+
+            try
+            {
+                var files = GetFilesToBackup();
+
+                // GitHub
+                string ghToken = GetSecureToken();
+                if (string.IsNullOrEmpty(ghToken)) ghToken = GetSetting("GitHubToken");
+                string ghRepo = GetSetting("GitHubRepo");
+                if (!string.IsNullOrEmpty(ghToken) && !string.IsNullOrEmpty(ghRepo))
+                {
+                    await SyncGitHubBackupSilent();
+                }
+
+                // Local Backup
+                string localPath = GetSetting("LocalBackupPath");
+                if (!string.IsNullOrEmpty(localPath) && Directory.Exists(localPath))
+                {
+                    var provider = new Backup.LocalFolderBackupProvider();
+                    await provider.SyncUpAsync(files, null);
+                    SaveSetting("LocalLastSynced", DateTime.Now.ToString("o"));
+                }
+
+                // Google Drive
+                if (!string.IsNullOrEmpty(GetSetting("GoogleDriveToken")))
+                {
+                    var provider = new Backup.GoogleDriveBackupProvider();
+                    await provider.SyncUpAsync(files, null);
+                    SaveSetting("GoogleDriveLastSynced", DateTime.Now.ToString("o"));
+                }
+
+                // OneDrive
+                if (!string.IsNullOrEmpty(GetSetting("OneDriveToken")))
+                {
+                    var provider = new Backup.OneDriveBackupProvider();
+                    await provider.SyncUpAsync(files, null);
+                    SaveSetting("OneDriveLastSynced", DateTime.Now.ToString("o"));
+                }
+
+                // Dropbox
+                if (!string.IsNullOrEmpty(GetSetting("DropboxToken")))
+                {
+                    var provider = new Backup.DropboxBackupProvider();
+                    await provider.SyncUpAsync(files, null);
+                    SaveSetting("DropboxLastSynced", DateTime.Now.ToString("o"));
+                }
+
+                if (MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.ShowBackupCompleteNotification("Successfully backed up all changes to your configured backup platforms.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Titlebar backup error: {ex.Message}");
+                await ShowAlertAsync("Backup Failed", $"An error occurred during background sync:\n{ex.Message}");
+            }
+            finally
+            {
+                if (MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.SetBackupButtonLoadingState(false);
+                }
+                LoadSavedBackupSettings();
+                UpdateSaveSettingsButtonState();
+                UpdateTitleBarBackupButtonState();
+            }
+        }
+
+        private async Task SyncGitHubBackupSilent()
+        {
+            string token = GetSecureToken();
+            if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
+            string repoName = GetSetting("GitHubRepo");
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName)) return;
+
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
+            repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
+
+            string username = await GetGitHubUsername(token);
+            if (string.IsNullOrEmpty(username)) return;
+
+            await EnsureGitHubRepositoryExists(username, repoName, token);
+
+            var files = GetFilesToBackup();
+            for (int i = 0; i < files.Count; i++)
+            {
+                var file = files[i];
+                await SyncFileToGitHub(username, repoName, file.LocalPath, file.RemotePath, $"Backup note {Path.GetFileNameWithoutExtension(file.LocalPath)}");
+            }
+            SaveSetting("GitHubLastSynced", DateTime.Now.ToString("o"));
+        }
+
+        private async Task<string> GetGitHubUsername(string token)
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await client.GetAsync("https://api.github.com/user");
+            if (!response.IsSuccessStatusCode) return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return doc.RootElement.GetProperty("login").GetString();
+        }
+
+        private async Task EnsureGitHubRepositoryExists(string username, string repoName, string token)
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await client.GetAsync($"https://api.github.com/repos/{username}/{repoName}");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                var repoData = new { name = repoName, description = "Secure private backup for my JournalApp entries", @private = true };
+                string repoJson = System.Text.Json.JsonSerializer.Serialize(repoData);
+                var content = new StringContent(repoJson, System.Text.Encoding.UTF8, "application/json");
+                var createResponse = await client.PostAsync("https://api.github.com/user/repos", content);
+                createResponse.EnsureSuccessStatusCode();
+            }
+            else
+            {
+                response.EnsureSuccessStatusCode();
+            }
         }
     }
 }

@@ -174,12 +174,33 @@ namespace JournalApp
         /// <summary>
         /// Handler to toggle numbered lists formatting on paragraph items.
         /// </summary>
-        private void NumberedListButton_Click(object sender, RoutedEventArgs e)
+        private async void NumberedListButton_Click(object sender, RoutedEventArgs e)
         {
             var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
-            format.ListType = (format.ListType == MarkerType.Arabic) ? MarkerType.None : MarkerType.Arabic;
-            NoteRichEditBox.Document.Selection.ParagraphFormat = format;
-            MarkDirty();
+            if (format.ListType == MarkerType.Arabic)
+            {
+                format.ListType = MarkerType.None;
+                NoteRichEditBox.Document.Selection.ParagraphFormat = format;
+                MarkDirty();
+            }
+            else
+            {
+                string result = await PromptForTextInputAsync("Numbered List", "Enter starting number (Default: 1):", "1");
+                if (result != null)
+                {
+                    format.ListType = MarkerType.Arabic;
+                    if (int.TryParse(result, out int startNum) && startNum >= 0)
+                    {
+                        format.ListStart = startNum;
+                    }
+                    else
+                    {
+                        format.ListStart = 1;
+                    }
+                    NoteRichEditBox.Document.Selection.ParagraphFormat = format;
+                    MarkDirty();
+                }
+            }
         }
 
         /// <summary>

@@ -11,12 +11,12 @@
   <Identity
     Name="4682AB9F-6697-4805-9178-BA8092121E82"
     Publisher="CN=Shadow Amitendu (Amitendu Bikash Dhusiya)"
-    Version="1.4.2.0" />
+    Version="1.4.3.0" />
 
   <mp:PhoneIdentity PhoneProductId="4682AB9F-6697-4805-9178-BA8092121E82" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>JournalApp</DisplayName>
+    <DisplayName>Journal App</DisplayName>
     <PublisherDisplayName>Shadow Amitendu (Amitendu Bikash Dhusiya)</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -48,7 +48,7 @@
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
-    <systemai:Capability Name="systemAIModels" />
     <DeviceCapability Name="microphone" />
+    <DeviceCapability Name="location" />
   </Capabilities>
 </Package>

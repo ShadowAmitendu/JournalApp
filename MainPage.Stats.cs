@@ -119,11 +119,11 @@ namespace JournalApp
 
             for (int r = 0; r < 7; r++)
             {
-                ContributionGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                ContributionGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             }
             for (int c = 0; c < 53; c++)
             {
-                ContributionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                ContributionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             }
 
             var noteCounts = JournalManager.Instance.Notes
@@ -167,8 +167,8 @@ namespace JournalApp
 
                     var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
                     {
-                        Width = 10,
-                        Height = 10,
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
+                        VerticalAlignment = VerticalAlignment.Stretch,
                         RadiusX = 2,
                         RadiusY = 2,
                         Fill = GetBrushFromHex(hexColor),

@@ -1563,6 +1563,133 @@
                                     <ToggleSwitch x:Name="AutoBackupToggle" Header="Auto-Backup on Save" IsOn="False" Toggled="AutoBackupToggle_Toggled" OnContent="Enabled" OffContent="Disabled" Margin="0,8,0,0" />
                                 </StackPanel>
                             </Expander>
+
+                            <!-- Local/Network Backup -->
+                            <Expander IsExpanded="False" ExpandDirection="Down" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <Grid ColumnSpacing="32" Padding="4,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE8B7;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="Local/Network Drive Backup" FontSize="14" FontWeight="Medium" />
+                                            <TextBlock Text="Backup your journal to a local folder, external SSD, or network drive (NAS)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Button x:Name="LocalBackupSyncButton" Content="Sync" Click="LocalBackupSyncButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                                            <Button x:Name="LocalBackupPullButton" Content="Pull Backup" Click="LocalBackupPullButton_Click" Visibility="Collapsed" />
+                                            <Button x:Name="LocalBackupDisconnectButton" Content="Disconnect" Click="LocalBackupDisconnectButton_Click" Visibility="Collapsed" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+                                <StackPanel Spacing="12" Margin="40,0,0,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Button x:Name="LocalBackupChooseFolderButton" Content="Choose Backup Folder..." Click="LocalBackupChooseFolderButton_Click" />
+                                        <TextBlock x:Name="LocalBackupSelectedPathText" Text="No folder selected" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <StackPanel x:Name="LocalBackupStatusPanel" Spacing="4" Visibility="Collapsed">
+                                        <TextBlock x:Name="LocalBackupStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
+                                        <TextBlock x:Name="LocalBackupStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <ProgressBar x:Name="LocalBackupSyncProgressBar" IsIndeterminate="False" Height="4" Value="0" Margin="0,4,0,0" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
+
+                            <!-- Google Drive Backup -->
+                            <Expander IsExpanded="False" ExpandDirection="Down" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <Grid ColumnSpacing="32" Padding="4,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE8B9;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="Google Drive Backup" FontSize="14" FontWeight="Medium" />
+                                            <TextBlock Text="Backup and sync your journal to Google Drive" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Button x:Name="GoogleDriveSyncButton" Content="Sync" Click="GoogleDriveSyncButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                                            <Button x:Name="GoogleDrivePullButton" Content="Pull Backup" Click="GoogleDrivePullButton_Click" Visibility="Collapsed" />
+                                            <Button x:Name="GoogleDriveDisconnectButton" Content="Disconnect" Click="GoogleDriveDisconnectButton_Click" Visibility="Collapsed" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+                                <StackPanel Spacing="12" Margin="40,0,0,8">
+                                    <PasswordBox x:Name="GoogleDriveTokenPasswordBox" Header="Google Drive Access Token" PlaceholderText="ya29.a0A..." PasswordRevealMode="Hidden" PasswordChanged="GoogleDriveTokenPasswordBox_PasswordChanged" />
+                                    <StackPanel x:Name="GoogleDriveStatusPanel" Spacing="4" Visibility="Collapsed">
+                                        <TextBlock x:Name="GoogleDriveStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
+                                        <TextBlock x:Name="GoogleDriveStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <ProgressBar x:Name="GoogleDriveSyncProgressBar" IsIndeterminate="False" Height="4" Value="0" Margin="0,4,0,0" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
+
+                            <!-- OneDrive Backup -->
+                            <Expander IsExpanded="False" ExpandDirection="Down" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <Grid ColumnSpacing="32" Padding="4,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xECC9;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="Microsoft OneDrive Backup" FontSize="14" FontWeight="Medium" />
+                                            <TextBlock Text="Backup and sync your journal to Microsoft OneDrive" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Button x:Name="OneDriveSyncButton" Content="Sync" Click="OneDriveSyncButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                                            <Button x:Name="OneDrivePullButton" Content="Pull Backup" Click="OneDrivePullButton_Click" Visibility="Collapsed" />
+                                            <Button x:Name="OneDriveDisconnectButton" Content="Disconnect" Click="OneDriveDisconnectButton_Click" Visibility="Collapsed" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+                                <StackPanel Spacing="12" Margin="40,0,0,8">
+                                    <PasswordBox x:Name="OneDriveTokenPasswordBox" Header="OneDrive Access Token" PlaceholderText="EwB4A..." PasswordRevealMode="Hidden" PasswordChanged="OneDriveTokenPasswordBox_PasswordChanged" />
+                                    <StackPanel x:Name="OneDriveStatusPanel" Spacing="4" Visibility="Collapsed">
+                                        <TextBlock x:Name="OneDriveStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
+                                        <TextBlock x:Name="OneDriveStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <ProgressBar x:Name="OneDriveSyncProgressBar" IsIndeterminate="False" Height="4" Value="0" Margin="0,4,0,0" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
+
+                            <!-- Dropbox Backup -->
+                            <Expander IsExpanded="False" ExpandDirection="Down" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <Grid ColumnSpacing="32" Padding="4,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE10C;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="Dropbox Backup" FontSize="14" FontWeight="Medium" />
+                                            <TextBlock Text="Backup and sync your journal to Dropbox" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Button x:Name="DropboxSyncButton" Content="Sync" Click="DropboxSyncButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                                            <Button x:Name="DropboxPullButton" Content="Pull Backup" Click="DropboxPullButton_Click" Visibility="Collapsed" />
+                                            <Button x:Name="DropboxDisconnectButton" Content="Disconnect" Click="DropboxDisconnectButton_Click" Visibility="Collapsed" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+                                <StackPanel Spacing="12" Margin="40,0,0,8">
+                                    <PasswordBox x:Name="DropboxTokenPasswordBox" Header="Dropbox Access Token" PlaceholderText="sl.u.B..." PasswordRevealMode="Hidden" PasswordChanged="DropboxTokenPasswordBox_PasswordChanged" />
+                                    <StackPanel x:Name="DropboxStatusPanel" Spacing="4" Visibility="Collapsed">
+                                        <TextBlock x:Name="DropboxStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
+                                        <TextBlock x:Name="DropboxStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <ProgressBar x:Name="DropboxSyncProgressBar" IsIndeterminate="False" Height="4" Value="0" Margin="0,4,0,0" Visibility="Collapsed" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </StackPanel>
 
                         <!-- ── Security & Privacy ── -->
@@ -1977,8 +2104,8 @@
                         <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="20">
                             <StackPanel Spacing="16">
                                 <TextBlock Text="Writing Activity" FontSize="16" FontWeight="SemiBold" />
-                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Padding="0,0,0,8">
-                                    <Grid x:Name="ContributionGrid" ColumnSpacing="3" RowSpacing="3" HorizontalAlignment="Left" />
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" Padding="0,0,0,8" HorizontalAlignment="Stretch">
+                                    <Grid x:Name="ContributionGrid" ColumnSpacing="3" RowSpacing="3" HorizontalAlignment="Stretch" Height="110" />
                                 </ScrollViewer>
                                 <!-- Legend and Streaks -->
                                 <Grid ColumnSpacing="20">

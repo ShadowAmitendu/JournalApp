@@ -53,7 +53,7 @@ namespace JournalApp
             try
             {
                 var uri = new Uri("https://unsplash.com/developers");
-                await Windows.System.Launcher.LaunchUriAsync(uri);
+                await OpenUriWithBrowserSelectionAsync(uri);
             }
             catch (Exception ex)
             {

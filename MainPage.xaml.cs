@@ -5969,5 +5969,122 @@ namespace JournalApp
         {
             UpdateSaveSettingsButtonState();
         }
+
+        public async Task OpenUriWithBrowserSelectionAsync(Uri uri)
+        {
+            if (uri == null) return;
+            string url = uri.AbsoluteUri;
+
+            var dialog = new ContentDialog
+            {
+                Title = "Open Link",
+                CloseButtonText = "Cancel",
+                XamlRoot = this.XamlRoot
+            };
+
+            var stack = new StackPanel { Spacing = 12, Padding = new Thickness(0, 10, 0, 10) };
+            stack.Children.Add(new TextBlock { Text = $"Choose how you want to open this link:\n{url}", FontSize = 12, TextWrapping = TextWrapping.Wrap });
+
+            var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+            combo.Items.Add(new ComboBoxItem { Content = "Default System Browser", Tag = "Default" });
+            combo.Items.Add(new ComboBoxItem { Content = "Google Chrome", Tag = "Chrome" });
+            combo.Items.Add(new ComboBoxItem { Content = "Microsoft Edge", Tag = "Edge" });
+            combo.Items.Add(new ComboBoxItem { Content = "Mozilla Firefox", Tag = "Firefox" });
+            combo.Items.Add(new ComboBoxItem { Content = "Opera", Tag = "Opera" });
+            combo.Items.Add(new ComboBoxItem { Content = "Built-in Browser", Tag = "BuiltIn" });
+            combo.SelectedIndex = 0;
+            stack.Children.Add(combo);
+
+            dialog.Content = stack;
+            dialog.PrimaryButtonText = "Open";
+            
+            var res = await dialog.ShowAsync();
+            if (res == ContentDialogResult.Primary)
+            {
+                var selected = (combo.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+                if (selected == "BuiltIn")
+                {
+                    await OpenInBuiltInBrowserAsync(uri);
+                }
+                else if (selected == "Chrome")
+                {
+                    await LaunchBrowserProcessAsync("chrome.exe", url, uri);
+                }
+                else if (selected == "Edge")
+                {
+                    await LaunchBrowserProcessAsync("msedge.exe", url, uri);
+                }
+                else if (selected == "Firefox")
+                {
+                    await LaunchBrowserProcessAsync("firefox.exe", url, uri);
+                }
+                else if (selected == "Opera")
+                {
+                    await LaunchBrowserProcessAsync("opera.exe", url, uri);
+                }
+                else
+                {
+                    await Windows.System.Launcher.LaunchUriAsync(uri);
+                }
+            }
+        }
+
+        private async Task LaunchBrowserProcessAsync(string exe, string url, Uri fallbackUri)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = exe,
+                    Arguments = $"\"{url}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                await Windows.System.Launcher.LaunchUriAsync(fallbackUri);
+            }
+        }
+
+        private async Task OpenInBuiltInBrowserAsync(Uri uri)
+        {
+            try
+            {
+                var webView = new Microsoft.UI.Xaml.Controls.WebView2
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch,
+                    MinWidth = 800,
+                    MinHeight = 500
+                };
+
+                var container = new Grid
+                {
+                    Width = 850,
+                    Height = 550,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch
+                };
+                container.Children.Add(webView);
+
+                var browserDialog = new ContentDialog
+                {
+                    Title = "Built-in Browser",
+                    Content = container,
+                    CloseButtonText = "Close",
+                    XamlRoot = this.XamlRoot
+                };
+
+                await webView.EnsureCoreWebView2Async();
+                webView.Source = uri;
+
+                await browserDialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync("Error", $"Could not open built-in browser:\n{ex.Message}");
+                await Windows.System.Launcher.LaunchUriAsync(uri);
+            }
+        }
     }
 }

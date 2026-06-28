@@ -217,6 +217,24 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    public bool IsPullChangesState 
+    { 
+        get { return TitleBarBackupText != null && TitleBarBackupText.Text == "Pull Changes"; } 
+    }
+
+    public void SetPullChangesState()
+    {
+        if (TitleBarBackupText != null)
+        {
+            TitleBarBackupText.Text = "Pull Changes";
+        }
+        if (TitleBarBackupBtn != null)
+        {
+            TitleBarBackupBtn.IsEnabled = true;
+            ToolTipService.SetToolTip(TitleBarBackupBtn, "Remote repository has newer commits. Click to pull.");
+        }
+    }
+
     public void SetBackupButtonLoadingState(bool isLoading)
     {
         if (TitleBarBackupBtn != null)
