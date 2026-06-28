@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.26100.0</TargetFramework>
-    <Version>1.4.3.2</Version>
+    <Version>1.4.4.0</Version>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>JournalApp</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -21,6 +21,8 @@
     <Nullable>annotations</Nullable>
     <PublishTrimmed>false</PublishTrimmed>
     <JsonSerializerIsReflectionDisabledByDefault>false</JsonSerializerIsReflectionDisabledByDefault>
+    <!-- Provide certificate password for both Debug (dotnet run) and Release builds -->
+    <PackageCertificatePassword>ShadowBikash#2536</PackageCertificatePassword>
   </PropertyGroup>
 
   <ItemGroup>
@@ -114,6 +116,9 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
     <Compile Update="MainPage.Unsplash.cs">
+      <DependentUpon>MainPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Update="MainPage.AI.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>

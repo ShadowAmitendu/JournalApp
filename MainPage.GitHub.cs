@@ -850,6 +850,14 @@ namespace JournalApp
                 if (DropboxTokenPasswordBox != null)
                     SaveSetting("DropboxToken", DropboxTokenPasswordBox.Password?.Trim());
 
+                // Ollama API URL
+                if (OllamaUrlTextBox != null)
+                {
+                    string url = OllamaUrlTextBox.Text?.Trim() ?? "http://localhost:11434";
+                    SaveSetting("OllamaUrl", url);
+                    OllamaService.Instance.BaseUrl = url;
+                }
+
                 // Refresh UI configurations
                 LoadSavedBackupSettings();
             }
@@ -999,6 +1007,11 @@ namespace JournalApp
             string savedConfirm = GetSetting("ConfirmBeforeDelete", "False");
             bool currentConfirm = ConfirmDeleteToggle?.IsOn ?? false;
             if (currentConfirm.ToString() != string.Equals(savedConfirm, "True", StringComparison.OrdinalIgnoreCase).ToString()) isDirty = true;
+
+            // Check Ollama URL
+            string savedOllamaUrl = GetSetting("OllamaUrl", "http://localhost:11434");
+            string currentOllamaUrl = OllamaUrlTextBox != null ? OllamaUrlTextBox.Text?.Trim() : "http://localhost:11434";
+            if (currentOllamaUrl != savedOllamaUrl) isDirty = true;
 
             SaveSettingsButton.IsEnabled = isDirty;
         }
@@ -1175,6 +1188,15 @@ namespace JournalApp
                     var split = lockedCatsStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
                     _lockedCategories.AddRange(split);
                 }
+
+                // Load Ollama URL setting
+                string savedOllamaUrl = GetSetting("OllamaUrl", "http://localhost:11434");
+                if (OllamaUrlTextBox != null)
+                {
+                    OllamaUrlTextBox.Text = savedOllamaUrl;
+                }
+                OllamaService.Instance.BaseUrl = savedOllamaUrl;
+
                 LoadSavedBackupSettings();
             }
             catch (Exception ex)

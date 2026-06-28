@@ -704,8 +704,15 @@
                                 ToolTipService.ToolTip="Close (Escape)" Click="CloseFindBarBtn_Click" />
                     </Grid>
 
-                    <!-- Editor Pane ScrollViewer -->
-                    <ScrollViewer x:Name="EditorScrollViewer" Grid.Row="2" Padding="0" VerticalScrollBarVisibility="Auto" Background="Transparent">
+                    <!-- Editor Grid wrapper to place editor scroll viewer and AI panel side-by-side -->
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Editor Pane ScrollViewer -->
+                        <ScrollViewer x:Name="EditorScrollViewer" Grid.Column="0" Padding="0" VerticalScrollBarVisibility="Auto" Background="Transparent">
                         <!-- Redesigned Editor Grid (flush edge-to-edge container) -->
                         <Grid x:Name="EditorStackPanel" 
                               HorizontalAlignment="Stretch" 
@@ -923,6 +930,16 @@
 
                                     <!-- Right: Add Cover Button & Category Badge Button -->
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <!-- AI Assistant Toggle Button -->
+                                        <Button x:Name="AIAssistantButton" CornerRadius="12" Padding="10,4" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Toggle AI Writing Assistant (Ollama)" Click="AIAssistantButton_Click">
+                                            <Button.Content>
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon Glyph="&#xE99A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
+                                                    <TextBlock Text="AI Assist" FontSize="11" FontWeight="Medium" />
+                                                </StackPanel>
+                                            </Button.Content>
+                                        </Button>
+
                                         <!-- Add Cover Button (Visible only when cover is hidden) -->
                                         <Button x:Name="AddCoverButton" CornerRadius="12" Padding="10,4" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" ToolTipService.ToolTip="Add Cover Banner">
                                             <Button.Content>
@@ -1211,6 +1228,92 @@
                             </StackPanel>
                         </Grid>
                     </ScrollViewer>
+
+                        <!-- ════ AI ASSISTANT SIDE PANEL ════ -->
+                        <Border x:Name="AIAssistantPanel"
+                                Grid.Column="1"
+                                Visibility="Collapsed"
+                                Width="340"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Stretch"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Header -->
+                                <Grid Grid.Row="0" Padding="16,12,16,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE99A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="16" />
+                                        <TextBlock Text="AI Assistant" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <FontIcon x:Name="OllamaStatusIcon" Glyph="&#xE711;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
+                                        <TextBlock x:Name="OllamaStatusText" Text="—" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Model Selector -->
+                                <StackPanel Grid.Row="1" Padding="12,0,12,8" Spacing="6">
+                                    <ComboBox x:Name="AIModelCombo" HorizontalAlignment="Stretch" PlaceholderText="Select model…" />
+                                    <Button x:Name="AICheckConnectionButton" Content="Check Connection" HorizontalAlignment="Stretch" Click="AICheckConnectionButton_Click" Padding="8,4" />
+                                </StackPanel>
+
+                                <!-- Action Buttons grid -->
+                                <Grid Grid.Row="2" Padding="12,0,12,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Button x:Name="AIContinueButton" Grid.Row="0" Grid.Column="0" Content="✏️ Continue" Click="AIContinueButton_Click" Margin="0,3,3,3" HorizontalAlignment="Stretch" CornerRadius="8" />
+                                    <Button x:Name="AISummarizeButton" Grid.Row="0" Grid.Column="1" Content="📝 Summarize" Click="AISummarizeButton_Click" Margin="3,3,0,3" HorizontalAlignment="Stretch" CornerRadius="8" />
+                                    <Button x:Name="AIRewriteButton" Grid.Row="1" Grid.Column="0" Content="🔄 Rewrite" Click="AIRewriteButton_Click" Margin="0,3,3,3" HorizontalAlignment="Stretch" CornerRadius="8" />
+                                    <Button x:Name="AIPromptButton" Grid.Row="1" Grid.Column="1" Content="💡 Prompt" Click="AIPromptButton_Click" Margin="3,3,0,3" HorizontalAlignment="Stretch" CornerRadius="8" />
+                                    <Button x:Name="AIMoodButton" Grid.Row="2" Grid.Column="0" Content="😊 Mood" Click="AIMoodButton_Click" Margin="0,3,3,3" HorizontalAlignment="Stretch" CornerRadius="8" />
+                                    <Button x:Name="AITranslateButton" Grid.Row="2" Grid.Column="1" Content="🌐 Translate" Click="AITranslateButton_Click" Margin="3,3,0,3" HorizontalAlignment="Stretch" CornerRadius="8" />
+                                </Grid>
+
+                                <!-- Response Text -->
+                                <Border Grid.Row="3" Margin="12,0,12,8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="10">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <TextBlock x:Name="AIResponseBox"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="13"
+                                                   LineHeight="20"
+                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                   IsTextSelectionEnabled="True"
+                                                   Text="AI response will appear here…" />
+                                    </ScrollViewer>
+                                </Border>
+
+                                <!-- Footer -->
+                                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Padding="12,0,12,12" HorizontalAlignment="Right">
+                                    <Button x:Name="AIStopButton" Content="⏹ Stop" Click="AIStopButton_Click" Visibility="Collapsed" CornerRadius="8" />
+                                    <Button x:Name="AIClearButton" Content="Clear" Click="AIClearButton_Click" CornerRadius="8" />
+                                    <Button x:Name="AIInsertButton" Content="⬇ Insert" Click="AIInsertButton_Click" IsEnabled="False" CornerRadius="8" Style="{StaticResource AccentButtonStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <!-- END AI ASSISTANT SIDE PANEL -->
+
+                    </Grid>
 
                     <!-- Placeholder panel when no note is selected -->
                     <Grid x:Name="NoNotePlaceholder" Grid.Row="0" Grid.RowSpan="4" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -1730,6 +1833,39 @@
                                     <TextBlock Text="Re-lock the journal whenever the app window is minimized or hidden"
                                                FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                TextWrapping="Wrap" Margin="0,-4,0,0" />
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+
+                        <!-- ── Local AI (Ollama) ── -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Local AI (Ollama)" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Margin="4,8,0,8" CharacterSpacing="50" />
+
+                            <Expander IsExpanded="False" ExpandDirection="Down" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <Grid ColumnSpacing="32" Padding="4,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE99A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="Local AI Settings" FontSize="14" FontWeight="Medium" />
+                                            <TextBlock Text="Configure local Ollama service for AI writing assistance" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+                                <StackPanel Spacing="12" Padding="16,8">
+                                    <TextBlock Text="Run a local large language model using Ollama. Make sure Ollama is installed and running on your machine." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    
+                                    <TextBox x:Name="OllamaUrlTextBox" Header="Ollama API URL" PlaceholderText="http://localhost:11434" Text="http://localhost:11434" TextChanged="OllamaUrlTextBox_TextChanged" />
+                                    
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="SettingsTestOllamaButton" Content="Test Connection" Click="SettingsTestOllamaButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                                        <TextBlock x:Name="SettingsOllamaStatusText" Text="Not Tested" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Expander>
                         </StackPanel>
