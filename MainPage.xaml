@@ -940,6 +940,16 @@
                                             </Button.Content>
                                         </Button>
 
+                                        <!-- Publish to Blog Toggle Button -->
+                                        <ToggleButton x:Name="PublishToBlogToggle" CornerRadius="12" Padding="10,4" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Publish this entry to your public GitHub Pages Blog" Checked="PublishToBlogToggle_Checked" Unchecked="PublishToBlogToggle_Unchecked">
+                                            <ToggleButton.Content>
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon Glyph="&#xE774;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
+                                                    <TextBlock Text="Blog" FontSize="11" FontWeight="Medium" />
+                                                </StackPanel>
+                                            </ToggleButton.Content>
+                                        </ToggleButton>
+
                                         <!-- Add Cover Button (Visible only when cover is hidden) -->
                                         <Button x:Name="AddCoverButton" CornerRadius="12" Padding="10,4" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Visibility="Collapsed" ToolTipService.ToolTip="Add Cover Banner">
                                             <Button.Content>
@@ -1865,6 +1875,47 @@
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Button x:Name="SettingsTestOllamaButton" Content="Test Connection" Click="SettingsTestOllamaButton_Click" Style="{StaticResource AccentButtonStyle}" />
                                         <TextBlock x:Name="SettingsOllamaStatusText" Text="Not Tested" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+
+                        <!-- ── Blog Publisher (GitHub Pages) ── -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Blog Publisher (GitHub Pages)" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Margin="4,8,0,8" CharacterSpacing="50" />
+
+                            <Expander IsExpanded="False" ExpandDirection="Down" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <Grid ColumnSpacing="32" Padding="4,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0" Glyph="&#xE774;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="GitHub Pages Blog" FontSize="14" FontWeight="Medium" />
+                                            <TextBlock Text="Publish selected journal entries to your public GitHub Pages blog" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Expander.Header>
+                                <StackPanel Spacing="12" Padding="16,8">
+                                    <TextBlock Text="Generate a clean, beautiful static blog from your checked 'Blog' entries. The repository must be public for GitHub Pages to host it." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    
+                                    <TextBox x:Name="BlogRepoTextBox" Header="Blog Repository Name" PlaceholderText="my-journal-blog" Text="my-journal-blog" TextChanged="BlogRepoTextBox_TextChanged" />
+                                    <TextBox x:Name="BlogTitleTextBox" Header="Blog Title" PlaceholderText="My Journal Blog" Text="My Journal Blog" TextChanged="BlogTitleTextBox_TextChanged" />
+                                    <TextBox x:Name="BlogDescTextBox" Header="Blog Description" PlaceholderText="A collection of my thoughts and memories." Text="A collection of my thoughts and memories." TextChanged="BlogDescTextBox_TextChanged" />
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                        <TextBlock Text="Live URL:" FontSize="12" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                        <HyperlinkButton x:Name="BlogLiveUrlButton" Content="Not Configured" NavigateUri="https://github.com" FontSize="12" Padding="0" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+                                        <Button x:Name="SettingsPublishBlogButton" Content="Publish / Sync Blog" Click="SettingsPublishBlogButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                                        <ProgressRing x:Name="BlogPublishProgressRing" Width="20" Height="20" IsActive="False" Visibility="Collapsed" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="BlogPublishStatusText" Text="Ready" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
                                 </StackPanel>
                             </Expander>

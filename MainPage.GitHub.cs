@@ -858,6 +858,18 @@ namespace JournalApp
                     OllamaService.Instance.BaseUrl = url;
                 }
 
+                // Blog Settings
+                if (BlogRepoTextBox != null)
+                {
+                    string blogRepo = BlogRepoTextBox.Text?.Trim() ?? "my-journal-blog";
+                    SaveSetting("BlogRepo", blogRepo);
+                    UpdateBlogLiveUrlLink(blogRepo);
+                }
+                if (BlogTitleTextBox != null)
+                    SaveSetting("BlogTitle", BlogTitleTextBox.Text?.Trim() ?? "My Journal Blog");
+                if (BlogDescTextBox != null)
+                    SaveSetting("BlogDesc", BlogDescTextBox.Text?.Trim() ?? "A collection of my thoughts and memories.");
+
                 // Refresh UI configurations
                 LoadSavedBackupSettings();
             }
@@ -1012,6 +1024,19 @@ namespace JournalApp
             string savedOllamaUrl = GetSetting("OllamaUrl", "http://localhost:11434");
             string currentOllamaUrl = OllamaUrlTextBox != null ? OllamaUrlTextBox.Text?.Trim() : "http://localhost:11434";
             if (currentOllamaUrl != savedOllamaUrl) isDirty = true;
+
+            // Check Blog settings
+            string savedBlogRepo = GetSetting("BlogRepo", "my-journal-blog");
+            string currentBlogRepo = BlogRepoTextBox != null ? BlogRepoTextBox.Text?.Trim() : "my-journal-blog";
+            if (currentBlogRepo != savedBlogRepo) isDirty = true;
+
+            string savedBlogTitle = GetSetting("BlogTitle", "My Journal Blog");
+            string currentBlogTitle = BlogTitleTextBox != null ? BlogTitleTextBox.Text?.Trim() : "My Journal Blog";
+            if (currentBlogTitle != savedBlogTitle) isDirty = true;
+
+            string savedBlogDesc = GetSetting("BlogDesc", "A collection of my thoughts and memories.");
+            string currentBlogDesc = BlogDescTextBox != null ? BlogDescTextBox.Text?.Trim() : "A collection of my thoughts and memories.";
+            if (currentBlogDesc != savedBlogDesc) isDirty = true;
 
             SaveSettingsButton.IsEnabled = isDirty;
         }
@@ -1196,6 +1221,18 @@ namespace JournalApp
                     OllamaUrlTextBox.Text = savedOllamaUrl;
                 }
                 OllamaService.Instance.BaseUrl = savedOllamaUrl;
+
+                // Load Blog configurations
+                string savedBlogRepo = GetSetting("BlogRepo", "my-journal-blog");
+                if (BlogRepoTextBox != null) BlogRepoTextBox.Text = savedBlogRepo;
+
+                string savedBlogTitle = GetSetting("BlogTitle", "My Journal Blog");
+                if (BlogTitleTextBox != null) BlogTitleTextBox.Text = savedBlogTitle;
+
+                string savedBlogDesc = GetSetting("BlogDesc", "A collection of my thoughts and memories.");
+                if (BlogDescTextBox != null) BlogDescTextBox.Text = savedBlogDesc;
+
+                UpdateBlogLiveUrlLink(savedBlogRepo);
 
                 LoadSavedBackupSettings();
             }

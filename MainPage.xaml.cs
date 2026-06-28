@@ -1341,6 +1341,14 @@ namespace JournalApp
                     defaultFormat.ForegroundColor = Microsoft.UI.Colors.Black;
                 }
                 NoteRichEditBox.Document.SetDefaultCharacterFormat(defaultFormat);
+
+                // Load Blog toggle state
+                if (PublishToBlogToggle != null)
+                {
+                    _isLoadingNote = true;
+                    PublishToBlogToggle.IsChecked = SelectedNote.IsBlogPublished;
+                    _isLoadingNote = false;
+                }
             }
             catch (Exception ex)
             {

@@ -26,6 +26,7 @@ namespace JournalApp
         public bool HasTime { get; set; } = true;
         public string EditorWidth { get; set; } = "Medium";
         public bool IsLocked { get; set; }
+        public bool IsBlogPublished { get; set; } = false;
 
         // ── Moments section ──
         public string LocationTag { get; set; } = "";
