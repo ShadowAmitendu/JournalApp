@@ -465,6 +465,27 @@
                                  </Button.Flyout>
                              </Button>
 
+                             <!-- Text Color -->
+                             <Button ToolTipService.ToolTip="Text Color" Width="44" Height="32" Padding="0">
+                                 <Button.Content>
+                                     <StackPanel Orientation="Horizontal" Spacing="4" Padding="6,0">
+                                         <FontIcon Glyph="&#xE706;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                         <FontIcon Glyph="&#xE0E5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="8" VerticalAlignment="Center" />
+                                     </StackPanel>
+                                 </Button.Content>
+                                 <Button.Flyout>
+                                     <MenuFlyout>
+                                         <MenuFlyoutItem Text="Default" Tag="Default" Click="TextColorButton_Click" />
+                                         <MenuFlyoutItem Text="Red" Tag="#FF0000" Click="TextColorButton_Click" />
+                                         <MenuFlyoutItem Text="Blue" Tag="#0000FF" Click="TextColorButton_Click" />
+                                         <MenuFlyoutItem Text="Green" Tag="#008000" Click="TextColorButton_Click" />
+                                         <MenuFlyoutItem Text="Orange" Tag="#FFA500" Click="TextColorButton_Click" />
+                                         <MenuFlyoutItem Text="Purple" Tag="#800080" Click="TextColorButton_Click" />
+                                         <MenuFlyoutItem Text="Gray" Tag="#808080" Click="TextColorButton_Click" />
+                                     </MenuFlyout>
+                                 </Button.Flyout>
+                             </Button>
+
                             <AppBarSeparator />
 
                             <Button ToolTipService.ToolTip="Align Left" Click="AlignLeftButton_Click" Width="36" Height="32" Padding="0">
@@ -490,15 +511,28 @@
 
                             <AppBarSeparator />
 
-                            <Button ToolTipService.ToolTip="Bulleted List" Click="BulletListButton_Click" Width="36" Height="32" Padding="0">
+                            <!-- Lists Dropdown -->
+                            <Button ToolTipService.ToolTip="Lists" Width="44" Height="32" Padding="0">
                                 <Button.Content>
-                                    <FontIcon Glyph="&#xE8FD;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Padding="6,0">
+                                        <FontIcon Glyph="&#xE8FD;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                        <FontIcon Glyph="&#xE0E5;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="8" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </Button.Content>
-                            </Button>
-                            <Button x:Name="ChecklistButton" ToolTipService.ToolTip="Checklist" Click="ChecklistButton_Click" Width="36" Height="32" Padding="0">
-                                <Button.Content>
-                                    <FontIcon Glyph="&#xE73A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
-                                </Button.Content>
+                                <Button.Flyout>
+                                    <MenuFlyout>
+                                        <MenuFlyoutItem Text="Bulleted List" Click="BulletListButton_Click">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE8FD;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Numbered List" Click="NumberedListButton_Click">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE179;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
                             </Button>
 
                             <AppBarSeparator />
@@ -966,7 +1000,7 @@
                                 <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" HorizontalAlignment="Stretch" />
 
                                 <!-- Title Input (Borderless) -->
-                                <TextBox x:Name="TitleTextBox" TextChanged="TitleTextBox_TextChanged" PlaceholderText="Untitled Journal Entry" FontSize="32" FontWeight="Bold" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,4" SelectionHighlightColor="{ThemeResource SystemAccentColor}">
+                                <TextBox x:Name="TitleTextBox" TextChanged="TitleTextBox_TextChanged" KeyDown="TitleTextBox_KeyDown" PlaceholderText="Untitled Journal Entry" FontSize="32" FontWeight="Bold" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,4" SelectionHighlightColor="{ThemeResource SystemAccentColor}">
                                     <TextBox.Resources>
                                         <Thickness x:Key="TextControlBorderThemeThickness">0</Thickness>
                                         <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
@@ -1246,10 +1280,14 @@
                 </InfoBar>
             </Grid>
             
-            <!-- Settings Grid -->
             <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                
                 <!-- Scrollable Settings Content -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000"
                                 HorizontalAlignment="Stretch"
                                 Padding="40,40,40,40"
@@ -1662,27 +1700,31 @@
                                 </StackPanel>
                             </Expander>
                         </StackPanel>
-
-                        <!-- Save Settings Button -->
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,14">
-                            <Grid>
-                                <StackPanel VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock Text="Save Settings" FontSize="14" FontWeight="Medium" />
-                                    <TextBlock Text="Apply and persist all your current setting preferences" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                </StackPanel>
-                                <Button x:Name="SaveSettingsButton" IsEnabled="False" Grid.Column="1" Click="SaveSettingsButton_Click"
-                                        HorizontalAlignment="Right" VerticalAlignment="Center"
-                                        Style="{StaticResource AccentButtonStyle}" MinWidth="120">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon x:Name="SaveSettingsIcon" Glyph="&#xE74E;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="13" />
-                                        <TextBlock x:Name="SaveSettingsText" Text="Save Settings" />
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
-                        </Border>
                         <Border Height="32" />
                     </StackPanel>
                 </ScrollViewer>
+
+                <!-- Floating Save Settings Bar -->
+                <Border Grid.Row="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Padding="40,16">
+                    <Grid MaxWidth="1000" HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="Save Settings" FontSize="14" FontWeight="Medium" />
+                            <TextBlock Text="Apply and persist all your current setting preferences" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <Button x:Name="SaveSettingsButton" IsEnabled="False" Grid.Column="1" Click="SaveSettingsButton_Click"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Style="{StaticResource AccentButtonStyle}" MinWidth="120">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon x:Name="SaveSettingsIcon" Glyph="&#xE74E;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="13" />
+                                <TextBlock x:Name="SaveSettingsText" Text="Save Settings" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
             </Grid>
 
             <!-- GitHub Commit History Grid -->

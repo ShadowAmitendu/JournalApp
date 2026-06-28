@@ -901,7 +901,8 @@ namespace JournalApp
             if (currentUnsplashKey != savedUnsplashKey) isDirty = true;
 
             // Check GitHub Token
-            string savedGitHubToken = GetSetting("GitHubToken", "");
+            string savedGitHubToken = GetSecureToken();
+            if (string.IsNullOrEmpty(savedGitHubToken)) savedGitHubToken = GetSetting("GitHubToken", "");
             string currentGitHubToken = GitHubTokenPasswordBox != null ? GitHubTokenPasswordBox.Password?.Trim() : "";
             if (currentGitHubToken != savedGitHubToken) isDirty = true;
 
@@ -911,7 +912,7 @@ namespace JournalApp
             if (currentGitHubRepo != savedGitHubRepo) isDirty = true;
 
             // Check Master Password
-            string savedPassword = GetSetting("MasterPassword", "");
+            string savedPassword = GetSecureMasterPassword();
             string currentPassword = MasterPasswordBox != null ? MasterPasswordBox.Password : "";
             if (currentPassword != savedPassword) isDirty = true;
 

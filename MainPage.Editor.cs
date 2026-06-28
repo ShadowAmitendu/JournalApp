@@ -172,6 +172,17 @@ namespace JournalApp
         }
 
         /// <summary>
+        /// Handler to toggle numbered lists formatting on paragraph items.
+        /// </summary>
+        private void NumberedListButton_Click(object sender, RoutedEventArgs e)
+        {
+            var format = NoteRichEditBox.Document.Selection.ParagraphFormat;
+            format.ListType = (format.ListType == MarkerType.Arabic) ? MarkerType.None : MarkerType.Arabic;
+            NoteRichEditBox.Document.Selection.ParagraphFormat = format;
+            MarkDirty();
+        }
+
+        /// <summary>
         /// Prepends a checklist checkbox marker (☐) at the editor cursor location.
         /// </summary>
         private void ChecklistButton_Click(object sender, RoutedEventArgs e)
@@ -190,6 +201,42 @@ namespace JournalApp
                 selection.SetText(TextSetOptions.None, $"☐ {selectedText}");
             }
             MarkDirty();
+        }
+
+        /// <summary>
+        /// Handler to apply foreground text colors onto selected text.
+        /// </summary>
+        private void TextColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuFlyoutItem item)
+            {
+                var hexColor = item.Tag?.ToString();
+                var format = NoteRichEditBox.Document.Selection.CharacterFormat;
+                
+                if (hexColor == "Default")
+                {
+                    // Reset to default theme color by looking up resource or fallback
+                    if (Application.Current.Resources.TryGetValue("TextFillColorPrimary", out object val) && val is Windows.UI.Color c)
+                        format.ForegroundColor = c;
+                    else
+                        format.ForegroundColor = Microsoft.UI.Colors.Black;
+                }
+                else
+                {
+                    try
+                    {
+                        var color = ParseHexColor(hexColor);
+                        format.ForegroundColor = color;
+                    }
+                    catch
+                    {
+                        // Fallback
+                    }
+                }
+                
+                NoteRichEditBox.Document.Selection.CharacterFormat = format;
+                MarkDirty();
+            }
         }
 
         // ── Find & Replace Bar Logic ──────────────────────────────────────────

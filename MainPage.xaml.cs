@@ -1814,6 +1814,21 @@ namespace JournalApp
             MarkDirty();
         }
 
+        private void TitleTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                if (NoteRichEditBox != null)
+                {
+                    NoteRichEditBox.Focus(FocusState.Programmatic);
+                    // Place cursor at the end of the content (or beginning if empty)
+                    int length = NoteRichEditBox.Document.Selection.Length;
+                    NoteRichEditBox.Document.Selection.SetRange(length, length);
+                }
+                e.Handled = true;
+            }
+        }
+
         private void NoteRichEditBox_TextChanged(object sender, RoutedEventArgs e)
         {
             UpdateWordCount();
