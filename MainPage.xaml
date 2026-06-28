@@ -2164,7 +2164,12 @@
                                                         <Run Text="{Binding Category}" />
                                                     </TextBlock>
                                                 </StackPanel>
-                                                <FontIcon Grid.Column="1" Glyph="&#xE774;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                                                <Button Grid.Column="1" Click="BlogPageVisitBtn_Click" Tag="{Binding}" Style="{StaticResource DefaultButtonStyle}" Padding="8,4" CornerRadius="4" VerticalAlignment="Center">
+                                                     <StackPanel Orientation="Horizontal" Spacing="6">
+                                                         <FontIcon Glyph="&#xE774;" FontSize="11" />
+                                                         <TextBlock Text="Visit" FontSize="11" />
+                                                     </StackPanel>
+                                                 </Button>
                                             </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>

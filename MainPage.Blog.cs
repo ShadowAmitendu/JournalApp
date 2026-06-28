@@ -65,8 +65,6 @@ namespace JournalApp
 
         private async void SettingsPublishBlogButton_Click(object sender, RoutedEventArgs e)
         {
-            if (SettingsPublishBlogButton == null || BlogPublishStatusText == null || BlogPublishProgressRing == null) return;
-
             string token = GetSecureToken();
             if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
             if (string.IsNullOrEmpty(token))
@@ -100,15 +98,21 @@ namespace JournalApp
             }
 
             // Start Publish UI state
-            SettingsPublishBlogButton.IsEnabled = false;
-            BlogPublishProgressRing.Visibility = Visibility.Visible;
-            BlogPublishProgressRing.IsActive = true;
-            BlogPublishStatusText.Text = "Initializing...";
+            SetPublishingUiState(true, "Initializing...");
 
             try
             {
                 string username = await GetGitHubUsername(token);
-                string repoName = BlogRepoTextBox?.Text?.Trim() ?? "my-journal-blog";
+                if (string.IsNullOrEmpty(username))
+                {
+                    throw new Exception("Unable to retrieve your GitHub username. Please check your internet connection and token permissions.");
+                }
+
+                // Retrieve repository name
+                string repoName = GetSetting("BlogRepo", "my-journal-blog");
+                if (string.IsNullOrWhiteSpace(repoName)) repoName = "my-journal-blog";
+
+                // Sanitise repo name for safety
                 repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
                 repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
 
@@ -120,11 +124,11 @@ namespace JournalApp
                 client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
                 // 1. Verify or create repository
-                BlogPublishStatusText.Text = "Verifying repository on GitHub...";
+                SetPublishingUiState(true, "Verifying repository on GitHub...");
                 var repoResponse = await client.GetAsync($"https://api.github.com/repos/{username}/{repoName}");
                 if (repoResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
                 {
-                    BlogPublishStatusText.Text = "Creating public repository...";
+                    SetPublishingUiState(true, "Creating public repository...");
                     var repoCreatePayload = new
                     {
                         name = repoName,
@@ -144,7 +148,7 @@ namespace JournalApp
                 }
 
                 // 2. Ensure GitHub Pages is enabled
-                BlogPublishStatusText.Text = "Enabling GitHub Pages...";
+                SetPublishingUiState(true, "Enabling GitHub Pages...");
                 int pagesRetry = 3;
                 bool pagesEnabled = false;
                 while (pagesRetry > 0 && !pagesEnabled)
@@ -173,7 +177,7 @@ namespace JournalApp
                 client.DefaultRequestHeaders.Accept.Clear();
 
                 // 3. Static Site Generation locally
-                BlogPublishStatusText.Text = "Generating static blog site files...";
+                SetPublishingUiState(true, "Generating static blog site files...");
                 string tempDir = Path.Combine(Path.GetTempPath(), "JournalBlog_" + Guid.NewGuid().ToString("N"));
                 string tempPostsDir = Path.Combine(tempDir, "posts");
                 Directory.CreateDirectory(tempDir);
@@ -194,7 +198,7 @@ namespace JournalApp
 
                 foreach (var note in publishedNotes)
                 {
-                    BlogPublishStatusText.Text = $"Processing post {currentNoteIndex}/{publishedNotes.Count}...";
+                    SetPublishingUiState(true, $"Processing post {currentNoteIndex}/{publishedNotes.Count}...");
                     string plainText = GetNotePlainText(note);
                     
                     // Sync cover image if local or use Picsum fallback
@@ -286,7 +290,7 @@ namespace JournalApp
                 int currentUploadIndex = 1;
                 foreach (var file in filesToUpload)
                 {
-                    BlogPublishStatusText.Text = $"Uploading static asset {currentUploadIndex}/{filesToUpload.Count}: {Path.GetFileName(file.RemotePath)}...";
+                    SetPublishingUiState(true, $"Uploading static asset {currentUploadIndex}/{filesToUpload.Count}: {Path.GetFileName(file.RemotePath)}...");
                     await SyncFileToGitHub(username, repoName, file.LocalPath, file.RemotePath, $"Publish static file {file.RemotePath} via JournalApp");
                     currentUploadIndex++;
                 }
@@ -299,20 +303,16 @@ namespace JournalApp
                 catch {}
 
                 // Done state
-                BlogPublishStatusText.Text = "Successfully published to your live blog!";
                 UpdateBlogLiveUrlLink(repoName);
                 await ShowAlertAsync("Publication Complete", $"Your static site is successfully compiled and published to GitHub Pages!\n\nIt may take up to a minute for GitHub to configure and route the changes live.");
             }
             catch (Exception ex)
             {
-                BlogPublishStatusText.Text = "Failed to publish blog";
                 await ShowAlertAsync("Publish Failed", $"An error occurred during blog publication:\n{ex.Message}");
             }
             finally
             {
-                SettingsPublishBlogButton.IsEnabled = true;
-                BlogPublishProgressRing.IsActive = false;
-                BlogPublishProgressRing.Visibility = Visibility.Collapsed;
+                SetPublishingUiState(false);
             }
         }
 
@@ -950,44 +950,61 @@ footer {
         }
         private async void UpdateBlogLiveUrlLink(string blogRepo)
         {
-            if (BlogLiveUrlButton == null) return;
-            
+            Action<string, Uri> setUrl = (content, uri) =>
+            {
+                if (BlogLiveUrlButton != null)
+                {
+                    BlogLiveUrlButton.Content = content;
+                    BlogLiveUrlButton.NavigateUri = uri;
+                }
+                if (BlogPageLiveUrlButton != null)
+                {
+                    BlogPageLiveUrlButton.Content = content;
+                    BlogPageLiveUrlButton.NavigateUri = uri;
+                }
+            };
+
             string token = GetSecureToken();
             if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
             
             if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(blogRepo))
             {
-                BlogLiveUrlButton.Content = "Not Configured (Connect GitHub first)";
-                BlogLiveUrlButton.NavigateUri = null;
+                setUrl("Not Configured (Connect GitHub first)", null);
                 return;
             }
 
             try
             {
-                string username = await GetGitHubUsername(token);
+                string username = GetSetting("GitHubUsername", "");
+                if (string.IsNullOrEmpty(username))
+                {
+                    username = await GetGitHubUsername(token);
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        SaveSetting("GitHubUsername", username);
+                    }
+                }
+
                 if (!string.IsNullOrEmpty(username))
                 {
-                    string url = $"https://{username}.github.io/{blogRepo}/";
-                    BlogLiveUrlButton.Content = url;
-                    BlogLiveUrlButton.NavigateUri = new Uri(url);
+                    string url = $"https://{username.ToLowerInvariant()}.github.io/{blogRepo}/";
+                    setUrl(url, new Uri(url));
                 }
                 else
                 {
-                    BlogLiveUrlButton.Content = "Unable to fetch username";
-                    BlogLiveUrlButton.NavigateUri = null;
+                    setUrl("Unable to fetch username", null);
                 }
             }
             catch (Exception ex)
             {
-                BlogLiveUrlButton.Content = $"Error: {ex.Message}";
-                BlogLiveUrlButton.NavigateUri = null;
+                setUrl($"Error: {ex.Message}", null);
             }
         }
 
         // ── Blog Page (NavItem) helpers ──────────────────────────────────────
 
         /// <summary>Populates the Blog Publisher page when the user navigates to BlogPageNavItem.</summary>
-        private void PopulateBlogPage()
+        private async void PopulateBlogPage()
         {
             try
             {
@@ -1002,18 +1019,35 @@ footer {
                     BlogPageCustomCssTextBox.Text = GetSetting("BlogCustomCss", "");
 
                 // Live URL
-                string repo = GetSetting("BlogRepo", "");
+                string repo = GetSetting("BlogRepo", "my-journal-blog");
+                if (string.IsNullOrWhiteSpace(repo)) repo = "my-journal-blog";
+
                 if (BlogPageLiveUrlButton != null)
                 {
-                    if (!string.IsNullOrEmpty(repo))
+                    string token = GetSecureToken();
+                    if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
+
+                    string username = GetSetting("GitHubUsername", "");
+                    if (string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(token))
+                    {
+                        username = await GetGitHubUsername(token);
+                        if (!string.IsNullOrEmpty(username))
+                        {
+                            SaveSetting("GitHubUsername", username);
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        string urlText = $"https://{username.ToLowerInvariant()}.github.io/{repo}/";
+                        BlogPageLiveUrlButton.Content = urlText;
+                        try { BlogPageLiveUrlButton.NavigateUri = new Uri(urlText); } catch { }
+                    }
+                    else
                     {
                         string urlText = $"https://[username].github.io/{repo}/";
                         BlogPageLiveUrlButton.Content = urlText;
                         try { BlogPageLiveUrlButton.NavigateUri = new Uri($"https://github.com/{repo}"); } catch { }
-                    }
-                    else
-                    {
-                        BlogPageLiveUrlButton.Content = "Not Configured";
                     }
                 }
 
@@ -1042,6 +1076,73 @@ footer {
         private void BlogPageRefreshBtn_Click(object sender, RoutedEventArgs e)
         {
             PopulateBlogPageList();
+        }
+
+        private async void BlogPageVisitBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is JournalNote note)
+            {
+                string token = GetSecureToken();
+                if (string.IsNullOrEmpty(token)) token = GetSetting("GitHubToken");
+                
+                string username = GetSetting("GitHubUsername", "");
+                if (string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(token))
+                {
+                    username = await GetGitHubUsername(token);
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        SaveSetting("GitHubUsername", username);
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(username))
+                {
+                    string repo = GetSetting("BlogRepo", "my-journal-blog");
+                    if (string.IsNullOrWhiteSpace(repo)) repo = "my-journal-blog";
+                    
+                    string url = $"https://{username.ToLowerInvariant()}.github.io/{repo}/posts/post_{note.Id}.html";
+                    try
+                    {
+                        await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[BlogPage] Launch error: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    await ShowAlertAsync("Connect GitHub", "Please configure and sync your GitHub credentials to view live links.");
+                }
+            }
+        }
+
+        // ── Shared Publishing UI Helpers ─────────────────────────────────────
+
+
+        private void UpdatePublishStatus(string status)
+        {
+            if (BlogPublishStatusText != null) BlogPublishStatusText.Text = status;
+            if (BlogPageStatusText != null) BlogPageStatusText.Text = status;
+        }
+
+        private void SetPublishingUiState(bool isLoading, string status = "")
+        {
+            if (SettingsPublishBlogButton != null) SettingsPublishBlogButton.IsEnabled = !isLoading;
+            if (BlogPublishProgressRing != null)
+            {
+                BlogPublishProgressRing.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+                BlogPublishProgressRing.IsActive = isLoading;
+            }
+
+            if (BlogPagePublishButton != null) BlogPagePublishButton.IsEnabled = !isLoading;
+            if (BlogPageProgressRing != null)
+            {
+                BlogPageProgressRing.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
+                BlogPageProgressRing.IsActive = isLoading;
+            }
+
+            UpdatePublishStatus(isLoading ? status : "Ready");
         }
     }
 }
