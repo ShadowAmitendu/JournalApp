@@ -442,6 +442,14 @@ namespace JournalApp
         private string _masterPassword = "";
         private bool _disableSavingCurrentNote = false;
 
+        // User-configurable settings state
+        private bool _useWindowsHello = true;
+        private bool _lockOnMinimize = false;
+        private bool _confirmBeforeDelete = false;
+        private bool _showWordCount = true;
+        private bool _showSnippets = true;
+
+
         public MainPage()
         {
             Instance = this;
@@ -606,16 +614,19 @@ namespace JournalApp
                     AppLockStatusText.Visibility = Visibility.Collapsed;
                 }
 
-                // Check Hello capability and auto-authenticate
+                // Check Hello capability and auto-authenticate only if the setting is enabled
                 this.DispatcherQueue.TryEnqueue(async () =>
                 {
                     bool helloAvailable = false;
-                    try
+                    if (_useWindowsHello)
                     {
-                        var availability = await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync();
-                        helloAvailable = availability == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available;
+                        try
+                        {
+                            var availability = await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync();
+                            helloAvailable = availability == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available;
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (WindowsHelloButton != null)
                     {
@@ -749,6 +760,34 @@ namespace JournalApp
             if (!e.Visible && _isDirty && SelectedNote != null)
             {
                 try { SaveCurrentNoteContent(); } catch { }
+            }
+
+            // Re-lock when minimized if the setting is on
+            if (!e.Visible && _lockOnMinimize && !string.IsNullOrEmpty(_masterPassword))
+            {
+                if (AppLockOverlay != null)
+                    AppLockOverlay.Visibility = Visibility.Visible;
+                if (AppLockPasswordBox != null)
+                    AppLockPasswordBox.Password = "";
+                if (AppLockStatusText != null)
+                    AppLockStatusText.Visibility = Visibility.Collapsed;
+
+                // Re-trigger Hello on restore if enabled
+                if (_useWindowsHello)
+                {
+                    this.DispatcherQueue.TryEnqueue(async () =>
+                    {
+                        bool helloAvailable = false;
+                        try
+                        {
+                            var availability = await Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync();
+                            helloAvailable = availability == Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available;
+                        }
+                        catch { }
+                        if (WindowsHelloButton != null)
+                            WindowsHelloButton.Visibility = helloAvailable ? Visibility.Visible : Visibility.Collapsed;
+                    });
+                }
             }
         }
 
@@ -1156,13 +1195,15 @@ namespace JournalApp
                 if (File.Exists(rtfPath))
                 {
                     byte[] fileBytes = File.ReadAllBytes(rtfPath);
-                    bool isEncrypted = true;
+                    // Default to NOT encrypted. Only mark encrypted when file is long enough
+                    // to check the header AND it does NOT start with "{\rtf"
+                    bool isEncrypted = false;
                     if (fileBytes.Length >= 5)
                     {
                         // Check if it starts with "{\rtf" (ASCII: 123, 92, 114, 116, 102)
-                        if (fileBytes[0] == 123 && fileBytes[1] == 92 && fileBytes[2] == 114 && fileBytes[3] == 116 && fileBytes[4] == 102)
+                        if (!(fileBytes[0] == 123 && fileBytes[1] == 92 && fileBytes[2] == 114 && fileBytes[3] == 116 && fileBytes[4] == 102))
                         {
-                            isEncrypted = false;
+                            isEncrypted = true;
                         }
                     }
 
@@ -1565,6 +1606,21 @@ namespace JournalApp
                 return;
             }
 
+            if (isCtrl && e.Key == Windows.System.VirtualKey.S)
+            {
+                if (SelectedNote != null && !_disableSavingCurrentNote)
+                {
+                    _autoSaveTimer.Stop();
+                    SaveCurrentNoteContent();
+                    _isDirty = false;
+                    if (StatusMessageTextBlock != null)
+                        StatusMessageTextBlock.Text = "Saved";
+                    e.Handled = true;
+                }
+                return;
+            }
+
+
             if (e.Key == Windows.System.VirtualKey.Escape)
             {
                 // Close Find bar first if open
@@ -1604,13 +1660,28 @@ namespace JournalApp
             NotesListView.SelectedItem = note;
         }
 
-        private void ShowDeleteConfirmationFlyout(FrameworkElement? senderElement, JournalNote note, bool permanentlyDelete)
+        private async void ShowDeleteConfirmationFlyout(FrameworkElement? senderElement, JournalNote note, bool permanentlyDelete)
         {
             if (note == null || senderElement == null) return;
 
-            // Soft delete: instant action with 5-second undo toast — no blocking dialog
+            // Soft delete: instant action with 5-second undo toast — no blocking dialog (unless confirm setting is on)
             if (!permanentlyDelete)
             {
+                if (_confirmBeforeDelete)
+                {
+                    var confirmDialog = new ContentDialog
+                    {
+                        Title = "Move to Trash?",
+                        Content = $"\"{note.Title}\" will be moved to Trash.",
+                        PrimaryButtonText = "Move to Trash",
+                        CloseButtonText = "Cancel",
+                        DefaultButton = ContentDialogButton.Primary,
+                        XamlRoot = this.XamlRoot
+                    };
+                    var result = await confirmDialog.ShowAsync();
+                    if (result != ContentDialogResult.Primary) return;
+                }
+
                 _lastSoftDeletedNote = note;
                 _lastSoftDeletedPreviousSelection = SelectedNote == note ? null : SelectedNote;
 
@@ -3804,6 +3875,98 @@ namespace JournalApp
         private void AutoBackupToggle_Toggled(object sender, RoutedEventArgs e)
         {
             if (!_isPageInitialized) return;
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void WindowsHelloToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            _useWindowsHello = WindowsHelloToggle?.IsOn ?? true;
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void LockOnMinimizeToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            _lockOnMinimize = LockOnMinimizeToggle?.IsOn ?? false;
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void SpellCheckToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            bool isOn = SpellCheckToggle?.IsOn ?? true;
+            if (NoteRichEditBox != null)
+                NoteRichEditBox.IsSpellCheckEnabled = isOn;
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void ShowWordCountToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            _showWordCount = ShowWordCountToggle?.IsOn ?? true;
+            if (WordCountTextBlock != null)
+                WordCountTextBlock.Visibility = _showWordCount ? Visibility.Visible : Visibility.Collapsed;
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void ShowSnippetsToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            _showSnippets = ShowSnippetsToggle?.IsOn ?? true;
+            ApplySnippetVisibility();
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void ApplySnippetVisibility()
+        {
+            if (NotesListView == null) return;
+            var vis = _showSnippets ? Visibility.Visible : Visibility.Collapsed;
+            foreach (var item in NotesListView.Items)
+            {
+                var container = NotesListView.ContainerFromItem(item) as ListViewItem;
+                if (container == null) continue;
+                // Walk the visual tree to find TextBlocks tagged "SnippetRow"
+                FindAndSetVisibility(container, "SnippetRow", vis);
+            }
+        }
+
+        private static void FindAndSetVisibility(DependencyObject parent, string tag, Visibility vis)
+        {
+            int count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is FrameworkElement fe && fe.Tag?.ToString() == tag)
+                    fe.Visibility = vis;
+                else
+                    FindAndSetVisibility(child, tag, vis);
+            }
+        }
+
+        private void NotesListView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        {
+            if (args.InAsyncPhase) return;
+            var vis = _showSnippets ? Visibility.Visible : Visibility.Collapsed;
+            FindAndSetVisibility(args.ItemContainer, "SnippetRow", vis);
+        }
+
+
+        private void DefaultSortComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            if (DefaultSortComboBox?.SelectedItem is ComboBoxItem item)
+            {
+                _currentSortOption = item.Tag?.ToString() ?? "DateCreatedDesc";
+                RefreshNotesList();
+            }
+            UpdateSaveSettingsButtonState();
+        }
+
+        private void ConfirmDeleteToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isPageInitialized) return;
+            _confirmBeforeDelete = ConfirmDeleteToggle?.IsOn ?? false;
             UpdateSaveSettingsButtonState();
         }
 

@@ -233,7 +233,8 @@
                     <!-- Notes List -->
                     <ListView x:Name="NotesListView" Grid.Row="1" 
                               ItemsSource="{x:Bind NotesCVS.View, Mode=OneWay}"
-                              SelectionMode="Single" SelectionChanged="NotesListView_SelectionChanged" Padding="0,2">
+                              SelectionMode="Single" SelectionChanged="NotesListView_SelectionChanged" Padding="0,2"
+                              ContainerContentChanging="NotesListView_ContainerContentChanging">
                         <ListView.ItemContainerTransitions>
                             <TransitionCollection>
                                 <AddDeleteThemeTransition />
@@ -321,7 +322,7 @@
                                                 <FontIcon Glyph="&#xE735;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Foreground="Gold" Visibility="{x:Bind IsFavorite, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}" VerticalAlignment="Center" />
                                                 <FontIcon Glyph="&#xE840;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Foreground="{ThemeResource SystemControlHighlightAccentBrush}" Visibility="{x:Bind IsPinned, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneTime}" VerticalAlignment="Center" />
                                             </StackPanel>
-                                            <TextBlock Text="{x:Bind Snippet}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                            <TextBlock x:Name="SnippetTextBlock" Text="{x:Bind Snippet}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Tag="SnippetRow" />
                                         </StackPanel>
                                         
                                         <!-- Right: Date Card (Column 2) -->
@@ -1365,7 +1366,100 @@
                                     <Slider x:Name="AutoSaveSlider" Grid.Column="2" Width="180" VerticalAlignment="Center" Minimum="1" Maximum="10" Value="5.0" StepFrequency="0.5" ValueChanged="AutoSaveSlider_ValueChanged" />
                                 </Grid>
                             </Border>
+
+                            <!-- Spell Check -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xF87B;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Spell Check" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Underline misspelled words while writing" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="SpellCheckToggle" Grid.Column="2" IsOn="True" OnContent="On" OffContent="Off" VerticalAlignment="Center" Toggled="SpellCheckToggle_Toggled" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Show Word Count -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE8C1;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Show Word Count" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Display word count, characters, and reading time in the status bar" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ShowWordCountToggle" Grid.Column="2" IsOn="True" OnContent="On" OffContent="Off" VerticalAlignment="Center" Toggled="ShowWordCountToggle_Toggled" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Show Note Snippets -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE8A4;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Show Note Snippets" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Show a preview of note content below the title in the list" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ShowSnippetsToggle" Grid.Column="2" IsOn="True" OnContent="On" OffContent="Off" VerticalAlignment="Center" Toggled="ShowSnippetsToggle_Toggled" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Default Sort Order -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE8CB;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Default Sort Order" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Choose how notes are ordered when opening the app" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="DefaultSortComboBox" Grid.Column="2" Width="180" VerticalAlignment="Center" SelectionChanged="DefaultSortComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="Newest First" Tag="DateCreatedDesc" IsSelected="True" />
+                                        <ComboBoxItem Content="Oldest First" Tag="DateCreatedAsc" />
+                                        <ComboBoxItem Content="Last Modified" Tag="DateModifiedDesc" />
+                                        <ComboBoxItem Content="Title A→Z" Tag="TitleAsc" />
+                                        <ComboBoxItem Content="Title Z→A" Tag="TitleDesc" />
+                                    </ComboBox>
+                                </Grid>
+                            </Border>
+
+                            <!-- Confirm Before Delete -->
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="8" Padding="16,12">
+                                <Grid ColumnSpacing="32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE74D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="18" VerticalAlignment="Center" Width="24" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="Confirm Before Delete" FontSize="14" FontWeight="Medium" />
+                                        <TextBlock Text="Show a confirmation dialog before moving a note to Trash" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ConfirmDeleteToggle" Grid.Column="2" IsOn="False" OnContent="On" OffContent="Off" VerticalAlignment="Center" Toggled="ConfirmDeleteToggle_Toggled" />
+                                </Grid>
+                            </Border>
                         </StackPanel>
+
+
 
                         <!-- ── Services & Sync ── -->
                         <StackPanel Spacing="4">
@@ -1461,6 +1555,28 @@
                                     <StackPanel x:Name="LockedCategoriesStackPanel" Spacing="6">
                                         <!-- Checkboxes will be dynamically loaded here in C# -->
                                     </StackPanel>
+
+                                    <!-- Windows Hello on Startup -->
+                                    <ToggleSwitch x:Name="WindowsHelloToggle"
+                                                  Header="Windows Hello on Startup"
+                                                  IsOn="True"
+                                                  OnContent="Enabled" OffContent="Disabled"
+                                                  Margin="0,8,0,0"
+                                                  Toggled="WindowsHelloToggle_Toggled" />
+                                    <TextBlock Text="Automatically prompt Windows Hello (fingerprint / face / PIN) when the app opens"
+                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap" Margin="0,-4,0,0" />
+
+                                    <!-- Lock on Minimize -->
+                                    <ToggleSwitch x:Name="LockOnMinimizeToggle"
+                                                  Header="Lock on Minimize"
+                                                  IsOn="False"
+                                                  OnContent="Enabled" OffContent="Disabled"
+                                                  Margin="0,4,0,0"
+                                                  Toggled="LockOnMinimizeToggle_Toggled" />
+                                    <TextBlock Text="Re-lock the journal whenever the app window is minimized or hidden"
+                                               FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap" Margin="0,-4,0,0" />
                                 </StackPanel>
                             </Expander>
                         </StackPanel>

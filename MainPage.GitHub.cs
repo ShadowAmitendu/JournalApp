@@ -568,19 +568,122 @@ namespace JournalApp
                     if (LastCheckedTextBlock != null)
                         LastCheckedTextBlock.Text = $"Current version: {currentVersion}";
 
+                    // Build a rich "What's New" content panel
+                    var contentPanel = new StackPanel { Spacing = 0 };
+
+                    // Version badge row
+                    var badgeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 16) };
+                    var fromBadge = new Border
+                    {
+                        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(30, 128, 128, 128)),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(8, 3, 8, 3),
+                        Child = new TextBlock { Text = $"v{currentVersion}", FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold }
+                    };
+                    var arrow = new FontIcon
+                    {
+                        Glyph = "\uE72A",
+                        FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe MDL2 Assets"),
+                        FontSize = 12,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    var toBadge = new Border
+                    {
+                        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(40, 0, 120, 212)),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(8, 3, 8, 3),
+                        Child = new TextBlock { Text = latestTag, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemControlHighlightAltBaseHighBrush"] }
+                    };
+                    badgeRow.Children.Add(fromBadge);
+                    badgeRow.Children.Add(arrow);
+                    badgeRow.Children.Add(toBadge);
+                    contentPanel.Children.Add(badgeRow);
+
+                    // Release notes section
+                    if (!string.IsNullOrWhiteSpace(changelog))
+                    {
+                        var notesHeader = new TextBlock
+                        {
+                            Text = "What's New",
+                            FontSize = 13,
+                            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                            Margin = new Thickness(0, 0, 0, 8),
+                            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                        };
+                        contentPanel.Children.Add(notesHeader);
+
+                        var notesList = new StackPanel { Spacing = 6 };
+                        // Parse markdown-style bullet points from release body
+                        var lines = changelog.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var rawLine in lines)
+                        {
+                            var line = rawLine.Trim();
+                            if (string.IsNullOrWhiteSpace(line)) continue;
+
+                            bool isBullet = line.StartsWith("- ") || line.StartsWith("* ") || line.StartsWith("• ");
+                            string text = isBullet ? line.Substring(2).Trim() : line.TrimStart('#').Trim();
+                            bool isHeader = rawLine.TrimStart().StartsWith("#");
+
+                            if (isHeader)
+                            {
+                                notesList.Children.Add(new TextBlock
+                                {
+                                    Text = text,
+                                    FontSize = 13,
+                                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                                    Margin = new Thickness(0, 8, 0, 2),
+                                    TextWrapping = TextWrapping.Wrap
+                                });
+                            }
+                            else
+                            {
+                                var bulletRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+                                if (isBullet)
+                                {
+                                    bulletRow.Children.Add(new FontIcon
+                                    {
+                                        Glyph = "\uF127",
+                                        FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe MDL2 Assets"),
+                                        FontSize = 10,
+                                        VerticalAlignment = VerticalAlignment.Top,
+                                        Margin = new Thickness(0, 3, 0, 0),
+                                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemControlHighlightAltBaseHighBrush"]
+                                    });
+                                }
+                                bulletRow.Children.Add(new TextBlock
+                                {
+                                    Text = text,
+                                    FontSize = 13,
+                                    TextWrapping = TextWrapping.Wrap,
+                                    MaxWidth = 380
+                                });
+                                notesList.Children.Add(bulletRow);
+                            }
+                        }
+                        contentPanel.Children.Add(notesList);
+                    }
+                    else
+                    {
+                        contentPanel.Children.Add(new TextBlock
+                        {
+                            Text = "A new version is available. Click Install Update to get the latest improvements.",
+                            FontSize = 13,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                        });
+                    }
+
                     var dialog = new ContentDialog
                     {
-                        Title = "Update Available",
+                        Title = "Update Available 🎉",
                         Content = new ScrollViewer
                         {
-                            MaxHeight = 300,
-                            Content = new TextBlock
-                            {
-                                Text = $"A new version ({latestTag}) is available. Would you like to update now?\n\nRelease Notes:\n{changelog}",
-                                TextWrapping = TextWrapping.Wrap
-                            }
+                            MaxHeight = 380,
+                            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                            Content = contentPanel,
+                            Padding = new Thickness(0, 4, 8, 0)
                         },
-                        PrimaryButtonText = !string.IsNullOrEmpty(downloadUrl) ? "Install Update" : "View Release",
+                        PrimaryButtonText = !string.IsNullOrEmpty(downloadUrl) ? "Install Update" : "View on GitHub",
                         CloseButtonText = "Later",
                         DefaultButton = ContentDialogButton.Primary,
                         XamlRoot = this.XamlRoot
@@ -680,6 +783,34 @@ namespace JournalApp
                 // Auto-backup toggle
                 if (AutoBackupToggle != null)
                     SaveSetting("AutoBackupOnSave", AutoBackupToggle.IsOn ? "True" : "False");
+
+                // Windows Hello on startup
+                if (WindowsHelloToggle != null)
+                    SaveSetting("UseWindowsHello", WindowsHelloToggle.IsOn ? "True" : "False");
+
+                // Lock on Minimize
+                if (LockOnMinimizeToggle != null)
+                    SaveSetting("LockOnMinimize", LockOnMinimizeToggle.IsOn ? "True" : "False");
+
+                // Spell Check
+                if (SpellCheckToggle != null)
+                    SaveSetting("SpellCheck", SpellCheckToggle.IsOn ? "True" : "False");
+
+                // Show Word Count
+                if (ShowWordCountToggle != null)
+                    SaveSetting("ShowWordCount", ShowWordCountToggle.IsOn ? "True" : "False");
+
+                // Show Note Snippets
+                if (ShowSnippetsToggle != null)
+                    SaveSetting("ShowSnippets", ShowSnippetsToggle.IsOn ? "True" : "False");
+
+                // Default Sort Order
+                if (DefaultSortComboBox?.SelectedItem is ComboBoxItem sortItem)
+                    SaveSetting("DefaultSortOrder", sortItem.Tag?.ToString() ?? "DateCreatedDesc");
+
+                // Confirm Before Delete
+                if (ConfirmDeleteToggle != null)
+                    SaveSetting("ConfirmBeforeDelete", ConfirmDeleteToggle.IsOn ? "True" : "False");
 
                 // Unsplash key
                 if (UnsplashTokenPasswordBox != null)
@@ -789,6 +920,41 @@ namespace JournalApp
             string currentLockedCats = string.Join(",", _lockedCategories);
             if (currentLockedCats != savedLockedCats) isDirty = true;
 
+            // Check Windows Hello
+            string savedHello = GetSetting("UseWindowsHello", "True");
+            bool currentHello = WindowsHelloToggle?.IsOn ?? true;
+            if (currentHello.ToString() != string.Equals(savedHello, "True", StringComparison.OrdinalIgnoreCase).ToString()) isDirty = true;
+
+            // Check Lock on Minimize
+            string savedLockMin = GetSetting("LockOnMinimize", "False");
+            bool currentLockMin = LockOnMinimizeToggle?.IsOn ?? false;
+            if (currentLockMin.ToString() != string.Equals(savedLockMin, "True", StringComparison.OrdinalIgnoreCase).ToString()) isDirty = true;
+
+            // Check Spell Check
+            string savedSpell = GetSetting("SpellCheck", "True");
+            bool currentSpell = SpellCheckToggle?.IsOn ?? true;
+            if (currentSpell.ToString() != string.Equals(savedSpell, "True", StringComparison.OrdinalIgnoreCase).ToString()) isDirty = true;
+
+            // Check Show Word Count
+            string savedWC = GetSetting("ShowWordCount", "True");
+            bool currentWC = ShowWordCountToggle?.IsOn ?? true;
+            if (currentWC.ToString() != string.Equals(savedWC, "True", StringComparison.OrdinalIgnoreCase).ToString()) isDirty = true;
+
+            // Check Show Snippets
+            string savedSnippets = GetSetting("ShowSnippets", "True");
+            bool currentSnippets = ShowSnippetsToggle?.IsOn ?? true;
+            if (currentSnippets.ToString() != string.Equals(savedSnippets, "True", StringComparison.OrdinalIgnoreCase).ToString()) isDirty = true;
+
+            // Check Default Sort Order
+            string savedSort = GetSetting("DefaultSortOrder", "DateCreatedDesc");
+            string currentSort = (DefaultSortComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "DateCreatedDesc";
+            if (currentSort != savedSort) isDirty = true;
+
+            // Check Confirm Before Delete
+            string savedConfirm = GetSetting("ConfirmBeforeDelete", "False");
+            bool currentConfirm = ConfirmDeleteToggle?.IsOn ?? false;
+            if (currentConfirm.ToString() != string.Equals(savedConfirm, "True", StringComparison.OrdinalIgnoreCase).ToString()) isDirty = true;
+
             SaveSettingsButton.IsEnabled = isDirty;
         }
 
@@ -895,6 +1061,61 @@ namespace JournalApp
                 {
                     AutoBackupToggle.IsOn = string.Equals(savedAutoBackup, "True", StringComparison.OrdinalIgnoreCase);
                 }
+
+                // Load Windows Hello toggle
+                string savedHello = GetSetting("UseWindowsHello", "True");
+                _useWindowsHello = string.Equals(savedHello, "True", StringComparison.OrdinalIgnoreCase);
+                if (WindowsHelloToggle != null)
+                    WindowsHelloToggle.IsOn = _useWindowsHello;
+
+                // Load Lock on Minimize toggle
+                string savedLockMin = GetSetting("LockOnMinimize", "False");
+                _lockOnMinimize = string.Equals(savedLockMin, "True", StringComparison.OrdinalIgnoreCase);
+                if (LockOnMinimizeToggle != null)
+                    LockOnMinimizeToggle.IsOn = _lockOnMinimize;
+
+                // Load Spell Check toggle
+                string savedSpell = GetSetting("SpellCheck", "True");
+                bool spellOn = string.Equals(savedSpell, "True", StringComparison.OrdinalIgnoreCase);
+                if (SpellCheckToggle != null)
+                    SpellCheckToggle.IsOn = spellOn;
+                if (NoteRichEditBox != null)
+                    NoteRichEditBox.IsSpellCheckEnabled = spellOn;
+
+                // Load Show Word Count toggle
+                string savedWC = GetSetting("ShowWordCount", "True");
+                _showWordCount = string.Equals(savedWC, "True", StringComparison.OrdinalIgnoreCase);
+                if (ShowWordCountToggle != null)
+                    ShowWordCountToggle.IsOn = _showWordCount;
+                if (WordCountTextBlock != null)
+                    WordCountTextBlock.Visibility = _showWordCount ? Visibility.Visible : Visibility.Collapsed;
+
+                // Load Show Snippets toggle
+                string savedSnippets = GetSetting("ShowSnippets", "True");
+                _showSnippets = string.Equals(savedSnippets, "True", StringComparison.OrdinalIgnoreCase);
+                if (ShowSnippetsToggle != null)
+                    ShowSnippetsToggle.IsOn = _showSnippets;
+
+                // Load Default Sort Order combobox
+                string savedSort = GetSetting("DefaultSortOrder", "DateCreatedDesc");
+                _currentSortOption = savedSort;
+                if (DefaultSortComboBox != null)
+                {
+                    foreach (object obj in DefaultSortComboBox.Items)
+                    {
+                        if (obj is ComboBoxItem item && item.Tag?.ToString() == savedSort)
+                        {
+                            DefaultSortComboBox.SelectedItem = item;
+                            break;
+                        }
+                    }
+                }
+
+                // Load Confirm Before Delete toggle
+                string savedConfirm = GetSetting("ConfirmBeforeDelete", "False");
+                _confirmBeforeDelete = string.Equals(savedConfirm, "True", StringComparison.OrdinalIgnoreCase);
+                if (ConfirmDeleteToggle != null)
+                    ConfirmDeleteToggle.IsOn = _confirmBeforeDelete;
 
                 // Load Master Password & Locked Categories — from secure Credential Manager
                 _masterPassword = GetSecureMasterPassword();
