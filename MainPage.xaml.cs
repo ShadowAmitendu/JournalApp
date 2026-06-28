@@ -827,150 +827,142 @@ namespace JournalApp
 
         private void LoadCategoriesList()
         {
-            // Preserve sidebar selection
-            string selectedCategoryName = null;
-            string selectedTagStr = null;
-            object selectedFooterItem = null;
-
-            if (CategoriesNavView.SelectedItem is NavigationViewItem oldItem)
+            _isNavigating = true;
+            try
             {
-                if (oldItem.Tag is JournalCategory cat)
+                // Preserve sidebar selection
+                string selectedCategoryName = null;
+                string selectedTagStr = null;
+                object selectedFooterItem = null;
+
+                if (CategoriesNavView.SelectedItem is NavigationViewItem oldItem)
                 {
-                    selectedCategoryName = cat.Name;
-                }
-                else if (oldItem.Tag is string str)
-                {
-                    selectedTagStr = str;
-                }
-                else
-                {
-                    // Footer items like Trash, Favorites etc.
-                    selectedFooterItem = CategoriesNavView.SelectedItem;
-                }
-            }
-
-            CategoriesNavView.MenuItems.Clear();
-            NavigationViewItem itemToSelect = null;
-
-            var categories = JournalManager.Instance.Categories;
-            foreach (var category in categories)
-            {
-                var fontIcon = new FontIcon 
-                { 
-                    Glyph = category.Icon, 
-                    FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] 
-                };
-                if (!string.IsNullOrEmpty(category.Color))
-                {
-                    fontIcon.Foreground = GetBrushFromHex(category.Color);
-                }
-
-                var navItem = new NavigationViewItem
-                {
-                    Content = category.Name,
-                    Tag = category,
-                    Icon = fontIcon,
-                    CanDrag = true,
-                    AllowDrop = true
-                };
-
-                navItem.DragStarting += Category_DragStarting;
-                navItem.DragOver += Category_DragOver;
-                navItem.Drop += Category_Drop;
-                navItem.ContextFlyout = CreateCategoryMenuFlyout();
-
-                CategoriesNavView.MenuItems.Add(navItem);
-
-                if (selectedCategoryName != null && category.Name.Equals(selectedCategoryName, StringComparison.OrdinalIgnoreCase))
-                {
-                    itemToSelect = navItem;
-                }
-            }
-
-            // Append separator and "Add Category" item programmatically
-            CategoriesNavView.MenuItems.Add(new NavigationViewItemSeparator());
-
-            var addCategoryItem = new NavigationViewItem
-            {
-                Content = "Add Category",
-                Icon = new FontIcon { Glyph = "\uE710", FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] },
-                Tag = "AddCategory"
-            };
-            CategoriesNavView.MenuItems.Add(addCategoryItem);
-
-            if (selectedTagStr != null && selectedTagStr.Equals("AddCategory", StringComparison.OrdinalIgnoreCase))
-            {
-                itemToSelect = addCategoryItem;
-            }
-
-            // Gather all tags from notes
-            var uniqueTags = new HashSet<string>();
-            if (JournalManager.Instance.Notes != null)
-            {
-                foreach (var note in JournalManager.Instance.Notes)
-                {
-                    if (note.IsDeleted) continue;
-                    if (note.Tags != null)
+                    if (oldItem.Tag is JournalCategory cat)
                     {
-                        foreach (var tag in note.Tags)
-                        {
-                            uniqueTags.Add(tag.ToLowerInvariant());
-                        }
+                        selectedCategoryName = cat.Name;
+                    }
+                    else if (oldItem.Tag is string str)
+                    {
+                        selectedTagStr = str;
+                    }
+                    else
+                    {
+                        // Footer items like Trash, Favorites etc.
+                        selectedFooterItem = CategoriesNavView.SelectedItem;
                     }
                 }
-            }
 
-            if (uniqueTags.Count > 0)
-            {
-                CategoriesNavView.MenuItems.Add(new NavigationViewItemSeparator());
-                
-                var tagsHeader = new NavigationViewItemHeader
-                {
-                    Content = "Tags"
-                };
-                CategoriesNavView.MenuItems.Add(tagsHeader);
+                CategoriesNavView.MenuItems.Clear();
+                NavigationViewItem itemToSelect = null;
 
-                foreach (var tag in uniqueTags)
+                var categories = JournalManager.Instance.Categories;
+                foreach (var category in categories)
                 {
-                    int count = JournalManager.Instance.Notes.Count(n => !n.IsDeleted && n.Tags != null && n.Tags.Contains(tag));
+                    var fontIcon = new FontIcon 
+                    { 
+                        Glyph = category.Icon, 
+                        FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] 
+                    };
+                    if (!string.IsNullOrEmpty(category.Color))
+                    {
+                        fontIcon.Foreground = GetBrushFromHex(category.Color);
+                    }
+
                     var navItem = new NavigationViewItem
                     {
-                        Content = $"#{tag} ({count})",
-                        Tag = $"Tag:{tag}",
-                        Icon = new FontIcon { Glyph = "\uE1CB", FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] }
+                        Content = category.Name,
+                        Tag = category,
+                        Icon = fontIcon,
+                        CanDrag = true,
+                        AllowDrop = true
                     };
+
+                    navItem.DragStarting += Category_DragStarting;
+                    navItem.DragOver += Category_DragOver;
+                    navItem.Drop += Category_Drop;
+                    navItem.ContextFlyout = CreateCategoryMenuFlyout();
+
                     CategoriesNavView.MenuItems.Add(navItem);
 
-                    if (selectedTagStr != null && selectedTagStr.Equals($"Tag:{tag}", StringComparison.OrdinalIgnoreCase))
+                    if (selectedCategoryName != null && category.Name.Equals(selectedCategoryName, StringComparison.OrdinalIgnoreCase))
                     {
                         itemToSelect = navItem;
                     }
                 }
-            }
 
-            if (itemToSelect != null)
-            {
-                _isNavigating = true;
-                try
+                // Append separator and "Add Category" item programmatically
+                CategoriesNavView.MenuItems.Add(new NavigationViewItemSeparator());
+
+                var addCategoryItem = new NavigationViewItem
+                {
+                    Content = "Add Category",
+                    Icon = new FontIcon { Glyph = "\uE710", FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] },
+                    Tag = "AddCategory"
+                };
+                CategoriesNavView.MenuItems.Add(addCategoryItem);
+
+                if (selectedTagStr != null && selectedTagStr.Equals("AddCategory", StringComparison.OrdinalIgnoreCase))
+                {
+                    itemToSelect = addCategoryItem;
+                }
+
+                // Gather all tags from notes
+                var uniqueTags = new HashSet<string>();
+                if (JournalManager.Instance.Notes != null)
+                {
+                    foreach (var note in JournalManager.Instance.Notes)
+                    {
+                        if (note.IsDeleted) continue;
+                        if (note.Tags != null)
+                        {
+                            foreach (var tag in note.Tags)
+                            {
+                                uniqueTags.Add(tag.ToLowerInvariant());
+                            }
+                        }
+                    }
+                }
+
+                if (uniqueTags.Count > 0)
+                {
+                    CategoriesNavView.MenuItems.Add(new NavigationViewItemSeparator());
+                    
+                    var tagsHeader = new NavigationViewItemHeader
+                    {
+                        Content = "Tags"
+                    };
+                    CategoriesNavView.MenuItems.Add(tagsHeader);
+
+                    foreach (var tag in uniqueTags)
+                    {
+                        int count = JournalManager.Instance.Notes.Count(n => !n.IsDeleted && n.Tags != null && n.Tags.Contains(tag));
+                        var navItem = new NavigationViewItem
+                        {
+                            Content = $"#{tag} ({count})",
+                            Tag = $"Tag:{tag}",
+                            Icon = new FontIcon { Glyph = "\uE1CB", FontFamily = (Microsoft.UI.Xaml.Media.FontFamily)Resources["SymbolThemeFontFamily"] }
+                        };
+                        CategoriesNavView.MenuItems.Add(navItem);
+
+                        if (selectedTagStr != null && selectedTagStr.Equals($"Tag:{tag}", StringComparison.OrdinalIgnoreCase))
+                        {
+                            itemToSelect = navItem;
+                        }
+                    }
+                }
+
+                if (itemToSelect != null)
                 {
                     CategoriesNavView.SelectedItem = itemToSelect;
                 }
-                finally
-                {
-                    _isNavigating = false;
-                }
-            }
-            else if (selectedFooterItem != null)
-            {
-                _isNavigating = true;
-                try
+                else if (selectedFooterItem != null)
                 {
                     CategoriesNavView.SelectedItem = selectedFooterItem;
                 }
-                finally
-                {
-                    _isNavigating = false;
-                }
+            }
+            finally
+            {
+                _isNavigating = false;
             }
         }
 
@@ -1239,6 +1231,10 @@ namespace JournalApp
             if (SelectedNote != null && list.Contains(SelectedNote))
             {
                 NotesListView.SelectedItem = SelectedNote;
+            }
+            else
+            {
+                NotesListView.SelectedItem = list.FirstOrDefault();
             }
 
             UpdateStreakUI();
@@ -1537,6 +1533,8 @@ namespace JournalApp
                 // Refresh list visually (but don't reset selection to avoid focus jumping)
                 var currentSelection = SelectedNote;
                 _disableSavingCurrentNote = true;
+                _isSelectingNote = true;
+                _isNavigating = true;
                 try
                 {
                     LoadCategoriesList(); // Re-populate tags list in case tags changed
@@ -1548,6 +1546,8 @@ namespace JournalApp
                     this.DispatcherQueue.TryEnqueue(() =>
                     {
                         _disableSavingCurrentNote = false;
+                        _isSelectingNote = false;
+                        _isNavigating = false;
                     });
                 }
                 
@@ -1768,17 +1768,15 @@ namespace JournalApp
         private void NotesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_isSelectingNote) return;
-            if (NotesListView.SelectedItem is JournalNote note)
+            var selectedNote = NotesListView.SelectedItem as JournalNote;
+            _isSelectingNote = true;
+            try
             {
-                _isSelectingNote = true;
-                try
-                {
-                    SelectedNote = note;
-                }
-                finally
-                {
-                    _isSelectingNote = false;
-                }
+                SelectedNote = selectedNote;
+            }
+            finally
+            {
+                _isSelectingNote = false;
             }
         }
 

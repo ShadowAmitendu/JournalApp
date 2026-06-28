@@ -96,6 +96,8 @@ namespace JournalApp
 
                 var current = SelectedNote;
                 _disableSavingCurrentNote = true;
+                _isSelectingNote = true;
+                _isNavigating = true;
                 try
                 {
                     LoadCategoriesList();
@@ -107,6 +109,8 @@ namespace JournalApp
                     this.DispatcherQueue.TryEnqueue(() =>
                     {
                         _disableSavingCurrentNote = false;
+                        _isSelectingNote = false;
+                        _isNavigating = false;
                     });
                 }
 
