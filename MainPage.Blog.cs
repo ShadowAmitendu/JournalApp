@@ -741,6 +741,20 @@ body {
 }
 
 /* Detail page styling */
+.cover-container {
+    width: 100%;
+    margin-bottom: 35px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.cover-img {
+    width: 100%;
+    height: 380px;
+    object-fit: cover;
+    display: block;
+}
+
 .nav-back {
     margin-bottom: 40px;
     display: flex;

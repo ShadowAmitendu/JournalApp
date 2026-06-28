@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -113,6 +113,34 @@ function focusBlock(id,atEnd=true){
 function handleInput(id,el){
   const b=blocks.find(b=>b.id===id);if(!b)return;b.content=el.innerHTML;
   const txt=el.innerText||"";
+  
+  // ── Obsidian/Notion-Style Live Markdown Formatting Triggers ─────────
+  let triggered=false;
+  if(txt.startsWith("# ")){
+    b.content=esc(txt.slice(2)); b.type="h1"; triggered=true;
+  }else if(txt.startsWith("## ")){
+    b.content=esc(txt.slice(3)); b.type="h2"; triggered=true;
+  }else if(txt.startsWith("### ")){
+    b.content=esc(txt.slice(4)); b.type="h3"; triggered=true;
+  }else if(txt.startsWith("> ")){
+    b.content=esc(txt.slice(2)); b.type="quote"; triggered=true;
+  }else if(txt.startsWith("- ") || txt.startsWith("* ")){
+    b.content=esc(txt.slice(2)); b.type="bullet"; triggered=true;
+  }else if(txt.startsWith("1. ")){
+    b.content=esc(txt.slice(3)); b.type="numbered"; triggered=true;
+  }else if(txt.startsWith("```")){
+    b.content=esc(txt.slice(3)); b.type="code"; triggered=true;
+  }else if(txt.trim()==="---"){
+    b.content=""; b.type="divider"; triggered=true;
+  }
+
+  if(triggered){
+    render();
+    if(b.type!=="divider") focusBlock(id,true);
+    scheduleNotify();
+    return;
+  }
+
   if(txt.startsWith("/")){slashFilter=txt.slice(1).toLowerCase();slashTarget=id;showSlashMenu(el);}
   else hideSlashMenu();
   scheduleNotify();

@@ -4606,6 +4606,11 @@ namespace JournalApp
             {
                 string line = lines[i];
 
+                if (!inCodeBlock && !line.TrimStart().StartsWith("```"))
+                {
+                    line = line.TrimStart(' ', '\t');
+                }
+
                 // Handle code blocks
                 if (line.TrimStart().StartsWith("```"))
                 {
