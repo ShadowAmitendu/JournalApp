@@ -1620,7 +1620,8 @@
                                     </Grid>
                                 </Expander.Header>
                                 <StackPanel Spacing="12" Margin="40,0,0,8">
-                                    <PasswordBox x:Name="GoogleDriveTokenPasswordBox" Header="Google Drive Access Token" PlaceholderText="ya29.a0A..." PasswordRevealMode="Hidden" PasswordChanged="GoogleDriveTokenPasswordBox_PasswordChanged" />
+                                    <Button x:Name="GoogleDriveSignInButton" Content="Sign In with Google" Click="GoogleDriveSignInButton_Click" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left" />
+                                    <PasswordBox x:Name="GoogleDriveTokenPasswordBox" Header="Or Enter Google Drive Access Token Manually" PlaceholderText="ya29.a0A..." PasswordRevealMode="Hidden" PasswordChanged="GoogleDriveTokenPasswordBox_PasswordChanged" />
                                     <StackPanel x:Name="GoogleDriveStatusPanel" Spacing="4" Visibility="Collapsed">
                                         <TextBlock x:Name="GoogleDriveStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
                                         <TextBlock x:Name="GoogleDriveStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -1651,7 +1652,8 @@
                                     </Grid>
                                 </Expander.Header>
                                 <StackPanel Spacing="12" Margin="40,0,0,8">
-                                    <PasswordBox x:Name="OneDriveTokenPasswordBox" Header="OneDrive Access Token" PlaceholderText="EwB4A..." PasswordRevealMode="Hidden" PasswordChanged="OneDriveTokenPasswordBox_PasswordChanged" />
+                                    <Button x:Name="OneDriveSignInButton" Content="Sign In with Microsoft" Click="OneDriveSignInButton_Click" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left" />
+                                    <PasswordBox x:Name="OneDriveTokenPasswordBox" Header="Or Enter OneDrive Access Token Manually" PlaceholderText="EwB4A..." PasswordRevealMode="Hidden" PasswordChanged="OneDriveTokenPasswordBox_PasswordChanged" />
                                     <StackPanel x:Name="OneDriveStatusPanel" Spacing="4" Visibility="Collapsed">
                                         <TextBlock x:Name="OneDriveStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
                                         <TextBlock x:Name="OneDriveStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -1682,7 +1684,8 @@
                                     </Grid>
                                 </Expander.Header>
                                 <StackPanel Spacing="12" Margin="40,0,0,8">
-                                    <PasswordBox x:Name="DropboxTokenPasswordBox" Header="Dropbox Access Token" PlaceholderText="sl.u.B..." PasswordRevealMode="Hidden" PasswordChanged="DropboxTokenPasswordBox_PasswordChanged" />
+                                    <Button x:Name="DropboxSignInButton" Content="Sign In with Dropbox" Click="DropboxSignInButton_Click" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Left" />
+                                    <PasswordBox x:Name="DropboxTokenPasswordBox" Header="Or Enter Dropbox Access Token Manually" PlaceholderText="sl.u.B..." PasswordRevealMode="Hidden" PasswordChanged="DropboxTokenPasswordBox_PasswordChanged" />
                                     <StackPanel x:Name="DropboxStatusPanel" Spacing="4" Visibility="Collapsed">
                                         <TextBlock x:Name="DropboxStatusTitle" Text="Status: Connected" FontSize="13" FontWeight="Medium" />
                                         <TextBlock x:Name="DropboxStatusDetails" Text="Last synced: Never" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

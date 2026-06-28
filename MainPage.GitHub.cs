@@ -2073,6 +2073,11 @@ namespace JournalApp
             string repoName = GetSetting("GitHubRepo");
             if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(repoName)) return;
 
+            // Configure request headers on shared client
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("JournalApp");
+            _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
             repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"\s+", "-");
             repoName = System.Text.RegularExpressions.Regex.Replace(repoName, @"[^a-zA-Z0-9\-_\.]", "").ToLowerInvariant();
 

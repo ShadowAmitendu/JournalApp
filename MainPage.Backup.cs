@@ -434,5 +434,91 @@ namespace JournalApp
 
             return filesToSync;
         }
+
+        private void GoogleDriveSignInButton_Click(object sender, RoutedEventArgs e)
+        {
+            string googleAuthUrl = "https://accounts.google.com/o/oauth2/v2/auth?client_id=1067280352495-2g76aeb1e8csh6bptbe04r0oeq6o4309.apps.googleusercontent.com&redirect_uri=http://localhost&response_type=token&scope=https://www.googleapis.com/auth/drive.file";
+            _ = StartOAuthSignInAsync("Google Drive", googleAuthUrl, "http://localhost", GoogleDriveTokenPasswordBox);
+        }
+
+        private void OneDriveSignInButton_Click(object sender, RoutedEventArgs e)
+        {
+            string microsoftAuthUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=8923a101-70bf-4d10-8b43-26100c430932&redirect_uri=https://login.live.com/oauth20_desktop.srf&response_type=token&scope=files.readwrite";
+            _ = StartOAuthSignInAsync("OneDrive", microsoftAuthUrl, "https://login.live.com/oauth20_desktop.srf", OneDriveTokenPasswordBox);
+        }
+
+        private void DropboxSignInButton_Click(object sender, RoutedEventArgs e)
+        {
+            string dropboxAuthUrl = "https://www.dropbox.com/oauth2/authorize?client_id=ab239c01923cd4e&redirect_uri=http://localhost&response_type=token";
+            _ = StartOAuthSignInAsync("Dropbox", dropboxAuthUrl, "http://localhost", DropboxTokenPasswordBox);
+        }
+
+        private async Task StartOAuthSignInAsync(string serviceName, string authUrl, string redirectUriPrefix, PasswordBox targetPasswordBox)
+        {
+            try
+            {
+                var webView = new Microsoft.UI.Xaml.Controls.WebView2
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch,
+                    MinWidth = 500,
+                    MinHeight = 600
+                };
+
+                var browserDialog = new ContentDialog
+                {
+                    Title = $"Sign in to {serviceName}",
+                    Content = webView,
+                    CloseButtonText = "Cancel",
+                    XamlRoot = this.XamlRoot
+                };
+
+                webView.NavigationStarting += (sender, args) =>
+                {
+                    string url = args.Uri.ToString();
+                    if (url.StartsWith(redirectUriPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string token = null;
+                        var uri = new Uri(url);
+                        
+                        string hash = uri.Fragment;
+                        if (!string.IsNullOrEmpty(hash) && hash.Contains("access_token="))
+                        {
+                            var parts = hash.TrimStart('#').Split('&');
+                            var tokenPart = parts.FirstOrDefault(p => p.StartsWith("access_token="));
+                            if (tokenPart != null)
+                            {
+                                token = tokenPart.Split('=')[1];
+                            }
+                        }
+                        else
+                        {
+                            var queryParts = uri.Query.TrimStart('?').Split('&');
+                            var tokenPart = queryParts.FirstOrDefault(p => p.StartsWith("access_token="));
+                            if (tokenPart != null)
+                            {
+                                token = tokenPart.Split('=')[1];
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            targetPasswordBox.Password = token;
+                            browserDialog.Hide();
+                            _ = ShowAlertAsync("Sign In Successful", $"You have successfully signed in to {serviceName}!");
+                        }
+                    }
+                };
+
+                await webView.EnsureCoreWebView2Async();
+                webView.Source = new Uri(authUrl);
+
+                await browserDialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                await ShowAlertAsync("Sign In Failed", $"An error occurred during authentication:\n{ex.Message}");
+            }
+        }
     }
 }
