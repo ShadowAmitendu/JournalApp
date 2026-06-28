@@ -510,7 +510,7 @@ namespace JournalApp
                 galleryHtml = "<div class=\"post-gallery\"><h3>Attached Photos</h3><div class=\"gallery-grid\">";
                 foreach (var photoUrl in blogPhotoUrls)
                 {
-                    galleryHtml += $"<a href=\"{photoUrl}\" target=\"_blank\"><img src=\"{photoUrl}\" alt=\"Attached photo\"></a>";
+                    galleryHtml += $"<a href=\"javascript:void(0)\" onclick=\"openLightbox('{photoUrl}')\"><img src=\"{photoUrl}\" alt=\"Attached photo\"></a>";
                 }
                 galleryHtml += "</div></div>";
             }
@@ -555,10 +555,34 @@ namespace JournalApp
         <p>&copy; {DateTime.Now.Year} {System.Net.WebUtility.HtmlEncode(blogTitle)}. Generated via JournalApp.</p>
     </footer>
 
+    <!-- Overlay Lightbox Container -->
+    <div id=""lightbox"" onclick=""closeLightbox()"" style=""display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease; cursor: pointer;"">
+        <img id=""lightbox-img"" src="""" style=""max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 4px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); transform: scale(0.95); transition: transform 0.25s ease;"" alt=""Enlarged photo"">
+    </div>
+
     <script>
         function copyShareLink() {{
             navigator.clipboard.writeText(window.location.href);
             alert('Link copied to clipboard!');
+        }}
+        function openLightbox(url) {{
+            const lightbox = document.getElementById('lightbox');
+            const img = document.getElementById('lightbox-img');
+            img.src = url;
+            lightbox.style.display = 'flex';
+            setTimeout(() => {{
+                lightbox.style.opacity = '1';
+                img.style.transform = 'scale(1)';
+            }}, 10);
+        }}
+        function closeLightbox() {{
+            const lightbox = document.getElementById('lightbox');
+            const img = document.getElementById('lightbox-img');
+            lightbox.style.opacity = '0';
+            img.style.transform = 'scale(0.95)';
+            setTimeout(() => {{
+                lightbox.style.display = 'none';
+            }}, 250);
         }}
     </script>
 </body>
