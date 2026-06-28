@@ -1209,6 +1209,7 @@ namespace JournalApp
                 NoteRichEditBox.IsEnabled = true;
             }
             if (NoteEditorWebView != null) NoteEditorWebView.Visibility = Visibility.Collapsed;
+            if (NativeBlockEditorScroll != null) NativeBlockEditorScroll.Visibility = Visibility.Collapsed;
 
             if (SelectedNote.IsLocked)
             {

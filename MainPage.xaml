@@ -1116,6 +1116,7 @@
                                                     HorizontalAlignment="Stretch"
                                                     VerticalAlignment="Stretch"
                                                     Background="Transparent"
+                                                    MinHeight="500"
                                                     Tapped="NativeBlockEditorScroll_Tapped">
                                           <StackPanel x:Name="NativeBlockEditorContainer"
                                                       Spacing="12"
