@@ -1534,17 +1534,25 @@ namespace JournalApp
 
             string base64Content = Convert.ToBase64String(File.ReadAllBytes(localPath));
             
-            // Check if file exists on GitHub to obtain its SHA (required for updating files in Git)
-            string sha = null;
-            var fileResponse = await _httpClient.GetAsync($"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}");
-            if (fileResponse.IsSuccessStatusCode)
+            // Helper function to fetch the latest SHA without using any cached response
+            Func<Task<string>> fetchShaFunc = async () =>
             {
-                using var fileDoc = System.Text.Json.JsonDocument.Parse(await fileResponse.Content.ReadAsStringAsync());
-                if (fileDoc.RootElement.TryGetProperty("sha", out var shaProp))
+                using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}");
+                request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
+                
+                var fileResponse = await _httpClient.SendAsync(request);
+                if (fileResponse.IsSuccessStatusCode)
                 {
-                    sha = shaProp.GetString();
+                    using var fileDoc = System.Text.Json.JsonDocument.Parse(await fileResponse.Content.ReadAsStringAsync());
+                    if (fileDoc.RootElement.TryGetProperty("sha", out var shaProp))
+                    {
+                        return shaProp.GetString();
+                    }
                 }
-            }
+                return null;
+            };
+
+            string sha = await fetchShaFunc();
 
             // Create put request body
             var putData = new 
@@ -1557,6 +1565,25 @@ namespace JournalApp
             var putContent = new StringContent(putJson, System.Text.Encoding.UTF8, "application/json");
 
             var putResponse = await _httpClient.PutAsync($"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}", putContent);
+            
+            // Auto-retry once if we get a Conflict (409), which happens if the remote ref updated in the background
+            if (putResponse.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SyncFileToGitHub] Conflict 409 on {githubPath}. Fetching fresh SHA and retrying...");
+                sha = await fetchShaFunc();
+                
+                var retryData = new 
+                {
+                    message = commitMessage,
+                    content = base64Content,
+                    sha = sha
+                };
+                string retryJson = System.Text.Json.JsonSerializer.Serialize(retryData);
+                var retryContent = new StringContent(retryJson, System.Text.Encoding.UTF8, "application/json");
+                
+                putResponse = await _httpClient.PutAsync($"https://api.github.com/repos/{username}/{repoName}/contents/{githubPath}", retryContent);
+            }
+
             if (!putResponse.IsSuccessStatusCode)
             {
                 string errorResponse = await putResponse.Content.ReadAsStringAsync();
