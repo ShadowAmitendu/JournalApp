@@ -1325,7 +1325,7 @@
                                              PlaceholderText="Ask the AI anything..." 
                                              AcceptsReturn="True" 
                                              MaxHeight="80" 
-                                             KeyDown="AIChatInputBox_KeyDown" 
+                                             PreviewKeyDown="AIChatInputBox_PreviewKeyDown" 
                                              CornerRadius="8" />
                                     <Button x:Name="AIChatSendButton" 
                                             Grid.Column="1" 
