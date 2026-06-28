@@ -212,8 +212,26 @@ namespace JournalApp
                         }
                     }
 
+                    // Sync attached photos if local
+                    var blogPhotoUrls = new List<string>();
+                    if (note.AttachedPhotoPaths != null)
+                    {
+                        foreach (var photoPath in note.AttachedPhotoPaths)
+                        {
+                            if (string.IsNullOrEmpty(photoPath)) continue;
+                            string localPhotoPath = JournalManager.Instance.GetAbsoluteMediaPath(photoPath);
+                            if (File.Exists(localPhotoPath))
+                            {
+                                string cleanName = Path.GetFileName(photoPath);
+                                string remotePhotoPath = $"media/{cleanName}";
+                                filesToUpload.Add((localPhotoPath, remotePhotoPath));
+                                blogPhotoUrls.Add($"../media/{cleanName}");
+                            }
+                        }
+                    }
+
                     // Convert plain text to post HTML
-                    string postHtml = GenerateBlogPostHtml(note, plainText, blogTitle, githubImagePath);
+                    string postHtml = GenerateBlogPostHtml(note, plainText, blogTitle, githubImagePath, blogPhotoUrls);
                     string postFilename = $"post_{note.Id}.html";
                     string localPostPath = Path.Combine(tempPostsDir, postFilename);
                     File.WriteAllText(localPostPath, postHtml);
@@ -338,7 +356,7 @@ namespace JournalApp
             }
         }
 
-        private string GenerateBlogPostHtml(JournalNote note, string plainText, string blogTitle, string coverImagePath)
+        private string GenerateBlogPostHtml(JournalNote note, string plainText, string blogTitle, string coverImagePath, List<string> blogPhotoUrls)
         {
             string title = string.IsNullOrWhiteSpace(note.Title) ? "Untitled Post" : note.Title.Trim();
             string dateString = note.DateCreated.ToString("MMMM d, yyyy");
@@ -468,6 +486,17 @@ namespace JournalApp
             if (inUl) bodyHtml += "</ul>";
             if (inBlockquote) bodyHtml += "</blockquote>";
 
+            string galleryHtml = "";
+            if (blogPhotoUrls != null && blogPhotoUrls.Count > 0)
+            {
+                galleryHtml = "<div class=\"post-gallery\"><h3>Attached Photos</h3><div class=\"gallery-grid\">";
+                foreach (var photoUrl in blogPhotoUrls)
+                {
+                    galleryHtml += $"<a href=\"{photoUrl}\" target=\"_blank\"><img src=\"{photoUrl}\" alt=\"Attached photo\"></a>";
+                }
+                galleryHtml += "</div></div>";
+            }
+
             return $@"<!DOCTYPE html>
 <html lang=""en"">
 <head>
@@ -500,6 +529,7 @@ namespace JournalApp
 
         <section class=""post-content"">
             {bodyHtml}
+            {galleryHtml}
         </section>
     </article>
 
@@ -788,6 +818,40 @@ footer {
     font-size: 1rem;
     border: 1px dashed var(--border-color);
     border-radius: 8px;
+}
+
+/* Gallery styles */
+.post-gallery {
+    margin-top: 40px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 30px;
+}
+
+.post-gallery h3 {
+    font-family: var(--font-serif);
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+    color: var(--text-secondary);
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.gallery-grid img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.gallery-grid img:hover {
+    transform: scale(1.02);
 }
 ";
         }
