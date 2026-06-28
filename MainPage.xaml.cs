@@ -441,6 +441,7 @@ namespace JournalApp
         private readonly List<string> _lockedCategories = new();
         private string _masterPassword = "";
         private bool _disableSavingCurrentNote = false;
+        private static readonly System.Threading.SemaphoreSlim _dialogSemaphore = new(1, 1);
 
         // User-configurable settings state
         private bool _useWindowsHello = true;
@@ -3611,14 +3612,26 @@ namespace JournalApp
 
         private async Task ShowAlertAsync(string title, string message)
         {
-            var dialog = new ContentDialog
+            await _dialogSemaphore.WaitAsync();
+            try
             {
-                Title = title,
-                Content = message,
-                CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
-            };
-            await dialog.ShowAsync();
+                var dialog = new ContentDialog
+                {
+                    Title = title,
+                    Content = message,
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await dialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ShowAlertAsync error: {ex.Message}");
+            }
+            finally
+            {
+                _dialogSemaphore.Release();
+            }
         }
 
         private void ShowLoadingRing(bool show)
@@ -6183,22 +6196,30 @@ namespace JournalApp
 
         private async Task<string> PromptForPasswordInputAsync(string title, string instruction)
         {
-            var pwdBox = new PasswordBox { HorizontalAlignment = HorizontalAlignment.Stretch };
-            var stack = new StackPanel { Spacing = 8 };
-            stack.Children.Add(new TextBlock { Text = instruction, FontSize = 13 });
-            stack.Children.Add(pwdBox);
-
-            var dialog = new ContentDialog
+            await _dialogSemaphore.WaitAsync();
+            try
             {
-                Title = title,
-                Content = stack,
-                PrimaryButtonText = "OK",
-                CloseButtonText = "Cancel",
-                XamlRoot = this.XamlRoot
-            };
+                var pwdBox = new PasswordBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+                var stack = new StackPanel { Spacing = 8 };
+                stack.Children.Add(new TextBlock { Text = instruction, FontSize = 13 });
+                stack.Children.Add(pwdBox);
 
-            var res = await dialog.ShowAsync();
-            return res == ContentDialogResult.Primary ? pwdBox.Password : null;
+                var dialog = new ContentDialog
+                {
+                    Title = title,
+                    Content = stack,
+                    PrimaryButtonText = "OK",
+                    CloseButtonText = "Cancel",
+                    XamlRoot = this.XamlRoot
+                };
+
+                var res = await dialog.ShowAsync();
+                return res == ContentDialogResult.Primary ? pwdBox.Password : null;
+            }
+            finally
+            {
+                _dialogSemaphore.Release();
+            }
         }
     }
 }

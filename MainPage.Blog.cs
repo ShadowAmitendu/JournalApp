@@ -960,6 +960,7 @@ footer {
             public List<string> Tags { get; set; }
             public string CoverImage { get; set; }
             public string LinkUrl { get; set; }
+            public int ReadingTime { get; set; }
         }
         private async void UpdateBlogLiveUrlLink(string blogRepo)
         {
