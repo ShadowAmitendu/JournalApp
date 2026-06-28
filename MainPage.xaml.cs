@@ -3946,7 +3946,6 @@ namespace JournalApp
 
         private void NotesListView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
         {
-            if (args.InAsyncPhase) return;
             var vis = _showSnippets ? Visibility.Visible : Visibility.Collapsed;
             FindAndSetVisibility(args.ItemContainer, "SnippetRow", vis);
         }
