@@ -25,6 +25,7 @@ namespace JournalApp
         public List<string> Tags { get; set; } = new List<string>();
         public bool HasTime { get; set; } = true;
         public string EditorWidth { get; set; } = "Medium";
+        public bool IsLocked { get; set; }
 
         // ── Moments section ──
         public string LocationTag { get; set; } = "";

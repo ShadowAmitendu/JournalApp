@@ -1185,9 +1185,57 @@ namespace JournalApp
             UpdateStreakUI();
         }
 
-        private void LoadNoteContent()
+        private async void LoadNoteContent()
         {
             if (SelectedNote == null) return;
+
+            if (TitleTextBox != null) TitleTextBox.IsEnabled = true;
+            if (NoteRichEditBox != null) NoteRichEditBox.IsEnabled = true;
+            UpdateLockNoteButtonState();
+
+            if (SelectedNote.IsLocked)
+            {
+                bool verified = false;
+                try
+                {
+                    var verResult = await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync($"Unlock journal entry: {SelectedNote.Title}");
+                    if (verResult == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified)
+                    {
+                        verified = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"UserConsentVerifier error: {ex.Message}");
+                    if (!string.IsNullOrEmpty(_masterPassword))
+                    {
+                        string pwdInput = await PromptForPasswordInputAsync("Locked Entry", "Enter master password to unlock:");
+                        if (pwdInput == _masterPassword)
+                        {
+                            verified = true;
+                        }
+                    }
+                    else
+                    {
+                        verified = true;
+                    }
+                }
+
+                if (!verified)
+                {
+                    if (NoteRichEditBox != null)
+                    {
+                        NoteRichEditBox.Document.SetText(TextSetOptions.None, "🔒 [Locked Entry - Biometric Verification Failed]");
+                        NoteRichEditBox.IsEnabled = false;
+                    }
+                    if (TitleTextBox != null)
+                    {
+                        TitleTextBox.IsEnabled = false;
+                    }
+                    _disableSavingCurrentNote = true;
+                    return;
+                }
+            }
 
             try
             {
@@ -2420,35 +2468,6 @@ namespace JournalApp
             {
                 await ShowAlertAsync("Error", $"Could not insert image: {ex.Message}");
             }
-        }
-
-        private void EditorContextFlyout_Opening(object sender, object e)
-        {
-            if (NoteRichEditBox == null || ContextResizeImage == null || EditorContextSeparator == null) return;
-            NoteRichEditBox.Document.Selection.GetText(Microsoft.UI.Text.TextGetOptions.None, out string selectedText);
-            bool isImage = (selectedText == "\xFFFC");
-            ContextResizeImage.Visibility = isImage ? Visibility.Visible : Visibility.Collapsed;
-            EditorContextSeparator.Visibility = isImage ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        private void ContextCut_Click(object sender, RoutedEventArgs e)
-        {
-            NoteRichEditBox?.Document.Selection.Cut();
-        }
-
-        private void ContextCopy_Click(object sender, RoutedEventArgs e)
-        {
-            NoteRichEditBox?.Document.Selection.Copy();
-        }
-
-        private void ContextPaste_Click(object sender, RoutedEventArgs e)
-        {
-            NoteRichEditBox?.Document.Selection.Paste(0);
-        }
-
-        private async void ContextResizeImage_Click(object sender, RoutedEventArgs e)
-        {
-            await ResizeSelectedImageAsync();
         }
 
         private async void NoteRichEditBox_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
@@ -6085,6 +6104,93 @@ namespace JournalApp
                 await ShowAlertAsync("Error", $"Could not open built-in browser:\n{ex.Message}");
                 await Windows.System.Launcher.LaunchUriAsync(uri);
             }
+        }
+
+        private void UpdateLockNoteButtonState()
+        {
+            if (LockNoteButton == null || SelectedNote == null) return;
+            if (SelectedNote.IsLocked)
+            {
+                LockNoteIcon.Glyph = "\uE72E";
+                LockNoteText.Text = "Locked";
+                ToolTipService.SetToolTip(LockNoteButton, "This note is secure. Click to unlock/remove protection.");
+            }
+            else
+            {
+                LockNoteIcon.Glyph = "\uE785";
+                LockNoteText.Text = "Unlocked";
+                ToolTipService.SetToolTip(LockNoteButton, "This note is unsecured. Click to secure with Windows Hello.");
+            }
+        }
+
+        private async void LockNoteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedNote == null) return;
+
+            if (SelectedNote.IsLocked)
+            {
+                bool verified = false;
+                try
+                {
+                    var verResult = await Windows.Security.Credentials.UI.UserConsentVerifier.RequestVerificationAsync("Remove lock from this entry");
+                    if (verResult == Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified)
+                    {
+                        verified = true;
+                    }
+                }
+                catch
+                {
+                    if (!string.IsNullOrEmpty(_masterPassword))
+                    {
+                        string pwdInput = await PromptForPasswordInputAsync("Locked Entry", "Enter master password to unlock:");
+                        if (pwdInput == _masterPassword)
+                        {
+                            verified = true;
+                        }
+                        else
+                        {
+                            await ShowAlertAsync("Incorrect Password", "Master password verification failed.");
+                        }
+                    }
+                    else
+                    {
+                        verified = true;
+                    }
+                }
+
+                if (!verified) return;
+
+                SelectedNote.IsLocked = false;
+                await ShowAlertAsync("Note Unlocked", "Protection has been successfully removed from this entry.");
+            }
+            else
+            {
+                SelectedNote.IsLocked = true;
+                await ShowAlertAsync("Note Locked", "This entry is now secured. Windows Hello verification will be required to view it next time.");
+            }
+
+            UpdateLockNoteButtonState();
+            JournalManager.Instance.SaveNotesMetadata();
+        }
+
+        private async Task<string> PromptForPasswordInputAsync(string title, string instruction)
+        {
+            var pwdBox = new PasswordBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+            var stack = new StackPanel { Spacing = 8 };
+            stack.Children.Add(new TextBlock { Text = instruction, FontSize = 13 });
+            stack.Children.Add(pwdBox);
+
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = stack,
+                PrimaryButtonText = "OK",
+                CloseButtonText = "Cancel",
+                XamlRoot = this.XamlRoot
+            };
+
+            var res = await dialog.ShowAsync();
+            return res == ContentDialogResult.Primary ? pwdBox.Password : null;
         }
     }
 }

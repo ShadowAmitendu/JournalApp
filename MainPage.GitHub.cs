@@ -1260,6 +1260,22 @@ namespace JournalApp
                     System.Diagnostics.Debug.WriteLine($"[RestoreDefaults] Could not write welcome RTF: {rtfEx.Message}");
                 }
 
+                // Create a spelling test note with prompt
+                var spellNote = JournalManager.Instance.CreateNote("Personal");
+                spellNote.Title = "Writing Prompt: Something New";
+                spellNote.Snippet = "Prompt: Write about a time you tried something new and what you learned from it.";
+                
+                try
+                {
+                    string spellRtfPath = JournalManager.Instance.GetAbsoluteRtfPath(spellNote.RtfFileName);
+                    string spellRtf = @"{\rtf1\ansi\deff0{\fonttbl{\f0\fnil\fcharset0 Segoe UI;}} \viewkind4\uc1\pard\lang1033\f0\fs20 \b Prompt:\b0  Write about a time you tried something new and what you learned from it.\par\par Last week, I tryed (misspelled) to cook a new dish. I learnned (misspelled) that patience is key when trying new recipes!\par}";
+                    File.WriteAllText(spellRtfPath, spellRtf);
+                }
+                catch (Exception rtfEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RestoreDefaults] Could not write spell note RTF: {rtfEx.Message}");
+                }
+
                 JournalManager.Instance.SaveCategories();
                 
                 LoadCategoriesList();
