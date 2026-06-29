@@ -188,7 +188,6 @@ namespace JournalApp
 
             var textBlock = new TextBlock
             {
-                Text = text,
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 13,
                 LineHeight = 18,
@@ -197,6 +196,15 @@ namespace JournalApp
                     : GetThemeBrush("TextFillColorPrimaryBrush", "#000000"),
                 IsTextSelectionEnabled = true
             };
+
+            if (isUser)
+            {
+                textBlock.Text = text;
+            }
+            else
+            {
+                ParseMarkdownToInlines(text, textBlock);
+            }
 
             bubbleBorder.Child = textBlock;
             AIChatPanel.Children.Add(bubbleBorder);
@@ -215,13 +223,182 @@ namespace JournalApp
             var lastChild = AIChatPanel.Children.LastOrDefault();
             if (lastChild is Border bubbleBorder && bubbleBorder.Child is TextBlock textBlock)
             {
-                textBlock.Text = string.IsNullOrEmpty(text) ? "Thinking..." : (text + (addCursor ? " █" : ""));
+                if (string.IsNullOrEmpty(text))
+                {
+                    textBlock.Inlines.Clear();
+                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
+                    if (addCursor)
+                    {
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                    }
+                }
+                else
+                {
+                    ParseMarkdownToInlines(text, textBlock);
+                    if (addCursor)
+                    {
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                    }
+                }
             }
 
             // Auto-scroll to bottom
             if (AIChatScrollViewer != null)
             {
                 AIChatScrollViewer.ChangeView(null, AIChatScrollViewer.ScrollableHeight, null);
+            }
+        }
+
+        private void ParseMarkdownToInlines(string markdownText, TextBlock textBlock)
+        {
+            textBlock.Inlines.Clear();
+            if (string.IsNullOrEmpty(markdownText)) return;
+
+            int index = 0;
+            int len = markdownText.Length;
+
+            while (index < len)
+            {
+                // Check code block / inline code
+                if (markdownText[index] == '`')
+                {
+                    int nextBacktick = markdownText.IndexOf('`', index + 1);
+                    if (nextBacktick > index)
+                    {
+                        string codeText = markdownText.Substring(index + 1, nextBacktick - index - 1);
+                        var run = new Microsoft.UI.Xaml.Documents.Run
+                        {
+                            Text = codeText,
+                            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                            Foreground = GetThemeBrush("AccentTextFillColorPrimaryBrush", "#0078D4")
+                        };
+                        textBlock.Inlines.Add(run);
+                        index = nextBacktick + 1;
+                        continue;
+                    }
+                }
+
+                // Check bold + italic (***)
+                if (index + 2 < len && markdownText.Substring(index, 3) == "***")
+                {
+                    int nextTriple = markdownText.IndexOf("***", index + 3);
+                    if (nextTriple > index)
+                    {
+                        string innerText = markdownText.Substring(index + 3, nextTriple - index - 3);
+                        var span = new Microsoft.UI.Xaml.Documents.Span();
+                        var bold = new Microsoft.UI.Xaml.Documents.Bold();
+                        var italic = new Microsoft.UI.Xaml.Documents.Italic();
+                        italic.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = innerText });
+                        bold.Inlines.Add(italic);
+                        span.Inlines.Add(bold);
+                        textBlock.Inlines.Add(span);
+                        index = nextTriple + 3;
+                        continue;
+                    }
+                }
+
+                // Check bold + italic (___)
+                if (index + 2 < len && markdownText.Substring(index, 3) == "___")
+                {
+                    int nextTriple = markdownText.IndexOf("___", index + 3);
+                    if (nextTriple > index)
+                    {
+                        string innerText = markdownText.Substring(index + 3, nextTriple - index - 3);
+                        var span = new Microsoft.UI.Xaml.Documents.Span();
+                        var bold = new Microsoft.UI.Xaml.Documents.Bold();
+                        var italic = new Microsoft.UI.Xaml.Documents.Italic();
+                        italic.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = innerText });
+                        bold.Inlines.Add(italic);
+                        span.Inlines.Add(bold);
+                        textBlock.Inlines.Add(span);
+                        index = nextTriple + 3;
+                        continue;
+                    }
+                }
+
+                // Check bold (**)
+                if (index + 1 < len && markdownText.Substring(index, 2) == "**")
+                {
+                    int nextDouble = markdownText.IndexOf("**", index + 2);
+                    if (nextDouble > index)
+                    {
+                        string innerText = markdownText.Substring(index + 2, nextDouble - index - 2);
+                        var bold = new Microsoft.UI.Xaml.Documents.Bold();
+                        bold.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = innerText });
+                        textBlock.Inlines.Add(bold);
+                        index = nextDouble + 2;
+                        continue;
+                    }
+                }
+
+                // Check bold (__)
+                if (index + 1 < len && markdownText.Substring(index, 2) == "__")
+                {
+                    int nextDouble = markdownText.IndexOf("__", index + 2);
+                    if (nextDouble > index)
+                    {
+                        string innerText = markdownText.Substring(index + 2, nextDouble - index - 2);
+                        var bold = new Microsoft.UI.Xaml.Documents.Bold();
+                        bold.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = innerText });
+                        textBlock.Inlines.Add(bold);
+                        index = nextDouble + 2;
+                        continue;
+                    }
+                }
+
+                // Check italic (*)
+                if (markdownText[index] == '*')
+                {
+                    int nextSingle = markdownText.IndexOf('*', index + 1);
+                    if (nextSingle > index)
+                    {
+                        string innerText = markdownText.Substring(index + 1, nextSingle - index - 1);
+                        var italic = new Microsoft.UI.Xaml.Documents.Italic();
+                        italic.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = innerText });
+                        textBlock.Inlines.Add(italic);
+                        index = nextSingle + 1;
+                        continue;
+                    }
+                }
+
+                // Check italic (_)
+                if (markdownText[index] == '_')
+                {
+                    int nextSingle = markdownText.IndexOf('_', index + 1);
+                    if (nextSingle > index)
+                    {
+                        string innerText = markdownText.Substring(index + 1, nextSingle - index - 1);
+                        var italic = new Microsoft.UI.Xaml.Documents.Italic();
+                        italic.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = innerText });
+                        textBlock.Inlines.Add(italic);
+                        index = nextSingle + 1;
+                        continue;
+                    }
+                }
+
+                // Default text character
+                int nextSpecial = markdownText.IndexOfAny(new char[] { '*', '_', '`', '\n' }, index);
+                if (nextSpecial == -1)
+                {
+                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = markdownText.Substring(index) });
+                    break;
+                }
+                else
+                {
+                    if (nextSpecial > index)
+                    {
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = markdownText.Substring(index, nextSpecial - index) });
+                    }
+                    if (markdownText[nextSpecial] == '\n')
+                    {
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+                        index = nextSpecial + 1;
+                    }
+                    else
+                    {
+                        index = nextSpecial;
+                    }
+                }
             }
         }
 
