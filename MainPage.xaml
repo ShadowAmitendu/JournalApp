@@ -1346,19 +1346,14 @@
                         <Border x:Name="AIAssistantPanel"
                                 Grid.Column="1"
                                 Visibility="Collapsed"
-                                Width="340"
-                                Margin="8,0,0,0"
+                                Width="0"
+                                Margin="0"
                                 VerticalAlignment="Stretch"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="12">
-                            <Border.Transitions>
-                                <TransitionCollection>
-                                    <PaneThemeTransition Edge="Right" />
-                                </TransitionCollection>
-                            </Border.Transitions>
-                            <Grid>
+                            <Grid Width="340" HorizontalAlignment="Right">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />

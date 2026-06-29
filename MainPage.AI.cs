@@ -19,21 +19,72 @@ namespace JournalApp
         private bool _aiPanelOpen = false;
         private string _aiLastResponse = string.Empty;
         private string _chatTranscript = string.Empty;
+        private Microsoft.UI.Xaml.Media.Animation.Storyboard _aiPanelStoryboard;
 
         // ── Panel Toggle ──────────────────────────────────────────────────────
 
         private async void AIAssistantButton_Click(object sender, RoutedEventArgs e)
         {
             _aiPanelOpen = !_aiPanelOpen;
-            if (AIAssistantPanel != null)
-            {
-                AIAssistantPanel.Visibility = _aiPanelOpen ? Visibility.Visible : Visibility.Collapsed;
-            }
+            AnimateAIPanel(_aiPanelOpen);
 
             if (_aiPanelOpen)
             {
                 await RefreshOllamaStatusAsync();
             }
+        }
+
+        private void AnimateAIPanel(bool open)
+        {
+            if (AIAssistantPanel == null) return;
+
+            // Stop any existing animation
+            if (_aiPanelStoryboard != null)
+            {
+                _aiPanelStoryboard.Stop();
+                _aiPanelStoryboard = null;
+            }
+
+            // We animate from the current width to the target width
+            double startWidth = AIAssistantPanel.ActualWidth;
+            if (AIAssistantPanel.Visibility == Visibility.Collapsed)
+            {
+                startWidth = 0;
+            }
+            double endWidth = open ? 340 : 0;
+
+            // If we are opening, ensure it is visible first and set margin to 8px
+            if (open)
+            {
+                AIAssistantPanel.Visibility = Visibility.Visible;
+                AIAssistantPanel.Margin = new Thickness(8, 0, 0, 0);
+            }
+
+            var animation = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+            {
+                From = startWidth,
+                To = endWidth,
+                Duration = new Duration(TimeSpan.FromMilliseconds(300)),
+                EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut }
+            };
+
+            _aiPanelStoryboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+            _aiPanelStoryboard.Children.Add(animation);
+
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(animation, AIAssistantPanel);
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(animation, "Width");
+
+            if (!open)
+            {
+                _aiPanelStoryboard.Completed += (s, e) =>
+                {
+                    // Hide the panel once the close animation is done and reset margin
+                    AIAssistantPanel.Visibility = Visibility.Collapsed;
+                    AIAssistantPanel.Margin = new Thickness(0);
+                };
+            }
+
+            _aiPanelStoryboard.Begin();
         }
 
         // ── Status & Model Refresh ────────────────────────────────────────────
