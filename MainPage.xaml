@@ -150,6 +150,11 @@
                         <FontIcon Glyph="&#xE707;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Name="AIChatNavItem" Content="AI Chat" ToolTipService.ToolTip="AI Assistant Chat Sessions">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8F2;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem x:Name="ShortcutsNavItem" Content="Shortcuts" ToolTipService.ToolTip="Keyboard Shortcuts">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE765;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
@@ -2358,6 +2363,142 @@
                 <Border Grid.Row="1" Margin="40,0,40,40" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                     <WebView2 x:Name="JournalMapWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
+            </Grid>
+
+            <!-- AI Chat History Grid -->
+            <Grid x:Name="AIChatGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260" MinWidth="200" MaxWidth="400" x:Name="AIChatSidebarColumn" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Column: Session List Sidebar -->
+                <Grid Grid.Column="0" Padding="16,16,16,16" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- New Chat Button -->
+                    <Button x:Name="AIChatNewSessionButton" Grid.Row="0" HorizontalAlignment="Stretch" Click="AIChatNewSessionButton_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,8" CornerRadius="8" Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE710;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
+                            <TextBlock Text="New Chat" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Chat Sessions List -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ListView x:Name="AIChatSessionListView" SelectionMode="Single" SelectionChanged="AIChatSessionListView_SelectionChanged" HorizontalAlignment="Stretch">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="local:AIChatSession">
+                                    <Grid Padding="8,8" CornerRadius="8" HorizontalAlignment="Stretch">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Spacing="2">
+                                            <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{x:Bind DisplayDate, Mode=OneWay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <!-- Delete session button -->
+                                        <Button Grid.Column="1" Content="&#xE74D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Background="Transparent" BorderThickness="0" Padding="8,4" Click="AIChatDeleteSessionButton_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Delete Chat" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- Vertical Splitter between Sidebar and Chat Content -->
+                <Border Grid.Column="1" Width="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Stretch" />
+
+                <!-- Right Column: Active Chat Area -->
+                <Grid Grid.Column="2" Padding="24,16,24,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Chat Header: Session Title -->
+                    <Grid Grid.Row="0" Padding="0,0,0,12" BorderThickness="0,0,0,1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <!-- Editable Chat Title -->
+                            <TextBox x:Name="AIChatSessionTitleTextBox" FontSize="18" FontWeight="Bold" BorderThickness="0" Background="Transparent" Padding="0,2" LostFocus="AIChatSessionTitleTextBox_LostFocus" KeyDown="AIChatSessionTitleTextBox_KeyDown" />
+                            <TextBlock Text="AI Chat Session" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <!-- Top actions -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <ComboBox x:Name="AIChatPageModelCombo" PlaceholderText="Select model…" VerticalAlignment="Center" Width="180" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Chat Message Area ScrollViewer -->
+                    <ScrollViewer Grid.Row="1" x:Name="AIChatPageHistoryScrollViewer" VerticalScrollBarVisibility="Auto" Margin="0,12,0,12" Padding="0,0,8,0">
+                        <StackPanel x:Name="AIChatPageHistoryPanel" Spacing="8" VerticalAlignment="Bottom">
+                            <!-- Welcome bubble when session is empty -->
+                            <Border x:Name="AIChatPageWelcomePlaceholder" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="12" Margin="4,4,40,4" HorizontalAlignment="Left" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                <TextBlock Text="Welcome! Select an old chat on the left or type below to start a new conversation." 
+                                           TextWrapping="Wrap" 
+                                           FontSize="13" 
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Stop Indicator / Generation Progress Bar -->
+                    <Grid Grid.Row="2" Margin="0,0,0,8" Visibility="Collapsed" x:Name="AIChatPageProgressGrid">
+                        <ProgressBar IsIndeterminate="True" Height="4" />
+                    </Grid>
+
+                    <!-- Input Box and Send Button -->
+                    <Grid Grid.Row="3" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBox x:Name="AIChatPageInputBox" 
+                                 Grid.Column="0" 
+                                 PlaceholderText="Type a message..." 
+                                 AcceptsReturn="True" 
+                                 MaxHeight="100" 
+                                 PreviewKeyDown="AIChatPageInputBox_PreviewKeyDown" 
+                                 CornerRadius="8" />
+                                 
+                        <Button x:Name="AIChatPageSendButton" 
+                                Grid.Column="1" 
+                                Content="&#xE724;" 
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}" 
+                                Click="AIChatPageSendButton_Click" 
+                                VerticalAlignment="Bottom"
+                                Height="36"
+                                Width="36"
+                                Padding="0"
+                                CornerRadius="8" 
+                                Style="{StaticResource AccentButtonStyle}" />
+                                
+                        <Button x:Name="AIChatPageStopButton" 
+                                Grid.Column="2" 
+                                Content="⏹" 
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}" 
+                                Click="AIChatPageStopButton_Click" 
+                                Visibility="Collapsed"
+                                VerticalAlignment="Bottom"
+                                Height="36"
+                                Width="36"
+                                Padding="0"
+                                CornerRadius="8" />
+                    </Grid>
+                </Grid>
             </Grid>
 
             <!-- Keyboard Shortcuts Grid -->

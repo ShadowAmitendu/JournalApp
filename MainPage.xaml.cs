@@ -548,6 +548,8 @@ namespace JournalApp
                 LoadSavedGitHubSettings();
                 LoadCategoriesList();
                 RefreshNotesList();
+                LoadAIChatSessions();
+                InitializeAIChatPage();
                 CheckAppLockOnStartup();
                 LoadSavedFonts();
                 _ = PopulateMicrophoneDevicesAsync();
@@ -1759,6 +1761,10 @@ namespace JournalApp
                         _selectedCategory = tagStr;
                         if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = $"#{tagName}";
                         RefreshNotesList();
+                    }
+                    else if (navItem == AIChatNavItem)
+                    {
+                        ShowGrid(AIChatGrid);
                     }
                     else if (navItem == ShortcutsNavItem)
                     {
@@ -5909,7 +5915,7 @@ namespace JournalApp
 
         private void ShowGrid(Grid gridToShow)
         {
-            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid, BlogPageGrid, MapGrid, ShortcutsGrid };
+            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid, BlogPageGrid, MapGrid, ShortcutsGrid, AIChatGrid };
             foreach (var g in allGrids)
             {
                 if (g == null) continue;
