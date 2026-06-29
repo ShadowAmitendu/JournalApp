@@ -1482,8 +1482,6 @@
                                             Style="{StaticResource AccentButtonStyle}" />
                                     <Button x:Name="AIChatSideStopButton" 
                                             Grid.Column="1" 
-                                            Content="⏹" 
-                                            FontFamily="{ThemeResource SymbolThemeFontFamily}" 
                                             Click="AIStopButton_Click" 
                                             Visibility="Collapsed"
                                             VerticalAlignment="Bottom"
@@ -1493,7 +1491,11 @@
                                             CornerRadius="8" 
                                             Background="#FF3B30"
                                             BorderBrush="#FF3B30"
-                                            Foreground="White" />
+                                            Foreground="White">
+                                        <Button.Content>
+                                            <FontIcon Glyph="&#xE15C;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                                        </Button.Content>
+                                    </Button>
                                 </Grid>
 
                                 <!-- Footer -->
@@ -2502,8 +2504,6 @@
                                 
                         <Button x:Name="AIChatPageStopButton" 
                                 Grid.Column="1" 
-                                Content="⏹" 
-                                FontFamily="{ThemeResource SymbolThemeFontFamily}" 
                                 Click="AIChatPageStopButton_Click" 
                                 Visibility="Collapsed"
                                 VerticalAlignment="Bottom"
@@ -2513,7 +2513,11 @@
                                 CornerRadius="8"
                                 Background="#FF3B30"
                                 BorderBrush="#FF3B30"
-                                Foreground="White" />
+                                Foreground="White">
+                            <Button.Content>
+                                <FontIcon Glyph="&#xE15C;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
+                            </Button.Content>
+                        </Button>
                     </Grid>
                 </Grid>
             </Grid>
