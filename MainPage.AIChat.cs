@@ -114,7 +114,7 @@ namespace JournalApp
             if (AIChatSessionListView == null) return;
 
             var selected = AIChatSessionListView.SelectedItem as AIChatSession;
-            if (selected != null)
+            if (selected != null && selected != _currentChatSession)
             {
                 _currentChatSession = selected;
                 LoadActiveChatSession();
