@@ -150,6 +150,11 @@
                         <FontIcon Glyph="&#xE707;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Name="ShortcutsNavItem" Content="Shortcuts" ToolTipService.ToolTip="Keyboard Shortcuts">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE765;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem x:Name="SettingsNavItem" Content="Settings" ToolTipService.ToolTip="Settings">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE713;" FontFamily="{ThemeResource SymbolThemeFontFamily}" />
@@ -1353,7 +1358,26 @@
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 CornerRadius="12">
-                            <Grid Width="340" HorizontalAlignment="Right">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="6" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                
+                                <!-- Resizing Splitter handle -->
+                                <Border Grid.Column="0" 
+                                        x:Name="AIPanelSplitter" 
+                                        Background="Transparent" 
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="0,0,1,0"
+                                        VerticalAlignment="Stretch"
+                                        PointerPressed="AIPanelSplitter_PointerPressed"
+                                        PointerReleased="AIPanelSplitter_PointerReleased"
+                                        PointerMoved="AIPanelSplitter_PointerMoved"
+                                        PointerEntered="AIPanelSplitter_PointerEntered" />
+
+                                <!-- Original panel content Grid, placed in Column 1 -->
+                                <Grid Grid.Column="1" HorizontalAlignment="Stretch">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -1459,7 +1483,8 @@
                                     <Button x:Name="AIInsertButton" Content="⬇ Insert" Click="AIInsertButton_Click" IsEnabled="False" CornerRadius="8" Style="{StaticResource AccentButtonStyle}" />
                                 </StackPanel>
                             </Grid>
-                        </Border>
+                        </Grid>
+                    </Border>
                         <!-- END AI ASSISTANT SIDE PANEL -->
 
                     </Grid>
@@ -2332,6 +2357,143 @@
                 <Border Grid.Row="1" Margin="40,0,40,40" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                     <WebView2 x:Name="JournalMapWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
+            </Grid>
+
+            <!-- Keyboard Shortcuts Grid -->
+            <Grid x:Name="ShortcutsGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
+                    <StackPanel MaxWidth="1000"
+                                HorizontalAlignment="Stretch"
+                                Padding="40,40,40,40"
+                                Spacing="8">
+                        <!-- Hidden element to force uniform 1000px layout width -->
+                        <Border Width="1000" Height="0" HorizontalAlignment="Stretch" Visibility="Visible" IsHitTestVisible="False" />
+                        
+                        <TextBlock Text="Keyboard Shortcuts" FontSize="28" FontWeight="Bold" Margin="0,0,0,16" />
+
+                        <!-- Shortcuts List in dynamic card layout -->
+                        <StackPanel Spacing="16" HorizontalAlignment="Stretch">
+                            
+                            <!-- Application Shortcuts -->
+                            <TextBlock Text="Application Shortcuts" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="4,8,0,4" />
+                            
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Toggle Sidebar Navigation" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + Alt + B" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+                                    
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Save Current Entry" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + S" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Find and Replace Text" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + F" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Close Find Bar / Clear Selection" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Escape" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Editor Text Formatting Shortcuts -->
+                            <TextBlock Text="Editor Text Formatting" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="4,8,0,4" />
+                            
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Bold Text" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + B" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Italic Text" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + I" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Underline Text" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + U" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Undo Last Action" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + Z" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Redo Last Action" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <Border Grid.Column="1" Background="{ThemeResource ControlFillColorDefaultBrush}" CornerRadius="4" Padding="6,2" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <TextBlock Text="Ctrl + Y" FontSize="12" FontFamily="Consolas" />
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
 
             <!-- GitHub Commit History Grid -->

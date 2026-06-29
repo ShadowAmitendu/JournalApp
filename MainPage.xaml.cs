@@ -1760,6 +1760,10 @@ namespace JournalApp
                         if (SelectedCategoryTitle != null) SelectedCategoryTitle.Text = $"#{tagName}";
                         RefreshNotesList();
                     }
+                    else if (navItem == ShortcutsNavItem)
+                    {
+                        ShowGrid(ShortcutsGrid);
+                    }
                     else if (navItem == SettingsNavItem)
                     {
                         ShowGrid(SettingsGrid);
@@ -1824,6 +1828,19 @@ namespace JournalApp
         {
             var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
             bool isCtrl = ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+            var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu);
+            bool isAlt = alt.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+            if (isCtrl && isAlt && e.Key == Windows.System.VirtualKey.B)
+            {
+                if (CategoriesNavView != null)
+                {
+                    CategoriesNavView.IsPaneOpen = !CategoriesNavView.IsPaneOpen;
+                    e.Handled = true;
+                }
+                return;
+            }
 
             if (isCtrl && e.Key == Windows.System.VirtualKey.F)
             {
@@ -5892,7 +5909,7 @@ namespace JournalApp
 
         private void ShowGrid(Grid gridToShow)
         {
-            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid, BlogPageGrid, MapGrid };
+            var allGrids = new Grid[] { MainEditorGrid, SettingsGrid, GitHubGrid, StatsGrid, GalleryGrid, BlogPageGrid, MapGrid, ShortcutsGrid };
             foreach (var g in allGrids)
             {
                 if (g == null) continue;

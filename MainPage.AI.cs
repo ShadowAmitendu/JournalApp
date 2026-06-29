@@ -23,6 +23,10 @@ namespace JournalApp
         private DispatcherTimer _cursorBlinkTimer;
         private bool _cursorVisible = true;
         private string _activeAIText = string.Empty;
+        private bool _isResizingAIPanel = false;
+        private double _resizeStartWidth = 0;
+        private double _resizeStartPointerX = 0;
+        private double _aiPanelWidth = 340;
 
         // ── Panel Toggle ──────────────────────────────────────────────────────
 
@@ -54,7 +58,7 @@ namespace JournalApp
             {
                 startWidth = 0;
             }
-            double endWidth = open ? 340 : 0;
+            double endWidth = open ? _aiPanelWidth : 0;
 
             // If we are opening, ensure it is visible first and set margin to 8px
             if (open)
@@ -88,6 +92,69 @@ namespace JournalApp
             }
 
             _aiPanelStoryboard.Begin();
+        }
+
+        private void AIPanelSplitter_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && AIAssistantPanel != null)
+            {
+                _isResizingAIPanel = true;
+                _resizeStartWidth = AIAssistantPanel.Width;
+                if (double.IsNaN(_resizeStartWidth) || _resizeStartWidth <= 0)
+                {
+                    _resizeStartWidth = AIAssistantPanel.ActualWidth;
+                }
+                if (_resizeStartWidth <= 0)
+                {
+                    _resizeStartWidth = _aiPanelWidth;
+                }
+
+                var pt = e.GetCurrentPoint(this);
+                _resizeStartPointerX = pt.Position.X;
+                fe.CapturePointer(e.Pointer);
+                e.Handled = true;
+            }
+        }
+
+        private void AIPanelSplitter_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (_isResizingAIPanel && AIAssistantPanel != null)
+            {
+                var pt = e.GetCurrentPoint(this);
+                double currentX = pt.Position.X;
+                double deltaX = currentX - _resizeStartPointerX;
+
+                double newWidth = _resizeStartWidth - deltaX;
+
+                // Constrain the width between 240 and 600
+                if (newWidth < 240) newWidth = 240;
+                if (newWidth > 600) newWidth = 600;
+
+                _aiPanelWidth = newWidth;
+                AIAssistantPanel.Width = newWidth;
+                e.Handled = true;
+            }
+        }
+
+        private void AIPanelSplitter_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (_isResizingAIPanel)
+            {
+                _isResizingAIPanel = false;
+                if (sender is FrameworkElement fe)
+                {
+                    fe.ReleasePointerCapture(e.Pointer);
+                }
+                e.Handled = true;
+            }
+        }
+
+        private void AIPanelSplitter_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe)
+            {
+                fe.ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+            }
         }
 
         private void AddChatMessage(string text, bool isUser)
