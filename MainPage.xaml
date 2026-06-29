@@ -1374,7 +1374,8 @@
                                         PointerPressed="AIPanelSplitter_PointerPressed"
                                         PointerReleased="AIPanelSplitter_PointerReleased"
                                         PointerMoved="AIPanelSplitter_PointerMoved"
-                                        PointerEntered="AIPanelSplitter_PointerEntered" />
+                                        PointerEntered="AIPanelSplitter_PointerEntered"
+                                        PointerExited="AIPanelSplitter_PointerExited" />
 
                                 <!-- Original panel content Grid, placed in Column 1 -->
                                 <Grid Grid.Column="1" HorizontalAlignment="Stretch">

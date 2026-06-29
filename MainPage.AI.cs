@@ -145,15 +145,21 @@ namespace JournalApp
                 {
                     fe.ReleasePointerCapture(e.Pointer);
                 }
+                this.ProtectedCursor = null;
                 e.Handled = true;
             }
         }
 
         private void AIPanelSplitter_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (sender is FrameworkElement fe)
+            this.ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+        }
+
+        private void AIPanelSplitter_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isResizingAIPanel)
             {
-                fe.ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+                this.ProtectedCursor = null;
             }
         }
 
