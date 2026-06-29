@@ -1004,7 +1004,7 @@ namespace JournalApp
             return menu;
         }
 
-        private void RefreshNotesList()
+        private void RefreshNotesList(JournalNote noteToSelect = null)
         {
             _allNotes = JournalManager.Instance.Notes;
 
@@ -1228,15 +1228,41 @@ namespace JournalApp
                 EntryCountTextBlock.Text = $"{list.Count} {(list.Count == 1 ? "entry" : "entries")} in {categoryName}";
             }
             
-            // Select current note in list if it's still present in the list
-            if (SelectedNote != null && list.Contains(SelectedNote))
+            // Determine which note should be selected
+            JournalNote targetNote = noteToSelect;
+            if (targetNote == null)
             {
-                NotesListView.SelectedItem = SelectedNote;
+                targetNote = (SelectedNote != null && list.Contains(SelectedNote)) ? SelectedNote : list.FirstOrDefault();
             }
-            else
+            else if (!list.Contains(targetNote))
             {
-                NotesListView.SelectedItem = list.FirstOrDefault();
+                targetNote = list.FirstOrDefault();
             }
+
+            _isSelectingNote = true;
+            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+            {
+                _isSelectingNote = true;
+                try
+                {
+                    if (NotesListView != null)
+                    {
+                        NotesListView.SelectedItem = targetNote;
+                        if (targetNote != null)
+                        {
+                            NotesListView.ScrollIntoView(targetNote);
+                            if (SelectedNote != targetNote)
+                            {
+                                SelectedNote = targetNote;
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    _isSelectingNote = false;
+                }
+            });
 
             UpdateStreakUI();
         }
@@ -1541,8 +1567,7 @@ namespace JournalApp
                 try
                 {
                     LoadCategoriesList(); // Re-populate tags list in case tags changed
-                    RefreshNotesList();
-                    SelectedNote = currentSelection;
+                    RefreshNotesList(currentSelection);
                 }
                 finally
                 {
@@ -1861,8 +1886,7 @@ namespace JournalApp
                 note.IsFavorite = true;
                 JournalManager.Instance.SaveNotesMetadata();
             }
-            RefreshNotesList();
-            NotesListView.SelectedItem = note;
+            RefreshNotesList(note);
         }
 
         private async void ShowDeleteConfirmationFlyout(FrameworkElement? senderElement, JournalNote note, bool permanentlyDelete)
@@ -1966,12 +1990,7 @@ namespace JournalApp
             if (_lastSoftDeletedNote != null)
             {
                 JournalManager.Instance.RestoreNote(_lastSoftDeletedNote);
-                RefreshNotesList();
-                // Restore the selection that was active before deletion
-                if (_lastSoftDeletedPreviousSelection != null)
-                    NotesListView.SelectedItem = _lastSoftDeletedPreviousSelection;
-                else
-                    NotesListView.SelectedItem = _lastSoftDeletedNote;
+                RefreshNotesList(_lastSoftDeletedPreviousSelection ?? _lastSoftDeletedNote);
                 ShowStatusMessage($"Restored \"{_lastSoftDeletedNote.Title}\"");
                 _lastSoftDeletedNote = null;
                 _lastSoftDeletedPreviousSelection = null;
@@ -3955,7 +3974,8 @@ namespace JournalApp
                 "CardBackgroundFillColorSecondaryBrush",
                 "CardStrokeColorDefaultBrush",
                 "TextFillColorPrimaryBrush",
-                "TextFillColorSecondaryBrush"
+                "TextFillColorSecondaryBrush",
+                "ApplicationPageBackgroundThemeBrush"
             };
 
             foreach (var key in keys)
@@ -3966,46 +3986,74 @@ namespace JournalApp
             if (themeName == "Sepia")
             {
                 rootElement.RequestedTheme = ElementTheme.Light;
-                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#F4ECD8"));
+                var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#F4ECD8"));
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = bgBrush;
                 rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#EFE6D1"));
                 rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#EFE6D1"));
                 rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#E9DFCA"));
                 rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#DED0B6"));
                 rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#5C4033"));
                 rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#7D6B58"));
+                rootElement.Resources["ApplicationPageBackgroundThemeBrush"] = bgBrush;
+
+                if (rootElement is Panel rootPanel)
+                {
+                    rootPanel.Background = bgBrush;
+                }
             }
             else if (themeName == "Nord")
             {
                 rootElement.RequestedTheme = ElementTheme.Dark;
-                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#2E3440"));
+                var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#2E3440"));
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = bgBrush;
                 rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#3B4252"));
                 rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#3B4252"));
                 rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#434C5E"));
                 rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#4C566A"));
                 rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#D8DEE9"));
                 rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#E5E9F0"));
+                rootElement.Resources["ApplicationPageBackgroundThemeBrush"] = bgBrush;
+
+                if (rootElement is Panel rootPanel)
+                {
+                    rootPanel.Background = bgBrush;
+                }
             }
             else if (themeName == "Dracula")
             {
                 rootElement.RequestedTheme = ElementTheme.Dark;
-                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#282A36"));
+                var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#282A36"));
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = bgBrush;
                 rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#1F2029"));
                 rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#44475A"));
                 rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#6272A4"));
                 rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#BD93F9"));
                 rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#F8F8F2"));
                 rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#6272A4"));
+                rootElement.Resources["ApplicationPageBackgroundThemeBrush"] = bgBrush;
+
+                if (rootElement is Panel rootPanel)
+                {
+                    rootPanel.Background = bgBrush;
+                }
             }
             else if (themeName == "Forest")
             {
                 rootElement.RequestedTheme = ElementTheme.Dark;
-                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#1A2421"));
+                var bgBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#1A2421"));
+                rootElement.Resources["SolidBackgroundFillColorBaseBrush"] = bgBrush;
                 rootElement.Resources["SolidBackgroundFillColorBaseAltBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#222E2A"));
                 rootElement.Resources["CardBackgroundFillColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#2D3A34"));
                 rootElement.Resources["CardBackgroundFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#222E2A"));
                 rootElement.Resources["CardStrokeColorDefaultBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#3B4E45"));
                 rootElement.Resources["TextFillColorPrimaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#E8F0EC"));
                 rootElement.Resources["TextFillColorSecondaryBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(GetColorFromHex("#8FA399"));
+                rootElement.Resources["ApplicationPageBackgroundThemeBrush"] = bgBrush;
+
+                if (rootElement is Panel rootPanel)
+                {
+                    rootPanel.Background = bgBrush;
+                }
             }
             else
             {
@@ -4015,6 +4063,11 @@ namespace JournalApp
                     rootElement.RequestedTheme = ElementTheme.Dark;
                 else
                     rootElement.RequestedTheme = ElementTheme.Default;
+
+                if (rootElement is Panel rootPanel)
+                {
+                    rootPanel.Background = null;
+                }
             }
         }
 
@@ -6213,9 +6266,7 @@ namespace JournalApp
                 JournalManager.Instance.SaveNotesMetadata();
                 
                 LoadCategoriesList();
-                RefreshNotesList();
-                NotesListView.SelectedItem = note;
-                SelectedNote = note;
+                RefreshNotesList(note);
 
                 ShowStatusMessage("Note imported successfully");
             }
