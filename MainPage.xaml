@@ -1480,6 +1480,20 @@
                                             Padding="0"
                                             CornerRadius="8" 
                                             Style="{StaticResource AccentButtonStyle}" />
+                                    <Button x:Name="AIChatSideStopButton" 
+                                            Grid.Column="1" 
+                                            Content="⏹" 
+                                            FontFamily="{ThemeResource SymbolThemeFontFamily}" 
+                                            Click="AIStopButton_Click" 
+                                            Visibility="Collapsed"
+                                            VerticalAlignment="Bottom"
+                                            Height="36"
+                                            Width="36"
+                                            Padding="0"
+                                            CornerRadius="8" 
+                                            Background="#FF3B30"
+                                            BorderBrush="#FF3B30"
+                                            Foreground="White" />
                                 </Grid>
 
                                 <!-- Footer -->
@@ -2487,7 +2501,7 @@
                                 Style="{StaticResource AccentButtonStyle}" />
                                 
                         <Button x:Name="AIChatPageStopButton" 
-                                Grid.Column="2" 
+                                Grid.Column="1" 
                                 Content="⏹" 
                                 FontFamily="{ThemeResource SymbolThemeFontFamily}" 
                                 Click="AIChatPageStopButton_Click" 
@@ -2496,7 +2510,10 @@
                                 Height="36"
                                 Width="36"
                                 Padding="0"
-                                CornerRadius="8" />
+                                CornerRadius="8"
+                                Background="#FF3B30"
+                                BorderBrush="#FF3B30"
+                                Foreground="White" />
                     </Grid>
                 </Grid>
             </Grid>

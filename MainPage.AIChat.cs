@@ -352,6 +352,8 @@ namespace JournalApp
         {
             if (AIChatPageInputBox == null) return;
 
+            if (_aiChatPageCts != null) return; // A generation is already running!
+
             string userText = AIChatPageInputBox.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(userText)) return;
 
@@ -381,16 +383,19 @@ namespace JournalApp
             AddChatPageBubble(userText, isUser: true);
 
             // Re-label session title if it was default
-            if (_currentChatSession.Title == "New Chat")
+            if (_currentChatSession.Title == "New Chat" || _currentChatSession.Title == "No active chat")
             {
-                string newTitle = userText.Length > 25 ? userText.Substring(0, 25) + "..." : userText;
-                _currentChatSession.Title = newTitle;
-                if (AIChatSessionTitleTextBox != null)
+                string firstMsg = userText.Length > 25 ? userText.Substring(0, 25) + "..." : userText;
+                _currentChatSession.Title = firstMsg;
+                if (AIChatSessionTitleTextBox != null) AIChatSessionTitleTextBox.Text = firstMsg;
+                
+                // Force ListView re-render of this item
+                int idx = _aiChatSessions.IndexOf(_currentChatSession);
+                if (idx >= 0)
                 {
-                    AIChatSessionTitleTextBox.Text = newTitle;
+                    _aiChatSessions[idx] = _currentChatSession;
+                    if (AIChatSessionListView != null) AIChatSessionListView.SelectedIndex = idx;
                 }
-                SaveAIChatSessions();
-                // Auto-refresh via INotifyPropertyChanged
             }
 
             string selectedModel = AIChatPageModelCombo?.SelectedItem as string ?? string.Empty;
@@ -401,13 +406,8 @@ namespace JournalApp
             }
 
             // Build full context prompt from message history
-            string systemPrompt = "You are a helpful AI journal writing assistant. Engage in a friendly, helpful chat conversation with the user. Help them explore their ideas, thoughts, or write entries.\n\nContext History:\n";
-            var contextMsgs = _currentChatSession.Messages.TakeLast(15).ToList();
-            foreach (var m in contextMsgs)
-            {
-                systemPrompt += m.IsUser ? $"User: {m.Text}\n" : $"AI: {m.Text}\n";
-            }
-
+            string systemPrompt = "You are a helpful journal writing assistant. Be concise and conversational.";
+            
             // Start generation
             CancelActiveChatPageGeneration();
             _aiChatPageCts = new CancellationTokenSource();
@@ -418,7 +418,14 @@ namespace JournalApp
             StartChatPageCursorBlink();
 
             if (AIChatPageProgressGrid != null) AIChatPageProgressGrid.Visibility = Visibility.Visible;
+            
+            // Toggle Send/Stop buttons
+            if (AIChatPageSendButton != null) AIChatPageSendButton.Visibility = Visibility.Collapsed;
             if (AIChatPageStopButton != null) AIChatPageStopButton.Visibility = Visibility.Visible;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long lastUpdateMs = 0;
+            string accumulated = string.Empty;
 
             try
             {
@@ -428,19 +435,31 @@ namespace JournalApp
                     userText,
                     token =>
                     {
-                        DispatcherQueue.TryEnqueue(() =>
+                        accumulated += token;
+                        long now = sw.ElapsedMilliseconds;
+                        if (now - lastUpdateMs > 80)
                         {
-                            _chatPageActiveAIText += token;
-                            UpdateLastChatPageBubble(_chatPageActiveAIText, _chatPageCursorVisible);
-                        });
+                            lastUpdateMs = now;
+                            string currentText = accumulated;
+                            DispatcherQueue.TryEnqueue(() =>
+                            {
+                                _chatPageActiveAIText = currentText;
+                                UpdateLastChatPageBubble(_chatPageActiveAIText, _chatPageCursorVisible);
+                            });
+                        }
                     },
                     _aiChatPageCts.Token);
+
+                // Final render
+                _chatPageActiveAIText = accumulated;
+                UpdateLastChatPageBubble(_chatPageActiveAIText, addCursor: false);
             }
             catch (OperationCanceledException)
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     StopChatPageCursorBlink();
+                    _chatPageActiveAIText = accumulated;
                     if (!string.IsNullOrEmpty(_chatPageActiveAIText))
                     {
                         _chatPageActiveAIText += " [Generation stopped]";
@@ -458,6 +477,9 @@ namespace JournalApp
                 {
                     StopChatPageCursorBlink();
                     if (AIChatPageProgressGrid != null) AIChatPageProgressGrid.Visibility = Visibility.Collapsed;
+                    
+                    // Toggle Send/Stop buttons back
+                    if (AIChatPageSendButton != null) AIChatPageSendButton.Visibility = Visibility.Visible;
                     if (AIChatPageStopButton != null) AIChatPageStopButton.Visibility = Visibility.Collapsed;
 
                     // Add AI response message to session models
@@ -466,6 +488,12 @@ namespace JournalApp
                         var aiMsg = new AIChatMessage { Text = _chatPageActiveAIText, IsUser = false };
                         _currentChatSession.Messages.Add(aiMsg);
                         SaveAIChatSessions();
+                    }
+
+                    if (_aiChatPageCts != null)
+                    {
+                        _aiChatPageCts.Dispose();
+                        _aiChatPageCts = null;
                     }
                 });
             }

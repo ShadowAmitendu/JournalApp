@@ -75,7 +75,7 @@ namespace JournalApp
             {
                 From = startWidth,
                 To = endWidth,
-                Duration = new Duration(TimeSpan.FromMilliseconds(300)),
+                Duration = new Duration(TimeSpan.FromMilliseconds(180)),
                 EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut },
                 FillBehavior = Microsoft.UI.Xaml.Media.Animation.FillBehavior.Stop
             };
@@ -507,6 +507,8 @@ namespace JournalApp
         {
             if (AIChatPanel == null) return;
 
+            if (_aiCts != null) return; // A generation is already running!
+
             string selectedModel = AIModelCombo?.SelectedItem as string ?? string.Empty;
             if (string.IsNullOrWhiteSpace(selectedModel) || selectedModel.StartsWith("(") || selectedModel.StartsWith("Install"))
             {
@@ -558,7 +560,12 @@ namespace JournalApp
             }
 
             // Cancel any running request
-            _aiCts?.Cancel();
+            if (_aiCts != null)
+            {
+                _aiCts.Cancel();
+                _aiCts.Dispose();
+                _aiCts = null;
+            }
             _aiCts = new CancellationTokenSource();
 
             _aiLastResponse = string.Empty;
@@ -574,8 +581,16 @@ namespace JournalApp
             AddChatMessage(string.Empty, isUser: false);
             StartCursorBlink();
 
-            AIStopButton.Visibility = Visibility.Visible;
-            AIInsertButton.IsEnabled = false;
+            if (AIStopButton != null) AIStopButton.Visibility = Visibility.Visible;
+            if (AIInsertButton != null) AIInsertButton.IsEnabled = false;
+
+            // Toggle side panel Send/Stop buttons
+            if (AIChatSendButton != null) AIChatSendButton.Visibility = Visibility.Collapsed;
+            if (AIChatSideStopButton != null) AIChatSideStopButton.Visibility = Visibility.Visible;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long lastUpdateMs = 0;
+            string accumulated = string.Empty;
 
             try
             {
@@ -585,21 +600,33 @@ namespace JournalApp
                     userText,
                     token =>
                     {
-                        // Must update UI on dispatcher thread
-                        DispatcherQueue.TryEnqueue(() =>
+                        accumulated += token;
+                        long now = sw.ElapsedMilliseconds;
+                        if (now - lastUpdateMs > 80)
                         {
-                            _aiLastResponse += token;
-                            _activeAIText = _aiLastResponse;
-                            UpdateLastChatMessage(_activeAIText, _cursorVisible);
-                        });
+                            lastUpdateMs = now;
+                            string currentText = accumulated;
+                            DispatcherQueue.TryEnqueue(() =>
+                            {
+                                _aiLastResponse = currentText;
+                                _activeAIText = _aiLastResponse;
+                                UpdateLastChatMessage(_activeAIText, _cursorVisible);
+                            });
+                        }
                     },
                     _aiCts.Token);
+
+                // Final render
+                _aiLastResponse = accumulated;
+                _activeAIText = _aiLastResponse;
+                UpdateLastChatMessage(_activeAIText, addCursor: false);
             }
             catch (OperationCanceledException)
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     StopCursorBlink();
+                    _aiLastResponse = accumulated;
                     if (!string.IsNullOrEmpty(_aiLastResponse))
                     {
                         _activeAIText = _aiLastResponse + " [Generation stopped]";
@@ -615,14 +642,24 @@ namespace JournalApp
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    AIStopButton.Visibility = Visibility.Collapsed;
+                    if (AIStopButton != null) AIStopButton.Visibility = Visibility.Collapsed;
                     StopCursorBlink();
+
+                    // Restore side panel Send/Stop buttons
+                    if (AIChatSendButton != null) AIChatSendButton.Visibility = Visibility.Visible;
+                    if (AIChatSideStopButton != null) AIChatSideStopButton.Visibility = Visibility.Collapsed;
 
                     if (isChatMode && !string.IsNullOrEmpty(_aiLastResponse))
                     {
                         _chatTranscript += _aiLastResponse;
                     }
-                    AIInsertButton.IsEnabled = !string.IsNullOrEmpty(_aiLastResponse);
+                    if (AIInsertButton != null) AIInsertButton.IsEnabled = !string.IsNullOrEmpty(_aiLastResponse);
+
+                    if (_aiCts != null)
+                    {
+                        _aiCts.Dispose();
+                        _aiCts = null;
+                    }
                 });
             }
         }
