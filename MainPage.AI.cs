@@ -53,8 +53,12 @@ namespace JournalApp
             }
 
             // We animate from the current width to the target width
-            double startWidth = AIAssistantPanel.ActualWidth;
-            if (AIAssistantPanel.Visibility == Visibility.Collapsed)
+            double startWidth = AIAssistantPanel.Width;
+            if (double.IsNaN(startWidth) || AIAssistantPanel.Visibility == Visibility.Collapsed)
+            {
+                startWidth = AIAssistantPanel.ActualWidth;
+            }
+            if (double.IsNaN(startWidth) || startWidth <= 0 || AIAssistantPanel.Visibility == Visibility.Collapsed)
             {
                 startWidth = 0;
             }
@@ -72,7 +76,8 @@ namespace JournalApp
                 From = startWidth,
                 To = endWidth,
                 Duration = new Duration(TimeSpan.FromMilliseconds(300)),
-                EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut }
+                EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut },
+                FillBehavior = Microsoft.UI.Xaml.Media.Animation.FillBehavior.Stop
             };
 
             _aiPanelStoryboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
@@ -81,15 +86,20 @@ namespace JournalApp
             Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(animation, AIAssistantPanel);
             Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(animation, "Width");
 
-            if (!open)
+            _aiPanelStoryboard.Completed += (s, e) =>
             {
-                _aiPanelStoryboard.Completed += (s, e) =>
+                if (open)
+                {
+                    AIAssistantPanel.Width = _aiPanelWidth;
+                }
+                else
                 {
                     // Hide the panel once the close animation is done and reset margin
                     AIAssistantPanel.Visibility = Visibility.Collapsed;
                     AIAssistantPanel.Margin = new Thickness(0);
-                };
-            }
+                    AIAssistantPanel.Width = 0;
+                }
+            };
 
             _aiPanelStoryboard.Begin();
         }
