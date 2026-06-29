@@ -20,6 +20,7 @@ namespace JournalApp
         private DispatcherTimer? _chatPageCursorBlinkTimer;
         private bool _chatPageCursorVisible = true;
         private string _chatPageActiveAIText = string.Empty;
+        private bool _isProgrammaticSelection = false;
 
         // ── Initialize ────────────────────────────────────────────────────────
         private void InitializeAIChatPage()
@@ -37,7 +38,17 @@ namespace JournalApp
             {
                 if (AIChatSessionListView != null)
                 {
-                    AIChatSessionListView.SelectedIndex = 0;
+                    _isProgrammaticSelection = true;
+                    try
+                    {
+                        AIChatSessionListView.SelectedIndex = 0;
+                    }
+                    finally
+                    {
+                        _isProgrammaticSelection = false;
+                    }
+                    _currentChatSession = _aiChatSessions[0];
+                    LoadActiveChatSession();
                 }
             }
             else
@@ -111,13 +122,20 @@ namespace JournalApp
         // ── Navigation & Selection changed ───────────────────────────────────
         private void AIChatSessionListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (AIChatSessionListView == null) return;
+            if (_isProgrammaticSelection || AIChatSessionListView == null) return;
 
             var selected = AIChatSessionListView.SelectedItem as AIChatSession;
-            if (selected != null && selected != _currentChatSession)
+            if (selected != _currentChatSession)
             {
-                _currentChatSession = selected;
-                LoadActiveChatSession();
+                if (selected != null)
+                {
+                    _currentChatSession = selected;
+                    LoadActiveChatSession();
+                }
+                else
+                {
+                    UpdateChatPageUIForNoSession();
+                }
             }
         }
 
@@ -342,11 +360,24 @@ namespace JournalApp
         {
             var session = new AIChatSession();
             _aiChatSessions.Insert(0, session);
+            
             if (AIChatSessionListView != null)
             {
-                AIChatSessionListView.SelectedItem = session;
+                _isProgrammaticSelection = true;
+                try
+                {
+                    AIChatSessionListView.SelectedItem = session;
+                }
+                finally
+                {
+                    _isProgrammaticSelection = false;
+                }
             }
+
+            _currentChatSession = session;
+            LoadActiveChatSession();
             SaveAIChatSessions();
+            
             if (AIChatPageInputBox != null)
             {
                 AIChatPageInputBox.Focus(FocusState.Programmatic);
@@ -364,7 +395,20 @@ namespace JournalApp
                 {
                     if (_aiChatSessions.Count > 0)
                     {
-                        if (AIChatSessionListView != null) AIChatSessionListView.SelectedIndex = 0;
+                        if (AIChatSessionListView != null)
+                        {
+                            _isProgrammaticSelection = true;
+                            try
+                            {
+                                AIChatSessionListView.SelectedIndex = 0;
+                            }
+                            finally
+                            {
+                                _isProgrammaticSelection = false;
+                            }
+                            _currentChatSession = _aiChatSessions[0];
+                            LoadActiveChatSession();
+                        }
                     }
                     else
                     {
@@ -411,8 +455,22 @@ namespace JournalApp
                 string firstMsg = userText.Length > 25 ? userText.Substring(0, 25) + "..." : userText;
                 session.Title = firstMsg;
                 _aiChatSessions.Insert(0, session);
+                
+                if (AIChatSessionListView != null)
+                {
+                    _isProgrammaticSelection = true;
+                    try
+                    {
+                        AIChatSessionListView.SelectedItem = session;
+                    }
+                    finally
+                    {
+                        _isProgrammaticSelection = false;
+                    }
+                }
+
                 _currentChatSession = session;
-                if (AIChatSessionListView != null) AIChatSessionListView.SelectedItem = session;
+                if (AIChatSessionTitleTextBox != null) AIChatSessionTitleTextBox.Text = firstMsg;
             }
 
             if (_currentChatSession.Messages == null)
@@ -433,14 +491,6 @@ namespace JournalApp
                 string firstMsg = userText.Length > 25 ? userText.Substring(0, 25) + "..." : userText;
                 _currentChatSession.Title = firstMsg;
                 if (AIChatSessionTitleTextBox != null) AIChatSessionTitleTextBox.Text = firstMsg;
-                
-                // Force ListView re-render of this item
-                int idx = _aiChatSessions.IndexOf(_currentChatSession);
-                if (idx >= 0)
-                {
-                    _aiChatSessions[idx] = _currentChatSession;
-                    if (AIChatSessionListView != null) AIChatSessionListView.SelectedIndex = idx;
-                }
             }
 
             string selectedModel = AIChatPageModelCombo?.SelectedItem as string ?? string.Empty;

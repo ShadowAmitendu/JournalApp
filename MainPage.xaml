@@ -1444,7 +1444,7 @@
                                 <!-- Response ScrollViewer -->
                                 <Border Grid.Row="3" Margin="12,0,12,8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="10">
                                     <ScrollViewer x:Name="AIChatScrollViewer" VerticalScrollBarVisibility="Auto">
-                                        <StackPanel x:Name="AIChatPanel" Spacing="8" VerticalAlignment="Bottom">
+                                        <StackPanel x:Name="AIChatPanel" Spacing="8">
                                             <!-- Initial placeholder welcome bubble -->
                                             <Border x:Name="AIChatPlaceholder" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="12" Margin="4,4,40,4" HorizontalAlignment="Left" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                                 <TextBlock Text="Hi! I am your AI Assistant. You can choose an action button above or type a message below." 
@@ -2391,39 +2391,37 @@
                 <!-- Left Column: Session List Sidebar -->
                 <Grid Grid.Column="0" Padding="16,16,16,16" Background="{ThemeResource LayerFillColorDefaultBrush}">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
+                    <!-- Chat Sessions List -->
+                    <ListView x:Name="AIChatSessionListView" Grid.Row="0" SelectionMode="Single" SelectionChanged="AIChatSessionListView_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:AIChatSession">
+                                <Grid Padding="8,8" CornerRadius="8" HorizontalAlignment="Stretch">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="2">
+                                        <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{x:Bind DisplayDate, Mode=OneWay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <!-- Delete session button -->
+                                    <Button Grid.Column="1" Content="&#xE74D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Background="Transparent" BorderThickness="0" Padding="8,4" Click="AIChatDeleteSessionButton_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Delete Chat" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
                     <!-- New Chat Button -->
-                    <Button x:Name="AIChatNewSessionButton" Grid.Row="0" HorizontalAlignment="Stretch" Click="AIChatNewSessionButton_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,8" CornerRadius="8" Margin="0,0,0,16">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="AIChatNewSessionButton" Grid.Row="1" HorizontalAlignment="Stretch" Click="AIChatNewSessionButton_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,10" CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                             <FontIcon Glyph="&#xE710;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
                             <TextBlock Text="New Chat" FontWeight="SemiBold" />
                         </StackPanel>
                     </Button>
-
-                    <!-- Chat Sessions List -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <ListView x:Name="AIChatSessionListView" SelectionMode="Single" SelectionChanged="AIChatSessionListView_SelectionChanged" HorizontalAlignment="Stretch">
-                            <ListView.ItemTemplate>
-                                <DataTemplate x:DataType="local:AIChatSession">
-                                    <Grid Padding="8,8" CornerRadius="8" HorizontalAlignment="Stretch">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Spacing="2">
-                                            <TextBlock Text="{x:Bind Title, Mode=OneWay}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{x:Bind DisplayDate, Mode=OneWay}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        </StackPanel>
-                                        <!-- Delete session button -->
-                                        <Button Grid.Column="1" Content="&#xE74D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Background="Transparent" BorderThickness="0" Padding="8,4" Click="AIChatDeleteSessionButton_Click" Tag="{x:Bind}" ToolTipService.ToolTip="Delete Chat" VerticalAlignment="Center" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
-                    </ScrollViewer>
                 </Grid>
 
                 <!-- Vertical Splitter between Sidebar and Chat Content -->
@@ -2457,7 +2455,7 @@
 
                     <!-- Chat Message Area ScrollViewer -->
                     <ScrollViewer Grid.Row="1" x:Name="AIChatPageHistoryScrollViewer" VerticalScrollBarVisibility="Auto" Margin="0,12,0,12" Padding="0,0,8,0">
-                        <StackPanel x:Name="AIChatPageHistoryPanel" Spacing="8" VerticalAlignment="Bottom">
+                        <StackPanel x:Name="AIChatPageHistoryPanel" Spacing="8">
                             <!-- Welcome bubble when session is empty -->
                             <Border x:Name="AIChatPageWelcomePlaceholder" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="12" Margin="4,4,40,4" HorizontalAlignment="Left" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <TextBlock Text="Welcome! Select an old chat on the left or type below to start a new conversation." 
