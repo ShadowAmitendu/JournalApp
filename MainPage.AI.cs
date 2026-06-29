@@ -210,13 +210,37 @@ namespace JournalApp
             if (isUser)
             {
                 textBlock.Text = text;
+                bubbleBorder.Child = textBlock;
             }
             else
             {
                 ParseMarkdownToInlines(text, textBlock);
+
+                var panel = new StackPanel { Spacing = 4 };
+                panel.Children.Add(textBlock);
+
+                var insertButton = new HyperlinkButton
+                {
+                    Content = "⬇ Insert into Note",
+                    FontSize = 11,
+                    Padding = new Thickness(0),
+                    Margin = new Thickness(0, 4, 0, 0),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Tag = text
+                };
+
+                insertButton.Click += (s, e) =>
+                {
+                    if (s is HyperlinkButton btn && btn.Tag is string t && !string.IsNullOrEmpty(t))
+                    {
+                        InsertTextIntoEditor(t);
+                    }
+                };
+
+                panel.Children.Add(insertButton);
+                bubbleBorder.Child = panel;
             }
 
-            bubbleBorder.Child = textBlock;
             AIChatPanel.Children.Add(bubbleBorder);
 
             // Auto-scroll to bottom
@@ -231,23 +255,44 @@ namespace JournalApp
             if (AIChatPanel == null || AIChatPanel.Children.Count == 0) return;
 
             var lastChild = AIChatPanel.Children.LastOrDefault();
-            if (lastChild is Border bubbleBorder && bubbleBorder.Child is TextBlock textBlock)
+            if (lastChild is Border bubbleBorder)
             {
-                if (string.IsNullOrEmpty(text))
+                TextBlock textBlock = null;
+                HyperlinkButton insertButton = null;
+
+                if (bubbleBorder.Child is TextBlock tb)
                 {
-                    textBlock.Inlines.Clear();
-                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
-                    if (addCursor)
-                    {
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
-                    }
+                    textBlock = tb;
                 }
-                else
+                else if (bubbleBorder.Child is StackPanel sp)
                 {
-                    ParseMarkdownToInlines(text, textBlock);
-                    if (addCursor)
+                    textBlock = sp.Children.FirstOrDefault() as TextBlock;
+                    insertButton = sp.Children.LastOrDefault() as HyperlinkButton;
+                }
+
+                if (textBlock != null)
+                {
+                    if (string.IsNullOrEmpty(text))
                     {
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                        textBlock.Inlines.Clear();
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
+                        if (addCursor)
+                        {
+                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                        }
+                    }
+                    else
+                    {
+                        ParseMarkdownToInlines(text, textBlock);
+                        if (addCursor)
+                        {
+                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                        }
+                    }
+
+                    if (insertButton != null)
+                    {
+                        insertButton.Tag = text;
                     }
                 }
             }
@@ -582,7 +627,6 @@ namespace JournalApp
             StartCursorBlink();
 
             if (AIStopButton != null) AIStopButton.Visibility = Visibility.Visible;
-            if (AIInsertButton != null) AIInsertButton.IsEnabled = false;
 
             // Toggle side panel Send/Stop buttons
             if (AIChatSendButton != null) AIChatSendButton.Visibility = Visibility.Collapsed;
@@ -653,7 +697,6 @@ namespace JournalApp
                     {
                         _chatTranscript += _aiLastResponse;
                     }
-                    if (AIInsertButton != null) AIInsertButton.IsEnabled = !string.IsNullOrEmpty(_aiLastResponse);
 
                     if (_aiCts != null)
                     {
@@ -669,20 +712,25 @@ namespace JournalApp
             _aiCts?.Cancel();
         }
 
-        private void AIInsertButton_Click(object sender, RoutedEventArgs e)
+        private void InsertTextIntoEditor(string textToInsert)
         {
-            if (NoteRichEditBox == null || string.IsNullOrEmpty(_aiLastResponse)) return;
+            if (NoteRichEditBox == null || string.IsNullOrEmpty(textToInsert)) return;
 
-            // Move caret to end and append with a blank line separator
-            var doc = NoteRichEditBox.Document;
-            doc.GetText(TextGetOptions.None, out string current);
-            var insertText = (string.IsNullOrWhiteSpace(current) ? "" : "\n\n") + _aiLastResponse;
-            doc.Selection.StartPosition = current.Length;
-            doc.Selection.EndPosition = current.Length;
-            doc.Selection.TypeText(insertText);
+            try
+            {
+                var doc = NoteRichEditBox.Document;
+                doc.GetText(TextGetOptions.None, out string current);
+                var insertText = (string.IsNullOrWhiteSpace(current) ? "" : "\n\n") + textToInsert;
+                
+                doc.Selection.TypeText(insertText);
 
-            _isDirty = true;
-            StatusMessageTextBlock.Text = "AI content inserted";
+                _isDirty = true;
+                if (StatusMessageTextBlock != null) StatusMessageTextBlock.Text = "AI content inserted";
+            }
+            catch (Exception ex)
+            {
+                _ = ShowAlertAsync("Insert Error", $"Failed to insert text into editor: {ex.Message}");
+            }
         }
 
         private void AIClearButton_Click(object sender, RoutedEventArgs e)
@@ -698,7 +746,6 @@ namespace JournalApp
             }
             _aiLastResponse = string.Empty;
             _chatTranscript = string.Empty;
-            if (AIInsertButton != null) AIInsertButton.IsEnabled = false;
             if (AIChatInputBox != null) AIChatInputBox.Text = string.Empty;
         }
 

@@ -217,13 +217,37 @@ namespace JournalApp
             if (isUser)
             {
                 textBlock.Text = text;
+                bubbleBorder.Child = textBlock;
             }
             else
             {
                 ParseMarkdownToInlines(text, textBlock);
+
+                var panel = new StackPanel { Spacing = 4 };
+                panel.Children.Add(textBlock);
+
+                var insertButton = new HyperlinkButton
+                {
+                    Content = "⬇ Insert into Note",
+                    FontSize = 11,
+                    Padding = new Thickness(0),
+                    Margin = new Thickness(0, 4, 0, 0),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Tag = text
+                };
+
+                insertButton.Click += (s, e) =>
+                {
+                    if (s is HyperlinkButton btn && btn.Tag is string t && !string.IsNullOrEmpty(t))
+                    {
+                        InsertTextIntoEditor(t);
+                    }
+                };
+
+                panel.Children.Add(insertButton);
+                bubbleBorder.Child = panel;
             }
 
-            bubbleBorder.Child = textBlock;
             AIChatPageHistoryPanel.Children.Add(bubbleBorder);
             ScrollChatPageToBottom();
         }
@@ -233,23 +257,44 @@ namespace JournalApp
             if (AIChatPageHistoryPanel == null || AIChatPageHistoryPanel.Children.Count == 0) return;
 
             var lastChild = AIChatPageHistoryPanel.Children.LastOrDefault();
-            if (lastChild is Border bubbleBorder && bubbleBorder.Child is TextBlock textBlock)
+            if (lastChild is Border bubbleBorder)
             {
-                if (string.IsNullOrEmpty(text))
+                TextBlock textBlock = null;
+                HyperlinkButton insertButton = null;
+
+                if (bubbleBorder.Child is TextBlock tb)
                 {
-                    textBlock.Inlines.Clear();
-                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
-                    if (addCursor)
-                    {
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
-                    }
+                    textBlock = tb;
                 }
-                else
+                else if (bubbleBorder.Child is StackPanel sp)
                 {
-                    ParseMarkdownToInlines(text, textBlock);
-                    if (addCursor)
+                    textBlock = sp.Children.FirstOrDefault() as TextBlock;
+                    insertButton = sp.Children.LastOrDefault() as HyperlinkButton;
+                }
+
+                if (textBlock != null)
+                {
+                    if (string.IsNullOrEmpty(text))
                     {
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                        textBlock.Inlines.Clear();
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
+                        if (addCursor)
+                        {
+                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                        }
+                    }
+                    else
+                    {
+                        ParseMarkdownToInlines(text, textBlock);
+                        if (addCursor)
+                        {
+                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
+                        }
+                    }
+
+                    if (insertButton != null)
+                    {
+                        insertButton.Tag = text;
                     }
                 }
             }
