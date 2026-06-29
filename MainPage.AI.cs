@@ -24,6 +24,7 @@ namespace JournalApp
         private bool _cursorVisible = true;
         private string _activeAIText = string.Empty;
         private bool _isResizingAIPanel = false;
+        private int _aiActionRequestId = 0;
         private double _resizeStartWidth = 0;
         private double _resizeStartPointerX = 0;
         private double _aiPanelWidth = 340;
@@ -612,6 +613,7 @@ namespace JournalApp
                 _aiCts = null;
             }
             _aiCts = new CancellationTokenSource();
+            int requestId = ++_aiActionRequestId;
 
             _aiLastResponse = string.Empty;
             _activeAIText = string.Empty;
@@ -652,6 +654,7 @@ namespace JournalApp
                             string currentText = accumulated;
                             DispatcherQueue.TryEnqueue(() =>
                             {
+                                if (requestId != _aiActionRequestId) return;
                                 _aiLastResponse = currentText;
                                 _activeAIText = _aiLastResponse;
                                 UpdateLastChatMessage(_activeAIText, _cursorVisible);
@@ -659,6 +662,8 @@ namespace JournalApp
                         }
                     },
                     _aiCts.Token);
+
+                if (requestId != _aiActionRequestId) return;
 
                 // Final render
                 _aiLastResponse = accumulated;
@@ -669,6 +674,7 @@ namespace JournalApp
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
+                    if (requestId != _aiActionRequestId) return;
                     StopCursorBlink();
                     _aiLastResponse = accumulated;
                     if (!string.IsNullOrEmpty(_aiLastResponse))
@@ -686,6 +692,8 @@ namespace JournalApp
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
+                    if (requestId != _aiActionRequestId) return;
+
                     if (AIStopButton != null) AIStopButton.Visibility = Visibility.Collapsed;
                     StopCursorBlink();
 
@@ -735,6 +743,7 @@ namespace JournalApp
 
         private void AIClearButton_Click(object sender, RoutedEventArgs e)
         {
+            _aiActionRequestId++; // Invalidate any running streams
             if (AIChatPanel != null)
             {
                 AIChatPanel.Children.Clear();

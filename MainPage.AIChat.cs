@@ -19,6 +19,7 @@ namespace JournalApp
         private CancellationTokenSource? _aiChatPageCts;
         private DispatcherTimer? _chatPageCursorBlinkTimer;
         private bool _chatPageCursorVisible = true;
+        private int _aiChatPageRequestId = 0;
         private string _chatPageActiveAIText = string.Empty;
         private bool _isProgrammaticSelection = false;
 
@@ -506,6 +507,7 @@ namespace JournalApp
             // Start generation
             CancelActiveChatPageGeneration();
             _aiChatPageCts = new CancellationTokenSource();
+            int requestId = ++_aiChatPageRequestId;
             _chatPageActiveAIText = string.Empty;
 
             // Render AI bubble with cursor
@@ -538,12 +540,15 @@ namespace JournalApp
                             string currentText = accumulated;
                             DispatcherQueue.TryEnqueue(() =>
                             {
+                                if (requestId != _aiChatPageRequestId) return;
                                 _chatPageActiveAIText = currentText;
                                 UpdateLastChatPageBubble(_chatPageActiveAIText, _chatPageCursorVisible);
                             });
                         }
                     },
                     _aiChatPageCts.Token);
+
+                if (requestId != _aiChatPageRequestId) return;
 
                 // Final render
                 _chatPageActiveAIText = accumulated;
@@ -553,6 +558,7 @@ namespace JournalApp
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
+                    if (requestId != _aiChatPageRequestId) return;
                     StopChatPageCursorBlink();
                     _chatPageActiveAIText = accumulated;
                     if (!string.IsNullOrEmpty(_chatPageActiveAIText))
@@ -570,6 +576,8 @@ namespace JournalApp
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
+                    if (requestId != _aiChatPageRequestId) return;
+
                     StopChatPageCursorBlink();
                     if (AIChatPageProgressGrid != null) AIChatPageProgressGrid.Visibility = Visibility.Collapsed;
                     
@@ -606,6 +614,7 @@ namespace JournalApp
 
         private void CancelActiveChatPageGeneration()
         {
+            _aiChatPageRequestId++; // Invalidate running streams
             if (_aiChatPageCts != null)
             {
                 _aiChatPageCts.Cancel();
