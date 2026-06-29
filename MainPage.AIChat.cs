@@ -377,14 +377,7 @@ namespace JournalApp
                     AIChatSessionTitleTextBox.Text = newTitle;
                 }
                 SaveAIChatSessions();
-                // Force list refresh visually
-                if (AIChatSessionListView != null)
-                {
-                    var selected = AIChatSessionListView.SelectedItem;
-                    AIChatSessionListView.ItemsSource = null;
-                    AIChatSessionListView.ItemsSource = _aiChatSessions;
-                    AIChatSessionListView.SelectedItem = selected;
-                }
+                // Auto-refresh via INotifyPropertyChanged
             }
 
             string selectedModel = AIChatPageModelCombo?.SelectedItem as string ?? string.Empty;
@@ -509,14 +502,7 @@ namespace JournalApp
                 {
                     _currentChatSession.Title = newTitle;
                     SaveAIChatSessions();
-                    // Force list refresh visually
-                    if (AIChatSessionListView != null)
-                    {
-                        var selected = AIChatSessionListView.SelectedItem;
-                        AIChatSessionListView.ItemsSource = null;
-                        AIChatSessionListView.ItemsSource = _aiChatSessions;
-                        AIChatSessionListView.SelectedItem = selected;
-                    }
+                    // Auto-refresh via INotifyPropertyChanged
                 }
             }
         }
