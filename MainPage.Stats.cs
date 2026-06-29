@@ -533,7 +533,7 @@ namespace JournalApp
             fillFigure.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(points.Last().X, xAxisY) });
             fillGeometry.Figures.Add(fillFigure);
 
-            var fillPath = new Path
+            var fillPath = new Microsoft.UI.Xaml.Shapes.Path
             {
                 Data = fillGeometry,
                 Fill = fillBrush
@@ -570,7 +570,7 @@ namespace JournalApp
             }
             lineGeometry.Figures.Add(lineFigure);
 
-            var curvePath = new Path
+            var curvePath = new Microsoft.UI.Xaml.Shapes.Path
             {
                 Data = lineGeometry,
                 Stroke = lineBrush,
