@@ -1806,6 +1806,17 @@ namespace JournalApp
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                var diag = new ContentDialog
+                {
+                    Title = "Navigation Error",
+                    Content = $"An error occurred during navigation:\n\n{ex.Message}\n\nStack Trace:\n{ex.StackTrace}",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                _ = diag.ShowAsync();
+            }
             finally
             {
                 this.DispatcherQueue.TryEnqueue(() =>

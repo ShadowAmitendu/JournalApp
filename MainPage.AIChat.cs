@@ -125,6 +125,11 @@ namespace JournalApp
         {
             if (_currentChatSession == null || AIChatPageHistoryPanel == null || AIChatSessionTitleTextBox == null) return;
 
+            if (_currentChatSession.Messages == null)
+            {
+                _currentChatSession.Messages = new List<AIChatMessage>();
+            }
+
             // Stop any running generation first
             CancelActiveChatPageGeneration();
 
@@ -145,7 +150,10 @@ namespace JournalApp
             // Render existing messages as bubbles
             foreach (var msg in _currentChatSession.Messages)
             {
-                AddChatPageBubble(msg.Text, msg.IsUser);
+                if (msg != null && msg.Text != null)
+                {
+                    AddChatPageBubble(msg.Text, msg.IsUser);
+                }
             }
 
             // Scroll to bottom
@@ -358,6 +366,11 @@ namespace JournalApp
                 _aiChatSessions.Insert(0, session);
                 _currentChatSession = session;
                 if (AIChatSessionListView != null) AIChatSessionListView.SelectedItem = session;
+            }
+
+            if (_currentChatSession.Messages == null)
+            {
+                _currentChatSession.Messages = new List<AIChatMessage>();
             }
 
             // Add user message to session models
