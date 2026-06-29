@@ -3014,7 +3014,8 @@
                             <StackPanel Spacing="16">
                                 <TextBlock Text="Mood Trends (Last 30 Days)" FontSize="16" FontWeight="SemiBold" />
                                 <Grid Height="300" HorizontalAlignment="Stretch">
-                                    <WebView2 x:Name="MoodChartWebView" MinHeight="300" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                    <Canvas x:Name="MoodChartCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SizeChanged="MoodChartCanvas_SizeChanged" />
+                                    <TextBlock x:Name="MoodChartEmptyText" Text="Not enough entries with mood data to display trend." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13" Visibility="Collapsed" />
                                 </Grid>
                             </StackPanel>
                         </Border>

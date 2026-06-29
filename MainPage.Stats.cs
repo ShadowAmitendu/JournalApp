@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Shapes;
 
 namespace JournalApp
 {
@@ -343,65 +344,314 @@ namespace JournalApp
             return streak;
         }
 
-        private bool _chartInitialized = false;
-
-        private async Task LoadMoodChartAsync()
+        private void MoodChartCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            if (MoodChartWebView == null) return;
+            RenderMoodChartNative();
+        }
 
-            try
+        private Task LoadMoodChartAsync()
+        {
+            RenderMoodChartNative();
+            return Task.CompletedTask;
+        }
+
+        private void RenderMoodChartNative()
+        {
+            if (MoodChartCanvas == null) return;
+
+            MoodChartCanvas.Children.Clear();
+
+            // Get notes in the last 30 days containing a valid mood, sorted oldest to newest
+            var cutoffDate = DateTime.Now.AddDays(-30);
+            var chartData = JournalManager.Instance.Notes
+                .Where(n => !n.IsDeleted && n.DateCreated >= cutoffDate && !string.IsNullOrEmpty(n.Mood) && n.Mood != "None")
+                .OrderBy(n => n.DateCreated)
+                .Select(n => new
+                {
+                    DateLabel = n.DateCreated.ToString("MMM d"),
+                    Mood = n.Mood,
+                    Value = MapMoodToValue(n.Mood)
+                })
+                .ToList();
+
+            if (chartData.Count == 0)
             {
-                if (!_chartInitialized)
-                {
-                    await MoodChartWebView.EnsureCoreWebView2Async();
-                    MoodChartWebView.CoreWebView2.Settings.IsScriptEnabled = true;
-                    MoodChartWebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
-                    MoodChartWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-
-                    string chartPath = Path.Combine(Windows.ApplicationModel.Package.Current.InstalledLocation.Path, "Assets", "MoodChart.html");
-                    MoodChartWebView.CoreWebView2.Navigate("file:///" + chartPath.Replace("\\", "/"));
-
-                    var tcs = new TaskCompletionSource<bool>();
-                    Windows.Foundation.TypedEventHandler<Microsoft.Web.WebView2.Core.CoreWebView2, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs> handler = null;
-                    handler = (s, e) =>
-                    {
-                        MoodChartWebView.CoreWebView2.NavigationCompleted -= handler;
-                        tcs.SetResult(true);
-                    };
-                    MoodChartWebView.CoreWebView2.NavigationCompleted += handler;
-                    await tcs.Task;
-                    _chartInitialized = true;
-                }
-
-                // Format theme style
-                string savedTheme = GetSetting("AppTheme", "Default");
-                if (savedTheme == "Default")
-                {
-                    savedTheme = this.ActualTheme == ElementTheme.Dark ? "dark" : "light";
-                }
-
-                // Sync theme
-                await MoodChartWebView.CoreWebView2.ExecuteScriptAsync($"window.setTheme('{savedTheme}')");
-
-                // Get notes in the last 30 days containing a valid mood, sorted oldest to newest
-                var cutoffDate = DateTime.Now.AddDays(-30);
-                var chartData = JournalManager.Instance.Notes
-                    .Where(n => !n.IsDeleted && n.DateCreated >= cutoffDate && !string.IsNullOrEmpty(n.Mood) && n.Mood != "None")
-                    .OrderBy(n => n.DateCreated)
-                    .Select(n => new
-                    {
-                        date = n.DateCreated.ToString("MMM d"),
-                        mood = n.Mood,
-                        value = MapMoodToValue(n.Mood)
-                    })
-                    .ToList();
-
-                var json = JsonSerializer.Serialize(chartData);
-                await MoodChartWebView.CoreWebView2.ExecuteScriptAsync($"window.setChartData({JsonSerializer.Serialize(json)})");
+                if (MoodChartEmptyText != null) MoodChartEmptyText.Visibility = Visibility.Visible;
+                return;
             }
-            catch (Exception ex)
+            else
             {
-                System.Diagnostics.Debug.WriteLine($"[Stats] Chart loading failed: {ex.Message}");
+                if (MoodChartEmptyText != null) MoodChartEmptyText.Visibility = Visibility.Collapsed;
+            }
+
+            double width = MoodChartCanvas.ActualWidth;
+            double height = MoodChartCanvas.ActualHeight;
+
+            if (width <= 0 || height <= 0) return;
+
+            // Dimensions and layout
+            double leftMargin = 120; // Room for y-axis labels
+            double rightMargin = 20;
+            double topMargin = 20;
+            double bottomMargin = 40; // Room for x-axis labels
+
+            double plotWidth = width - leftMargin - rightMargin;
+            double plotHeight = height - topMargin - bottomMargin;
+
+            // Y position calculation: Value 5 is top, Value 1 is bottom
+            Func<double, double> getY = (val) =>
+            {
+                double normalized = (val - 1.0) / 4.0; // 0 to 1
+                return topMargin + plotHeight * (1.0 - normalized);
+            };
+
+            // Draw Y-axis grid lines and labels
+            var yTicks = new Dictionary<double, string>
+            {
+                { 5.0, "😊 Happy" },
+                { 3.0, "😐 Neutral" },
+                { 2.0, "😢 Sad / 😫 Stressed" },
+                { 1.0, "😡 Angry" }
+            };
+
+            var gridBrush = GetThemeBrush("CardStrokeColorDefaultBrush", "#E5E5E5");
+            var textBrush = GetThemeBrush("TextFillColorPrimaryBrush", "#000000");
+
+            foreach (var kvp in yTicks)
+            {
+                double yVal = kvp.Key;
+                string labelText = kvp.Value;
+                double yPos = getY(yVal);
+
+                // Grid line
+                var line = new Line
+                {
+                    X1 = leftMargin,
+                    Y1 = yPos,
+                    X2 = width - rightMargin,
+                    Y2 = yPos,
+                    Stroke = gridBrush,
+                    StrokeThickness = 1,
+                    StrokeDashArray = new DoubleCollection { 4, 4 }
+                };
+                MoodChartCanvas.Children.Add(line);
+
+                // Label
+                var tb = new TextBlock
+                {
+                    Text = labelText,
+                    FontSize = 11,
+                    Foreground = textBrush
+                };
+                tb.Measure(new Windows.Foundation.Size(leftMargin - 10, 20));
+                double textWidth = tb.DesiredSize.Width;
+                double textHeight = tb.DesiredSize.Height;
+                Canvas.SetLeft(tb, leftMargin - textWidth - 10);
+                Canvas.SetTop(tb, yPos - textHeight / 2);
+                MoodChartCanvas.Children.Add(tb);
+            }
+
+            // X-axis baseline
+            double xAxisY = getY(1.0);
+            var xAxisLine = new Line
+            {
+                X1 = leftMargin,
+                Y1 = xAxisY,
+                X2 = width - rightMargin,
+                Y2 = xAxisY,
+                Stroke = gridBrush,
+                StrokeThickness = 1.5
+            };
+            MoodChartCanvas.Children.Add(xAxisLine);
+
+            // Y-axis baseline
+            var yAxisLine = new Line
+            {
+                X1 = leftMargin,
+                Y1 = topMargin,
+                X2 = leftMargin,
+                Y2 = xAxisY,
+                Stroke = gridBrush,
+                StrokeThickness = 1.5
+            };
+            MoodChartCanvas.Children.Add(yAxisLine);
+
+            // Data Points coordinates
+            int pointCount = chartData.Count;
+            double xStep = pointCount > 1 ? plotWidth / (pointCount - 1) : plotWidth;
+
+            var points = new List<Windows.Foundation.Point>();
+            for (int i = 0; i < pointCount; i++)
+            {
+                double x = leftMargin + (pointCount > 1 ? i * xStep : plotWidth / 2);
+                double y = getY(chartData[i].Value);
+                points.Add(new Windows.Foundation.Point(x, y));
+            }
+
+            var accentColor = (Windows.UI.Color)Application.Current.Resources["SystemAccentColor"];
+            var lineBrush = new SolidColorBrush(accentColor);
+
+            // Area fill brush: semi-transparent gradient
+            var fillBrush = new LinearGradientBrush
+            {
+                StartPoint = new Windows.Foundation.Point(0, 0),
+                EndPoint = new Windows.Foundation.Point(0, 1)
+            };
+            fillBrush.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(40, accentColor.R, accentColor.G, accentColor.B), Offset = 0.0 });
+            fillBrush.GradientStops.Add(new GradientStop { Color = Windows.UI.Color.FromArgb(0, accentColor.R, accentColor.G, accentColor.B), Offset = 1.0 });
+
+            // Area path geometry
+            var fillGeometry = new PathGeometry();
+            var fillFigure = new PathFigure
+            {
+                StartPoint = new Windows.Foundation.Point(points[0].X, xAxisY),
+                IsClosed = true,
+                IsFilled = true
+            };
+            fillFigure.Segments.Add(new LineSegment { Point = points[0] });
+
+            if (points.Count > 1)
+            {
+                for (int i = 0; i < points.Count - 1; i++)
+                {
+                    var p0 = points[i];
+                    var p1 = points[i + 1];
+                    double ctrlX1 = p0.X + (p1.X - p0.X) / 3.0;
+                    double ctrlY1 = p0.Y;
+                    double ctrlX2 = p0.X + 2.0 * (p1.X - p0.X) / 3.0;
+                    double ctrlY2 = p1.Y;
+
+                    fillFigure.Segments.Add(new BezierSegment
+                    {
+                        Point1 = new Windows.Foundation.Point(ctrlX1, ctrlY1),
+                        Point2 = new Windows.Foundation.Point(ctrlX2, ctrlY2),
+                        Point3 = p1
+                    });
+                }
+            }
+
+            fillFigure.Segments.Add(new LineSegment { Point = new Windows.Foundation.Point(points.Last().X, xAxisY) });
+            fillGeometry.Figures.Add(fillFigure);
+
+            var fillPath = new Path
+            {
+                Data = fillGeometry,
+                Fill = fillBrush
+            };
+            MoodChartCanvas.Children.Add(fillPath);
+
+            // Curve path geometry
+            var lineGeometry = new PathGeometry();
+            var lineFigure = new PathFigure
+            {
+                StartPoint = points[0],
+                IsClosed = false,
+                IsFilled = false
+            };
+
+            if (points.Count > 1)
+            {
+                for (int i = 0; i < points.Count - 1; i++)
+                {
+                    var p0 = points[i];
+                    var p1 = points[i + 1];
+                    double ctrlX1 = p0.X + (p1.X - p0.X) / 3.0;
+                    double ctrlY1 = p0.Y;
+                    double ctrlX2 = p0.X + 2.0 * (p1.X - p0.X) / 3.0;
+                    double ctrlY2 = p1.Y;
+
+                    lineFigure.Segments.Add(new BezierSegment
+                    {
+                        Point1 = new Windows.Foundation.Point(ctrlX1, ctrlY1),
+                        Point2 = new Windows.Foundation.Point(ctrlX2, ctrlY2),
+                        Point3 = p1
+                    });
+                }
+            }
+            lineGeometry.Figures.Add(lineFigure);
+
+            var curvePath = new Path
+            {
+                Data = lineGeometry,
+                Stroke = lineBrush,
+                StrokeThickness = 3
+            };
+            MoodChartCanvas.Children.Add(curvePath);
+
+            // Labels and points
+            int labelStep = Math.Max(1, pointCount / 6);
+
+            for (int i = 0; i < pointCount; i++)
+            {
+                var pt = points[i];
+                var data = chartData[i];
+
+                // X-axis date labels
+                if (i % labelStep == 0 || i == pointCount - 1)
+                {
+                    var xLabel = new TextBlock
+                    {
+                        Text = data.DateLabel,
+                        FontSize = 10,
+                        Foreground = textBrush
+                    };
+                    xLabel.Measure(new Windows.Foundation.Size(80, 20));
+                    double textW = xLabel.DesiredSize.Width;
+                    Canvas.SetLeft(xLabel, pt.X - textW / 2);
+                    Canvas.SetTop(xLabel, xAxisY + 8);
+                    MoodChartCanvas.Children.Add(xLabel);
+
+                    // X tick
+                    var tick = new Line
+                    {
+                        X1 = pt.X,
+                        Y1 = xAxisY,
+                        X2 = pt.X,
+                        Y2 = xAxisY + 4,
+                        Stroke = gridBrush,
+                        StrokeThickness = 1
+                    };
+                    MoodChartCanvas.Children.Add(tick);
+                }
+
+                // Hoverable data point circles
+                var circle = new Ellipse
+                {
+                    Width = 8,
+                    Height = 8,
+                    Fill = lineBrush,
+                    Stroke = GetThemeBrush("CardBackgroundFillColorDefaultBrush", "#FFFFFF"),
+                    StrokeThickness = 1.5
+                };
+                Canvas.SetLeft(circle, pt.X - 4);
+                Canvas.SetTop(circle, pt.Y - 4);
+
+                ToolTipService.SetToolTip(circle, $"{data.DateLabel}\nMood: {data.Mood}");
+
+                circle.PointerEntered += (s, e) =>
+                {
+                    if (s is Ellipse ell)
+                    {
+                        ell.Width = 12;
+                        ell.Height = 12;
+                        Canvas.SetLeft(ell, pt.X - 6);
+                        Canvas.SetTop(ell, pt.Y - 6);
+                        ell.StrokeThickness = 2;
+                    }
+                };
+                circle.PointerExited += (s, e) =>
+                {
+                    if (s is Ellipse ell)
+                    {
+                        ell.Width = 8;
+                        ell.Height = 8;
+                        Canvas.SetLeft(ell, pt.X - 4);
+                        Canvas.SetTop(ell, pt.Y - 4);
+                        ell.StrokeThickness = 1.5;
+                    }
+                };
+
+                MoodChartCanvas.Children.Add(circle);
             }
         }
 
