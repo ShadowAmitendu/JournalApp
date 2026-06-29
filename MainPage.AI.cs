@@ -20,6 +20,9 @@ namespace JournalApp
         private string _aiLastResponse = string.Empty;
         private string _chatTranscript = string.Empty;
         private Microsoft.UI.Xaml.Media.Animation.Storyboard _aiPanelStoryboard;
+        private DispatcherTimer _cursorBlinkTimer;
+        private bool _cursorVisible = true;
+        private string _activeAIText = string.Empty;
 
         // ── Panel Toggle ──────────────────────────────────────────────────────
 
@@ -85,6 +88,90 @@ namespace JournalApp
             }
 
             _aiPanelStoryboard.Begin();
+        }
+
+        private void AddChatMessage(string text, bool isUser)
+        {
+            if (AIChatPanel == null) return;
+
+            // Hide placeholder on first message
+            if (AIChatPlaceholder != null)
+            {
+                AIChatPlaceholder.Visibility = Visibility.Collapsed;
+            }
+
+            var bubbleBorder = new Border
+            {
+                CornerRadius = isUser ? new CornerRadius(12, 12, 0, 12) : new CornerRadius(12, 12, 12, 0),
+                Padding = new Thickness(12, 8, 12, 8),
+                Margin = isUser ? new Thickness(40, 2, 4, 2) : new Thickness(4, 2, 40, 2),
+                HorizontalAlignment = isUser ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+                Background = isUser 
+                    ? new SolidColorBrush(GetColorFromHex("#0078D4")) // User accent color
+                    : GetThemeBrush("CardBackgroundFillColorDefaultBrush", "#EFEFEF"),
+                BorderBrush = isUser ? null : GetThemeBrush("CardStrokeColorDefaultBrush", "#CCCCCC"),
+                BorderThickness = isUser ? new Thickness(0) : new Thickness(1)
+            };
+
+            var textBlock = new TextBlock
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 13,
+                LineHeight = 18,
+                Foreground = isUser 
+                    ? new SolidColorBrush(Microsoft.UI.Colors.White) 
+                    : GetThemeBrush("TextFillColorPrimaryBrush", "#000000"),
+                IsTextSelectionEnabled = true
+            };
+
+            bubbleBorder.Child = textBlock;
+            AIChatPanel.Children.Add(bubbleBorder);
+
+            // Auto-scroll to bottom
+            if (AIChatScrollViewer != null)
+            {
+                AIChatScrollViewer.ChangeView(null, AIChatScrollViewer.ScrollableHeight, null);
+            }
+        }
+
+        private void UpdateLastChatMessage(string text, bool addCursor = false)
+        {
+            if (AIChatPanel == null || AIChatPanel.Children.Count == 0) return;
+
+            var lastChild = AIChatPanel.Children.LastOrDefault();
+            if (lastChild is Border bubbleBorder && bubbleBorder.Child is TextBlock textBlock)
+            {
+                textBlock.Text = string.IsNullOrEmpty(text) ? "Thinking..." : (text + (addCursor ? " █" : ""));
+            }
+
+            // Auto-scroll to bottom
+            if (AIChatScrollViewer != null)
+            {
+                AIChatScrollViewer.ChangeView(null, AIChatScrollViewer.ScrollableHeight, null);
+            }
+        }
+
+        private void StartCursorBlink()
+        {
+            if (_cursorBlinkTimer == null)
+            {
+                _cursorBlinkTimer = new DispatcherTimer();
+                _cursorBlinkTimer.Interval = TimeSpan.FromMilliseconds(500);
+                _cursorBlinkTimer.Tick += (s, e) =>
+                {
+                    _cursorVisible = !_cursorVisible;
+                    UpdateLastChatMessage(_activeAIText, _cursorVisible);
+                };
+            }
+            _cursorVisible = true;
+            _cursorBlinkTimer.Start();
+        }
+
+        private void StopCursorBlink()
+        {
+            _cursorBlinkTimer?.Stop();
+            UpdateLastChatMessage(_activeAIText, addCursor: false);
         }
 
         // ── Status & Model Refresh ────────────────────────────────────────────
@@ -158,7 +245,7 @@ namespace JournalApp
 
         private async Task RunAIActionAsync(string systemPrompt, bool useFullNote, string promptOverride = null, bool isChatMode = false)
         {
-            if (AIResponseBox == null) return;
+            if (AIChatPanel == null) return;
 
             string selectedModel = AIModelCombo?.SelectedItem as string ?? string.Empty;
             if (string.IsNullOrWhiteSpace(selectedModel) || selectedModel.StartsWith("(") || selectedModel.StartsWith("Install"))
@@ -193,16 +280,39 @@ namespace JournalApp
                 return;
             }
 
+            // Determine the text description for user bubble
+            string actionText = "";
+            if (isChatMode)
+            {
+                actionText = userText;
+            }
+            else
+            {
+                if (systemPrompt == OllamaService.Prompts.ContinueWriting) actionText = "Continue writing the current entry";
+                else if (systemPrompt == OllamaService.Prompts.Summarize) actionText = "Summarize the current entry";
+                else if (systemPrompt == OllamaService.Prompts.Rewrite) actionText = "Rewrite selection/entry";
+                else if (systemPrompt == OllamaService.Prompts.WritingPrompt) actionText = "Give me a writing prompt";
+                else if (systemPrompt == OllamaService.Prompts.AnalyzeMood) actionText = "Analyze the mood of this entry";
+                else if (systemPrompt == OllamaService.Prompts.Translate) actionText = "Translate this selection/entry";
+                else actionText = "AI Action";
+            }
+
             // Cancel any running request
             _aiCts?.Cancel();
             _aiCts = new CancellationTokenSource();
 
             _aiLastResponse = string.Empty;
+            _activeAIText = string.Empty;
+
             if (!isChatMode)
             {
                 _chatTranscript = string.Empty;
-                AIResponseBox.Text = string.Empty;
             }
+
+            // Render the User bubble and the empty AI bubble
+            AddChatMessage(actionText, isUser: true);
+            AddChatMessage(string.Empty, isUser: false);
+            StartCursorBlink();
 
             AIStopButton.Visibility = Visibility.Visible;
             AIInsertButton.IsEnabled = false;
@@ -219,20 +329,8 @@ namespace JournalApp
                         DispatcherQueue.TryEnqueue(() =>
                         {
                             _aiLastResponse += token;
-                            if (isChatMode)
-                            {
-                                AIResponseBox.Text = _chatTranscript + _aiLastResponse;
-                            }
-                            else
-                            {
-                                AIResponseBox.Text = _aiLastResponse;
-                            }
-
-                            // Auto-scroll
-                            if (AIResponseScrollViewer != null)
-                            {
-                                AIResponseScrollViewer.ChangeView(null, AIResponseScrollViewer.ScrollableHeight, null);
-                            }
+                            _activeAIText = _aiLastResponse;
+                            UpdateLastChatMessage(_activeAIText, _cursorVisible);
                         });
                     },
                     _aiCts.Token);
@@ -241,17 +339,11 @@ namespace JournalApp
             {
                 DispatcherQueue.TryEnqueue(() =>
                 {
+                    StopCursorBlink();
                     if (!string.IsNullOrEmpty(_aiLastResponse))
                     {
-                        if (isChatMode)
-                        {
-                            _chatTranscript += _aiLastResponse + "\n\n[Generation stopped]";
-                            AIResponseBox.Text = _chatTranscript;
-                        }
-                        else
-                        {
-                            AIResponseBox.Text += "\n\n[Generation stopped]";
-                        }
+                        _activeAIText = _aiLastResponse + " [Generation stopped]";
+                        UpdateLastChatMessage(_activeAIText, addCursor: false);
                     }
                 });
             }
@@ -264,6 +356,8 @@ namespace JournalApp
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     AIStopButton.Visibility = Visibility.Collapsed;
+                    StopCursorBlink();
+
                     if (isChatMode && !string.IsNullOrEmpty(_aiLastResponse))
                     {
                         _chatTranscript += _aiLastResponse;
@@ -296,7 +390,15 @@ namespace JournalApp
 
         private void AIClearButton_Click(object sender, RoutedEventArgs e)
         {
-            if (AIResponseBox != null) AIResponseBox.Text = string.Empty;
+            if (AIChatPanel != null)
+            {
+                AIChatPanel.Children.Clear();
+                if (AIChatPlaceholder != null)
+                {
+                    AIChatPlaceholder.Visibility = Visibility.Visible;
+                    AIChatPanel.Children.Add(AIChatPlaceholder);
+                }
+            }
             _aiLastResponse = string.Empty;
             _chatTranscript = string.Empty;
             if (AIInsertButton != null) AIInsertButton.IsEnabled = false;
@@ -340,8 +442,6 @@ namespace JournalApp
             {
                 _chatTranscript += $"\n\nUser: {userPrompt}\n\nAI: ";
             }
-
-            if (AIResponseBox != null) AIResponseBox.Text = _chatTranscript;
 
             // Enclose context based on RAG setting
             string systemPrompt = "You are a helpful journal writing assistant. ";

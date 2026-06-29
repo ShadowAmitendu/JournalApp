@@ -1411,16 +1411,18 @@
                                     <Button x:Name="AITranslateButton" Grid.Row="2" Grid.Column="1" Content="🌐 Translate" Click="AITranslateButton_Click" Margin="3,3,0,3" HorizontalAlignment="Stretch" CornerRadius="8" />
                                 </Grid>
 
-                                <!-- Response Text -->
+                                <!-- Response ScrollViewer -->
                                 <Border Grid.Row="3" Margin="12,0,12,8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="10">
-                                    <ScrollViewer x:Name="AIResponseScrollViewer" VerticalScrollBarVisibility="Auto">
-                                        <TextBlock x:Name="AIResponseBox"
-                                                   TextWrapping="Wrap"
-                                                   FontSize="13"
-                                                   LineHeight="20"
-                                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                                   IsTextSelectionEnabled="True"
-                                                   Text="AI response will appear here…" />
+                                    <ScrollViewer x:Name="AIChatScrollViewer" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel x:Name="AIChatPanel" Spacing="8" VerticalAlignment="Bottom">
+                                            <!-- Initial placeholder welcome bubble -->
+                                            <Border x:Name="AIChatPlaceholder" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="12" Margin="4,4,40,4" HorizontalAlignment="Left" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                                <TextBlock Text="Hi! I am your AI Assistant. You can choose an action button above or type a message below." 
+                                                           TextWrapping="Wrap" 
+                                                           FontSize="13" 
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </Border>
+                                        </StackPanel>
                                     </ScrollViewer>
                                 </Border>
 
