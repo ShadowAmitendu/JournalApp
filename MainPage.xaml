@@ -1029,7 +1029,7 @@
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Column 0: AI Assistant Toggle Button -->
-                                            <Button x:Name="AIAssistantButton" Grid.Column="0" CornerRadius="12" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Toggle AI Writing Assistant (Ollama)" Click="AIAssistantButton_Click">
+                                            <Button x:Name="AIAssistantButton" Grid.Column="0" CornerRadius="12" Padding="8,6" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="Toggle AI Writing Assistant (Ollama)" Click="AIAssistantButton_Click">
                                                 <Button.Content>
                                                     <FontIcon Glyph="&#xE99A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
                                                 </Button.Content>
