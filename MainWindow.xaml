@@ -62,5 +62,19 @@
             navigation events and the Loaded lifecycle.
         -->
         <Frame x:Name="RootFrame" Grid.Row="1" />
+
+        <!-- Custom Animated Splash Screen Overlay -->
+        <Grid x:Name="SplashGrid" Grid.RowSpan="2" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Canvas.ZIndex="100">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="28">
+                <!-- App Logo -->
+                <Image Source="ms-appx:///Assets/Square150x150Logo.png" Width="120" Height="120" Stretch="Uniform" HorizontalAlignment="Center" />
+                
+                <!-- Loading Animation -->
+                <ProgressRing IsActive="True" Width="32" Height="32" HorizontalAlignment="Center" Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                
+                <!-- Dynamic Status Msg -->
+                <TextBlock x:Name="SplashStatusText" Text="Initializing journal database..." FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

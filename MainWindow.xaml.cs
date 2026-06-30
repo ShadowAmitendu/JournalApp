@@ -64,8 +64,8 @@ public sealed partial class MainWindow : Window
         }
         catch {}
 
-        // Navigate the root frame to the main page on startup.
-        RootFrame.Navigate(typeof(MainPage));
+        // Start the custom loading splash screen sequence
+        StartSplashLoading();
     }
 
     private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
@@ -370,5 +370,81 @@ public sealed partial class MainWindow : Window
             return IntPtr.Zero;
         }
         return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    private async void StartSplashLoading()
+    {
+        if (SplashGrid == null || SplashStatusText == null)
+        {
+            RootFrame.Navigate(typeof(MainPage));
+            return;
+        }
+
+        // Navigate RootFrame in background to start its loaded events early
+        RootFrame.Navigate(typeof(MainPage));
+
+        // Dynamic status message animation sequence
+        string[] loadingMsgs = new[] 
+        {
+            "Opening journal database...",
+            "Loading workspace settings...",
+            "Restoring local categories...",
+            "Connecting to offline AI co-writer...",
+            "Starting JournalApp..."
+        };
+
+        for (int i = 0; i < loadingMsgs.Length; i++)
+        {
+            SplashStatusText.Text = loadingMsgs[i];
+            await System.Threading.Tasks.Task.Delay(350);
+        }
+
+        // Animate fade-out and slide-up transition of the SplashGrid
+        try
+        {
+            var fadeAnim = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+            {
+                From = 1.0,
+                To = 0.0,
+                Duration = TimeSpan.FromMilliseconds(400),
+                EasingFunction = new Microsoft.UI.Xaml.Media.Animation.QuadraticEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseInOut }
+            };
+
+            var translateAnim = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+            {
+                From = 0,
+                To = -50,
+                Duration = TimeSpan.FromMilliseconds(450),
+                EasingFunction = new Microsoft.UI.Xaml.Media.Animation.QuadraticEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseInOut }
+            };
+
+            var compositeTransform = new Microsoft.UI.Xaml.Media.CompositeTransform();
+            SplashGrid.RenderTransform = compositeTransform;
+
+            var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+            storyboard.Children.Add(fadeAnim);
+            storyboard.Children.Add(translateAnim);
+
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(fadeAnim, SplashGrid);
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(fadeAnim, "Opacity");
+
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(translateAnim, SplashGrid);
+            Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(translateAnim, "(UIElement.RenderTransform).(CompositeTransform.TranslateY)");
+
+            storyboard.Completed += (s, e) =>
+            {
+                SplashGrid.Visibility = Visibility.Collapsed;
+                if (SplashGrid.Parent is Grid parentGrid)
+                {
+                    parentGrid.Children.Remove(SplashGrid);
+                }
+            };
+
+            storyboard.Begin();
+        }
+        catch
+        {
+            SplashGrid.Visibility = Visibility.Collapsed;
+        }
     }
 }

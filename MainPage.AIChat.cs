@@ -17,6 +17,7 @@ namespace JournalApp
         private ObservableCollection<AIChatSession> _aiChatSessions = new ObservableCollection<AIChatSession>();
         private AIChatSession? _currentChatSession;
         private CancellationTokenSource? _aiChatPageCts;
+        private TextBlock? _activeChatPageTextBlock;
         private DispatcherTimer? _chatPageCursorBlinkTimer;
         private bool _chatPageCursorVisible = true;
         private int _aiChatPageRequestId = 0;
@@ -198,9 +199,9 @@ namespace JournalApp
         }
 
         // ── Controls & Bubble Rendering ──────────────────────────────────────
-        private void AddChatPageBubble(string text, bool isUser)
+        private TextBlock AddChatPageBubble(string text, bool isUser)
         {
-            if (AIChatPageHistoryPanel == null) return;
+            if (AIChatPageHistoryPanel == null) return null;
 
             // Hide placeholder on first message
             if (AIChatPageWelcomePlaceholder != null)
@@ -269,52 +270,62 @@ namespace JournalApp
 
             AIChatPageHistoryPanel.Children.Add(bubbleBorder);
             ScrollChatPageToBottom();
+            return textBlock;
         }
 
         private void UpdateLastChatPageBubble(string text, bool addCursor = false)
         {
-            if (AIChatPageHistoryPanel == null || AIChatPageHistoryPanel.Children.Count == 0) return;
+            TextBlock textBlock = _activeChatPageTextBlock;
+            HyperlinkButton insertButton = null;
 
-            var lastChild = AIChatPageHistoryPanel.Children.LastOrDefault();
-            if (lastChild is Border bubbleBorder)
+            if (textBlock == null)
             {
-                TextBlock textBlock = null;
-                HyperlinkButton insertButton = null;
-
-                if (bubbleBorder.Child is TextBlock tb)
+                if (AIChatPageHistoryPanel == null || AIChatPageHistoryPanel.Children.Count == 0) return;
+                var lastChild = AIChatPageHistoryPanel.Children.LastOrDefault();
+                if (lastChild is Border bubbleBorder)
                 {
-                    textBlock = tb;
+                    if (bubbleBorder.Child is TextBlock tb)
+                    {
+                        textBlock = tb;
+                    }
+                    else if (bubbleBorder.Child is StackPanel sp)
+                    {
+                        textBlock = sp.Children.FirstOrDefault() as TextBlock;
+                        insertButton = sp.Children.LastOrDefault() as HyperlinkButton;
+                    }
                 }
-                else if (bubbleBorder.Child is StackPanel sp)
+            }
+            else
+            {
+                if (textBlock.Parent is StackPanel sp)
                 {
-                    textBlock = sp.Children.FirstOrDefault() as TextBlock;
                     insertButton = sp.Children.LastOrDefault() as HyperlinkButton;
                 }
+            }
 
-                if (textBlock != null)
+            if (textBlock != null)
+            {
+                if (string.IsNullOrEmpty(text))
                 {
-                    if (string.IsNullOrEmpty(text))
+                    textBlock.Inlines.Clear();
+                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
+                    if (addCursor)
                     {
-                        textBlock.Inlines.Clear();
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
-                        if (addCursor)
-                        {
-                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
-                        }
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
                     }
-                    else
+                }
+                else
+                {
+                    ParseMarkdownToInlines(text, textBlock);
+                    if (addCursor)
                     {
-                        ParseMarkdownToInlines(text, textBlock);
-                        if (addCursor)
-                        {
-                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
-                        }
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
                     }
+                }
 
-                    if (insertButton != null)
-                    {
-                        insertButton.Tag = text;
-                    }
+                if (insertButton != null)
+                {
+                    insertButton.Tag = text;
                 }
             }
             ScrollChatPageToBottom();
@@ -449,6 +460,9 @@ namespace JournalApp
 
             AIChatPageInputBox.Text = string.Empty;
 
+            // Cancel any running/lingering generation first before we modify the message history / panel children
+            CancelActiveChatPageGeneration();
+
             // If no active session, create one
             if (_currentChatSession == null)
             {
@@ -505,13 +519,12 @@ namespace JournalApp
             string systemPrompt = "You are a helpful journal writing assistant. Be concise and conversational.";
             
             // Start generation
-            CancelActiveChatPageGeneration();
             _aiChatPageCts = new CancellationTokenSource();
             int requestId = ++_aiChatPageRequestId;
             _chatPageActiveAIText = string.Empty;
 
             // Render AI bubble with cursor
-            AddChatPageBubble(string.Empty, isUser: false);
+            _activeChatPageTextBlock = AddChatPageBubble(string.Empty, isUser: false);
             StartChatPageCursorBlink();
 
             if (AIChatPageProgressGrid != null) AIChatPageProgressGrid.Visibility = Visibility.Visible;
@@ -598,6 +611,7 @@ namespace JournalApp
                         _aiChatPageCts.Dispose();
                         _aiChatPageCts = null;
                     }
+                    _activeChatPageTextBlock = null;
                 });
             }
         }
@@ -614,13 +628,23 @@ namespace JournalApp
 
         private void CancelActiveChatPageGeneration()
         {
-            _aiChatPageRequestId++; // Invalidate running streams
             if (_aiChatPageCts != null)
             {
                 _aiChatPageCts.Cancel();
                 _aiChatPageCts = null;
+
+                if (string.IsNullOrEmpty(_chatPageActiveAIText))
+                {
+                    _chatPageActiveAIText = "[Generation stopped]";
+                }
+                else if (!_chatPageActiveAIText.EndsWith(" [Generation stopped]"))
+                {
+                    _chatPageActiveAIText += " [Generation stopped]";
+                }
             }
+            _aiChatPageRequestId++; // Invalidate running streams
             StopChatPageCursorBlink();
+            _activeChatPageTextBlock = null;
         }
 
         // ── Title Editing ─────────────────────────────────────────────────────

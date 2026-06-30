@@ -56,9 +56,13 @@ namespace JournalApp
         }
 
         // ── Save markdown note from the MarkdownEditorBox ────────────────────────
-        private void SaveMarkdownNoteContent()
+        private void SaveMarkdownNoteContent(JournalNote nextNoteToSelect = null)
         {
             if (SelectedNote == null || _disableSavingCurrentNote) return;
+
+            _disableSavingCurrentNote = true;
+            _isSelectingNote = true;
+            _isNavigating = true;
 
             try
             {
@@ -94,25 +98,10 @@ namespace JournalApp
                 SelectedNote.DateModified = DateTime.Now;
                 JournalManager.Instance.SaveNotesMetadata();
 
-                var current = SelectedNote;
-                _disableSavingCurrentNote = true;
-                _isSelectingNote = true;
-                _isNavigating = true;
-                try
-                {
-                    LoadCategoriesList();
-                    RefreshNotesList();
-                    SelectedNote = current;
-                }
-                finally
-                {
-                    this.DispatcherQueue.TryEnqueue(() =>
-                    {
-                        _disableSavingCurrentNote = false;
-                        _isSelectingNote = false;
-                        _isNavigating = false;
-                    });
-                }
+                var current = nextNoteToSelect ?? SelectedNote;
+                LoadCategoriesList();
+                RefreshNotesList(current);
+                SelectedNote = current;
 
                 if (StatusMessageTextBlock != null)
                     StatusMessageTextBlock.Text = $"Saved at {DateTime.Now:h:mm:ss tt}";
@@ -123,6 +112,15 @@ namespace JournalApp
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[MarkdownEditor] Save error: {ex.Message}");
+            }
+            finally
+            {
+                this.DispatcherQueue.TryEnqueue(() =>
+                {
+                    _disableSavingCurrentNote = false;
+                    _isSelectingNote = false;
+                    _isNavigating = false;
+                });
             }
         }
 

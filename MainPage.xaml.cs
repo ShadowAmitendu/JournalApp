@@ -298,7 +298,7 @@ namespace JournalApp
                     // Save the current note content first
                     if (_selectedNote != null && _isDirty)
                     {
-                        SaveCurrentNoteContent();
+                        SaveCurrentNoteContent(value);
                     }
 
                     _selectedNote = value;
@@ -332,7 +332,7 @@ namespace JournalApp
                         }
                         if (EditorStatusBar != null)
                         {
-                            EditorStatusBar.Visibility = Visibility.Visible;
+                            EditorStatusBar.Visibility = _isZenModeActive ? Visibility.Collapsed : Visibility.Visible;
                         }
 
                         TitleTextBox.Text = _selectedNote.Title;
@@ -552,6 +552,7 @@ namespace JournalApp
                 InitializeAIChatPage();
                 CheckAppLockOnStartup();
                 LoadSavedFonts();
+                CheckFirstTimeTutorial();
                 _ = PopulateMicrophoneDevicesAsync();
                 
                 // Auto-select "All Entries"
@@ -1491,16 +1492,20 @@ namespace JournalApp
             }
         }
 
-        private void SaveCurrentNoteContent()
+        private void SaveCurrentNoteContent(JournalNote nextNoteToSelect = null)
         {
             if (SelectedNote == null || _disableSavingCurrentNote) return;
 
             // Block editor (markdown) notes are saved directly via WebView2 message callback
             if (SelectedNote.ContentFormat == "markdown")
             {
-                SaveMarkdownNoteContent();
+                SaveMarkdownNoteContent(nextNoteToSelect);
                 return;
             }
+
+            _disableSavingCurrentNote = true;
+            _isSelectingNote = true;
+            _isNavigating = true;
 
             try
             {
@@ -1562,24 +1567,9 @@ namespace JournalApp
                 JournalManager.Instance.SaveNotesMetadata();
                 
                 // Refresh list visually (but don't reset selection to avoid focus jumping)
-                var currentSelection = SelectedNote;
-                _disableSavingCurrentNote = true;
-                _isSelectingNote = true;
-                _isNavigating = true;
-                try
-                {
-                    LoadCategoriesList(); // Re-populate tags list in case tags changed
-                    RefreshNotesList(currentSelection);
-                }
-                finally
-                {
-                    this.DispatcherQueue.TryEnqueue(() =>
-                    {
-                        _disableSavingCurrentNote = false;
-                        _isSelectingNote = false;
-                        _isNavigating = false;
-                    });
-                }
+                var currentSelection = nextNoteToSelect ?? SelectedNote;
+                LoadCategoriesList(); // Re-populate tags list in case tags changed
+                RefreshNotesList(currentSelection);
                 
                 if (StatusMessageTextBlock != null)
                 {
@@ -1613,6 +1603,15 @@ namespace JournalApp
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error saving note: {ex.Message}");
+            }
+            finally
+            {
+                this.DispatcherQueue.TryEnqueue(() =>
+                {
+                    _disableSavingCurrentNote = false;
+                    _isSelectingNote = false;
+                    _isNavigating = false;
+                });
             }
         }
 
@@ -1843,6 +1842,16 @@ namespace JournalApp
 
         private void Page_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
+            if (_isZenModeActive && e.Key == Windows.System.VirtualKey.Escape)
+            {
+                if (ZenModeToggle != null)
+                {
+                    ZenModeToggle.IsOn = false;
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
             bool isCtrl = ctrl.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
@@ -2069,6 +2078,7 @@ namespace JournalApp
 
         private void TitleTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            if (_isLoadingNote || !_isDataLoaded || _disableSavingCurrentNote) return;
             MarkDirty();
         }
 
@@ -2829,6 +2839,12 @@ namespace JournalApp
         // Hero Image Management
         private void UpdateHeroImageUI()
         {
+            if (_isZenModeActive)
+            {
+                if (HeroImageContainer != null) HeroImageContainer.Visibility = Visibility.Collapsed;
+                return;
+            }
+
             if (SelectedNote == null)
             {
                 HeroImageContainer.Visibility = Visibility.Collapsed;
@@ -6006,7 +6022,9 @@ namespace JournalApp
             {
                 Note = n,
                 IsPlaceholder = false,
-                GalleryImagePath = n.AvatarImagePath  // explicit cover OR auto picsum
+                GalleryImagePath = (!string.IsNullOrEmpty(n.HeroImagePath) && n.HeroImagePath != "None")
+                    ? n.HeroImagePath
+                    : $"https://picsum.photos/seed/{n.Id}/600/400"
             }).ToList();
 
             int remainder = items.Count % columns;

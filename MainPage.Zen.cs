@@ -33,6 +33,16 @@ namespace JournalApp
         // ── Keyboard / Typing Event Keypress Feedback ────────────────────────
         private void NoteRichEditBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            if (_isZenModeActive && e.Key == Windows.System.VirtualKey.Escape)
+            {
+                if (ZenModeToggle != null)
+                {
+                    ZenModeToggle.IsOn = false;
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (TypewriterSoundToggle != null && TypewriterSoundToggle.IsOn)
             {
                 if (e.Key == Windows.System.VirtualKey.Enter)
@@ -62,20 +72,43 @@ namespace JournalApp
             // 1. Toggle fullscreen state
             ToggleFullscreen(_isZenModeActive);
 
-            // 2. Hide / restore side panels
+            // 2. Hide / restore window title bar
+            if (MainWindow.Instance != null && MainWindow.Instance.AppTitleBarControl != null)
+            {
+                MainWindow.Instance.AppTitleBarControl.Visibility = _isZenModeActive ? Visibility.Collapsed : Visibility.Visible;
+            }
+
+            // 3. Hide / restore side panels, toolbars, status bar and headers
             if (_isZenModeActive)
             {
-                // Collapse Categories navigation pane
+                // Collapse AI assistant panel if open
+                if (_aiPanelOpen)
+                {
+                    _aiPanelOpen = false;
+                    AnimateAIPanel(false);
+                    if (AIAssistantButton != null)
+                    {
+                        AIAssistantButton.IsChecked = false;
+                    }
+                }
+
+                // Hide Categories navigation pane completely (removing icons)
                 if (CategoriesNavView != null)
                 {
-                    CategoriesNavView.IsPaneOpen = false;
-                    CategoriesNavView.IsPaneToggleButtonVisible = false;
+                    CategoriesNavView.IsPaneVisible = false;
                 }
 
                 // Hide Notes List Grid and collapse column width
                 if (NotesListGrid != null) NotesListGrid.Visibility = Visibility.Collapsed;
                 if (NotesListColumn != null) NotesListColumn.Width = new GridLength(0);
                 if (ColumnSplitter != null) ColumnSplitter.Visibility = Visibility.Collapsed;
+
+                // Hide distracting editor chrome (keeping the formatting toolbar visible)
+                if (EditorToolbar != null) EditorToolbar.Visibility = Visibility.Visible;
+                if (EditorStatusBar != null) EditorStatusBar.Visibility = Visibility.Collapsed;
+                if (HeroImageContainer != null) HeroImageContainer.Visibility = Visibility.Collapsed;
+                if (NoteHeaderGrid != null) NoteHeaderGrid.Visibility = Visibility.Collapsed;
+                if (NoteHeaderDivider != null) NoteHeaderDivider.Visibility = Visibility.Collapsed;
 
                 // Shift focus to editor
                 if (SelectedNote != null && SelectedNote.ContentFormat == "markdown")
@@ -87,9 +120,10 @@ namespace JournalApp
             }
             else
             {
-                // Restore Categories navigation pane
+                // Restore Categories navigation pane completely
                 if (CategoriesNavView != null)
                 {
+                    CategoriesNavView.IsPaneVisible = true;
                     CategoriesNavView.IsPaneToggleButtonVisible = true;
                 }
 
@@ -97,6 +131,15 @@ namespace JournalApp
                 if (NotesListGrid != null) NotesListGrid.Visibility = Visibility.Visible;
                 if (NotesListColumn != null) NotesListColumn.Width = new GridLength(370);
                 if (ColumnSplitter != null) ColumnSplitter.Visibility = Visibility.Visible;
+
+                // Restore editor chrome
+                if (EditorToolbar != null && SelectedNote != null) EditorToolbar.Visibility = Visibility.Visible;
+                if (EditorStatusBar != null && SelectedNote != null) EditorStatusBar.Visibility = Visibility.Visible;
+                if (NoteHeaderGrid != null) NoteHeaderGrid.Visibility = Visibility.Visible;
+                if (NoteHeaderDivider != null) NoteHeaderDivider.Visibility = Visibility.Visible;
+
+                // Restore Hero Image cover if note has one
+                UpdateHeroImageUI();
 
                 ShowStatusMessage("Zen Focus Mode Deactivated");
             }
@@ -182,13 +225,13 @@ namespace JournalApp
             switch (type)
             {
                 case "rain":
-                    url = "https://www.soundjay.com/nature/sounds/rain-07.mp3";
+                    url = "https://palousemindfulness.com/disks/RAIN.mp3";
                     break;
                 case "lofi":
-                    url = "https://assets.mixkit.co/music/preview/mixkit-dreaming-big-31.mp3";
+                    url = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
                     break;
                 case "waves":
-                    url = "https://www.soundjay.com/nature/sounds/ocean-wave-1.mp3";
+                    url = "http://www.boweavilrecordings.com/mp3s/ocean.mp3";
                     break;
                 default:
                     _ambientPlayer.Pause();
@@ -212,19 +255,22 @@ namespace JournalApp
             string clickPath = Path.Combine(JournalManager.Instance.MediaDir, "typewriter_click.mp3");
             string returnPath = Path.Combine(JournalManager.Instance.MediaDir, "typewriter_return.mp3");
 
-            if (!File.Exists(clickPath) || !File.Exists(returnPath))
+            bool needsClick = !File.Exists(clickPath) || new FileInfo(clickPath).Length < 1000;
+            bool needsReturn = !File.Exists(returnPath) || new FileInfo(returnPath).Length < 1000;
+
+            if (needsClick || needsReturn)
             {
                 using var client = new System.Net.Http.HttpClient();
                 try
                 {
-                    if (!File.Exists(clickPath))
+                    if (needsClick)
                     {
-                        var data = await client.GetByteArrayAsync("https://www.soundjay.com/communication/sounds/typewriter-key-1.mp3");
+                        var data = await client.GetByteArrayAsync("https://bigsoundbank.com/UPLOAD/mp3/2842.mp3");
                         await File.WriteAllBytesAsync(clickPath, data);
                     }
-                    if (!File.Exists(returnPath))
+                    if (needsReturn)
                     {
-                        var data = await client.GetByteArrayAsync("https://www.soundjay.com/communication/sounds/typewriter-return-1.mp3");
+                        var data = await client.GetByteArrayAsync("https://bigsoundbank.com/UPLOAD/mp3/1317.mp3");
                         await File.WriteAllBytesAsync(returnPath, data);
                     }
                 }

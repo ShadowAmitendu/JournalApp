@@ -23,6 +23,7 @@ namespace JournalApp
         private DispatcherTimer _cursorBlinkTimer;
         private bool _cursorVisible = true;
         private string _activeAIText = string.Empty;
+        private TextBlock? _activeChatTextBlock;
         private bool _isResizingAIPanel = false;
         private int _aiActionRequestId = 0;
         private double _resizeStartWidth = 0;
@@ -31,14 +32,70 @@ namespace JournalApp
 
         // ── Panel Toggle ──────────────────────────────────────────────────────
 
-        private async void AIAssistantButton_Click(object sender, RoutedEventArgs e)
+        private void AIAssistantButton_Click(object sender, RoutedEventArgs e)
         {
-            _aiPanelOpen = !_aiPanelOpen;
+            if (AIAssistantButton != null)
+            {
+                _aiPanelOpen = AIAssistantButton.IsChecked == true;
+            }
+            else
+            {
+                _aiPanelOpen = !_aiPanelOpen;
+            }
             AnimateAIPanel(_aiPanelOpen);
 
             if (_aiPanelOpen)
             {
-                await RefreshOllamaStatusAsync();
+                if (OllamaStatusText != null) OllamaStatusText.Text = "Checking…";
+                _ = Task.Run(async () =>
+                {
+                    bool running = await OllamaService.Instance.IsRunningAsync();
+                    List<string> models = new List<string>();
+                    if (running)
+                    {
+                        models = await OllamaService.Instance.GetAvailableModelsAsync();
+                    }
+
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (OllamaStatusIcon != null && OllamaStatusText != null)
+                        {
+                            if (running)
+                            {
+                                OllamaStatusIcon.Glyph = "\uE73E";   // Check mark
+                                OllamaStatusIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 76, 175, 80));
+                                OllamaStatusText.Text = "Ollama Connected";
+
+                                if (AIModelCombo != null)
+                                {
+                                    AIModelCombo.Items.Clear();
+                                    if (models.Count == 0)
+                                    {
+                                        AIModelCombo.Items.Add("(no models installed)");
+                                    }
+                                    else
+                                    {
+                                        foreach (var m in models)
+                                            AIModelCombo.Items.Add(m);
+                                    }
+                                    AIModelCombo.SelectedIndex = 0;
+                                }
+                            }
+                            else
+                            {
+                                OllamaStatusIcon.Glyph = "\uE711";   // Error / X
+                                OllamaStatusIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 229, 57, 53));
+                                OllamaStatusText.Text = "Ollama Offline";
+                                if (AIModelCombo != null)
+                                {
+                                    AIModelCombo.Items.Clear();
+                                    AIModelCombo.Items.Add("(no service)");
+                                    AIModelCombo.SelectedIndex = 0;
+                                }
+                            }
+                        }
+                    });
+                });
             }
         }
 
@@ -65,9 +122,10 @@ namespace JournalApp
             }
             double endWidth = open ? _aiPanelWidth : 0;
 
-            // If we are opening, ensure it is visible first and set margin to 8px
+            // If we are opening, set Width to 0 first to prevent visual layout snapping
             if (open)
             {
+                AIAssistantPanel.Width = 0;
                 AIAssistantPanel.Visibility = Visibility.Visible;
                 AIAssistantPanel.Margin = new Thickness(8, 0, 0, 0);
             }
@@ -76,7 +134,7 @@ namespace JournalApp
             {
                 From = startWidth,
                 To = endWidth,
-                Duration = new Duration(TimeSpan.FromMilliseconds(180)),
+                Duration = new Duration(TimeSpan.FromMilliseconds(200)),
                 EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut },
                 FillBehavior = Microsoft.UI.Xaml.Media.Animation.FillBehavior.Stop
             };
@@ -174,9 +232,9 @@ namespace JournalApp
             }
         }
 
-        private void AddChatMessage(string text, bool isUser)
+        private TextBlock AddChatMessage(string text, bool isUser)
         {
-            if (AIChatPanel == null) return;
+            if (AIChatPanel == null) return null;
 
             // Hide placeholder on first message
             if (AIChatPlaceholder != null)
@@ -249,52 +307,63 @@ namespace JournalApp
             {
                 AIChatScrollViewer.ChangeView(null, AIChatScrollViewer.ScrollableHeight, null);
             }
+
+            return textBlock;
         }
 
         private void UpdateLastChatMessage(string text, bool addCursor = false)
         {
-            if (AIChatPanel == null || AIChatPanel.Children.Count == 0) return;
+            TextBlock textBlock = _activeChatTextBlock;
+            HyperlinkButton insertButton = null;
 
-            var lastChild = AIChatPanel.Children.LastOrDefault();
-            if (lastChild is Border bubbleBorder)
+            if (textBlock == null)
             {
-                TextBlock textBlock = null;
-                HyperlinkButton insertButton = null;
-
-                if (bubbleBorder.Child is TextBlock tb)
+                if (AIChatPanel == null || AIChatPanel.Children.Count == 0) return;
+                var lastChild = AIChatPanel.Children.LastOrDefault();
+                if (lastChild is Border bubbleBorder)
                 {
-                    textBlock = tb;
+                    if (bubbleBorder.Child is TextBlock tb)
+                    {
+                        textBlock = tb;
+                    }
+                    else if (bubbleBorder.Child is StackPanel sp)
+                    {
+                        textBlock = sp.Children.FirstOrDefault() as TextBlock;
+                        insertButton = sp.Children.LastOrDefault() as HyperlinkButton;
+                    }
                 }
-                else if (bubbleBorder.Child is StackPanel sp)
+            }
+            else
+            {
+                if (textBlock.Parent is StackPanel sp)
                 {
-                    textBlock = sp.Children.FirstOrDefault() as TextBlock;
                     insertButton = sp.Children.LastOrDefault() as HyperlinkButton;
                 }
+            }
 
-                if (textBlock != null)
+            if (textBlock != null)
+            {
+                if (string.IsNullOrEmpty(text))
                 {
-                    if (string.IsNullOrEmpty(text))
+                    textBlock.Inlines.Clear();
+                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
+                    if (addCursor)
                     {
-                        textBlock.Inlines.Clear();
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Thinking..." });
-                        if (addCursor)
-                        {
-                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
-                        }
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
                     }
-                    else
+                }
+                else
+                {
+                    ParseMarkdownToInlines(text, textBlock);
+                    if (addCursor)
                     {
-                        ParseMarkdownToInlines(text, textBlock);
-                        if (addCursor)
-                        {
-                            textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
-                        }
+                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " █" });
                     }
+                }
 
-                    if (insertButton != null)
-                    {
-                        insertButton.Tag = text;
-                    }
+                if (insertButton != null)
+                {
+                    insertButton.Tag = text;
                 }
             }
 
@@ -315,6 +384,43 @@ namespace JournalApp
 
             while (index < len)
             {
+                // Check for headings at start of line (e.g., #, ##, ###)
+                bool isStartOfLine = index == 0 || markdownText[index - 1] == '\n';
+                if (isStartOfLine && markdownText[index] == '#')
+                {
+                    int hashCount = 0;
+                    while (index + hashCount < len && markdownText[index + hashCount] == '#')
+                    {
+                        hashCount++;
+                    }
+                    // Must be followed by a space and not exceed 6 hashes
+                    if (hashCount <= 6 && index + hashCount < len && markdownText[index + hashCount] == ' ')
+                    {
+                        // Find the end of this header line
+                        int endOfLine = markdownText.IndexOf('\n', index + hashCount + 1);
+                        if (endOfLine == -1) endOfLine = len;
+
+                        string headerText = markdownText.Substring(index + hashCount + 1, endOfLine - (index + hashCount + 1));
+                        
+                        var bold = new Microsoft.UI.Xaml.Documents.Bold();
+                        var run = new Microsoft.UI.Xaml.Documents.Run { Text = headerText };
+                        
+                        // Style based on level of header
+                        double fontSize = 13;
+                        if (hashCount == 1) fontSize = 17;
+                        else if (hashCount == 2) fontSize = 15.5;
+                        else if (hashCount == 3) fontSize = 14.5;
+                        else fontSize = 13.5;
+                        
+                        run.FontSize = fontSize;
+                        bold.Inlines.Add(run);
+                        textBlock.Inlines.Add(bold);
+
+                        index = endOfLine;
+                        continue;
+                    }
+                }
+
                 // Check code block / inline code
                 if (markdownText[index] == '`')
                 {
@@ -432,8 +538,16 @@ namespace JournalApp
                     }
                 }
 
-                // Default text character
-                int nextSpecial = markdownText.IndexOfAny(new char[] { '*', '_', '`', '\n' }, index);
+                // Newlines
+                if (markdownText[index] == '\n')
+                {
+                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+                    index++;
+                    continue;
+                }
+
+                // Standard characters: consume until next special character or end of string
+                int nextSpecial = markdownText.IndexOfAny(new char[] { '*', '_', '`', '\n' }, index + 1);
                 if (nextSpecial == -1)
                 {
                     textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = markdownText.Substring(index) });
@@ -441,19 +555,8 @@ namespace JournalApp
                 }
                 else
                 {
-                    if (nextSpecial > index)
-                    {
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = markdownText.Substring(index, nextSpecial - index) });
-                    }
-                    if (markdownText[nextSpecial] == '\n')
-                    {
-                        textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
-                        index = nextSpecial + 1;
-                    }
-                    else
-                    {
-                        index = nextSpecial;
-                    }
+                    textBlock.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = markdownText.Substring(index, nextSpecial - index) });
+                    index = nextSpecial;
                 }
             }
         }
@@ -478,6 +581,29 @@ namespace JournalApp
         {
             _cursorBlinkTimer?.Stop();
             UpdateLastChatMessage(_activeAIText, addCursor: false);
+        }
+
+        private void CancelActiveChatGeneration()
+        {
+            if (_aiCts != null)
+            {
+                _aiCts.Cancel();
+                _aiCts.Dispose();
+                _aiCts = null;
+
+                if (string.IsNullOrEmpty(_activeAIText))
+                {
+                    _activeAIText = "[Generation stopped]";
+                }
+                else if (!_activeAIText.EndsWith(" [Generation stopped]"))
+                {
+                    _activeAIText += " [Generation stopped]";
+                }
+                UpdateLastChatMessage(_activeAIText, addCursor: false);
+            }
+            _aiActionRequestId++; // Invalidate running streams
+            StopCursorBlink();
+            _activeChatTextBlock = null;
         }
 
         // ── Status & Model Refresh ────────────────────────────────────────────
@@ -606,12 +732,7 @@ namespace JournalApp
             }
 
             // Cancel any running request
-            if (_aiCts != null)
-            {
-                _aiCts.Cancel();
-                _aiCts.Dispose();
-                _aiCts = null;
-            }
+            CancelActiveChatGeneration();
             _aiCts = new CancellationTokenSource();
             int requestId = ++_aiActionRequestId;
 
@@ -625,7 +746,7 @@ namespace JournalApp
 
             // Render the User bubble and the empty AI bubble
             AddChatMessage(actionText, isUser: true);
-            AddChatMessage(string.Empty, isUser: false);
+            _activeChatTextBlock = AddChatMessage(string.Empty, isUser: false);
             StartCursorBlink();
 
             if (AIStopButton != null) AIStopButton.Visibility = Visibility.Visible;
@@ -711,13 +832,14 @@ namespace JournalApp
                         _aiCts.Dispose();
                         _aiCts = null;
                     }
+                    _activeChatTextBlock = null;
                 });
             }
         }
 
         private void AIStopButton_Click(object sender, RoutedEventArgs e)
         {
-            _aiCts?.Cancel();
+            CancelActiveChatGeneration();
         }
 
         private void InsertTextIntoEditor(string textToInsert)

@@ -40,7 +40,7 @@ namespace JournalApp
 
         public string AvatarImagePath => !string.IsNullOrEmpty(HeroImagePath) 
             ? HeroImagePath 
-            : $"https://picsum.photos/seed/{Id}/100";
+            : $"https://picsum.photos/seed/{Id}/300";
 
         // Non-persisted helper properties for UI bindings
         public string DateModifiedFormatted => DateModified.ToString("MMM d, yyyy h:mm tt");

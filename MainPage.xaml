@@ -949,7 +949,7 @@
                             <!-- Centered Editor Content (Text wrapper up to MaxWidth 800) -->
                             <StackPanel x:Name="EditorContentStackPanel" Grid.Row="1" MaxWidth="800" HorizontalAlignment="Stretch" Padding="40,32,40,40" Spacing="20">
                                 <!-- Date and Category Header (Side-by-side Grid) -->
-                                <Grid ColumnSpacing="24" HorizontalAlignment="Stretch" Margin="0,0,0,8">
+                                <Grid x:Name="NoteHeaderGrid" ColumnSpacing="24" HorizontalAlignment="Stretch" Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
@@ -1029,11 +1029,11 @@
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Column 0: AI Assistant Toggle Button -->
-                                            <Button x:Name="AIAssistantButton" Grid.Column="0" CornerRadius="12" Padding="8,6" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="Toggle AI Writing Assistant (Ollama)" Click="AIAssistantButton_Click">
-                                                <Button.Content>
+                                            <ToggleButton x:Name="AIAssistantButton" Grid.Column="0" CornerRadius="12" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Toggle AI Writing Assistant (Ollama)" Click="AIAssistantButton_Click">
+                                                <ToggleButton.Content>
                                                     <FontIcon Glyph="&#xE99A;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" />
-                                                </Button.Content>
-                                            </Button>
+                                                </ToggleButton.Content>
+                                            </ToggleButton>
 
                                             <!-- Column 1: Publish to Blog Toggle Button -->
                                             <ToggleButton x:Name="PublishToBlogToggle" Grid.Column="1" CornerRadius="12" Padding="8,6" Background="Transparent" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="Publish this entry to your public GitHub Pages Blog" Checked="PublishToBlogToggle_Checked" Unchecked="PublishToBlogToggle_Unchecked">
@@ -1110,7 +1110,7 @@
                                 </Grid>
 
                                 <!-- Divider line -->
-                                <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" HorizontalAlignment="Stretch" />
+                                <Border x:Name="NoteHeaderDivider" Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" HorizontalAlignment="Stretch" />
 
                                 <!-- Title Input (Borderless) -->
                                 <TextBox x:Name="TitleTextBox" TextChanged="TitleTextBox_TextChanged" KeyDown="TitleTextBox_KeyDown" PlaceholderText="Untitled Journal Entry" FontSize="32" FontWeight="Bold" Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,0,4" SelectionHighlightColor="{ThemeResource SystemAccentColor}">
@@ -1445,6 +1445,11 @@
                                 <Border Grid.Row="3" Margin="12,0,12,8" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" Padding="10">
                                     <ScrollViewer x:Name="AIChatScrollViewer" VerticalScrollBarVisibility="Auto">
                                         <StackPanel x:Name="AIChatPanel" Spacing="8">
+                                            <StackPanel.ChildrenTransitions>
+                                                <TransitionCollection>
+                                                    <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="12" />
+                                                </TransitionCollection>
+                                            </StackPanel.ChildrenTransitions>
                                             <!-- Initial placeholder welcome bubble -->
                                             <Border x:Name="AIChatPlaceholder" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="12" Margin="4,4,40,4" HorizontalAlignment="Left" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                                 <TextBlock Text="Hi! I am your AI Assistant. You can choose an action button above or type a message below." 
@@ -1569,6 +1574,11 @@
             </Grid>
             
             <Grid x:Name="SettingsGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
@@ -2211,9 +2221,32 @@
                                         <TextBlock x:Name="AboutVersionTextBlock" Grid.Column="2" Text="1.0.5.0" FontSize="13" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </Grid>
                                 </Expander.Header>
-                                <StackPanel x:Name="AboutDetailsPanel" Spacing="8" Margin="44,0,0,8">
-                                    <TextBlock Text="JournalApp is a premium, distraction-free journaling application built using WinUI 3 and the Windows App SDK. It helps you keep track of your thoughts, ideas, and reflections with rich text editing, auto-saving, visual cover banners, and custom categories." FontSize="13" TextWrapping="Wrap" LineHeight="18" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="Designed, Developed and Published by Amitendu Bikash Dhusiya." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <StackPanel x:Name="AboutDetailsPanel" Spacing="10" Margin="44,0,16,12">
+                                    <TextBlock Text="JournalApp is a premium, distraction-free journaling application built using WinUI 3 and the Windows App SDK. It helps you keep track of your thoughts, ideas, and reflections with rich text editing, auto-saving, visual cover banners, location/weather tagging, and offline-first data storage." FontSize="13" TextWrapping="Wrap" LineHeight="18" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="Designed, Developed and Published by Amitendu Bikash Dhusiya." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontWeight="Medium" />
+                                    
+                                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0">
+                                        <HyperlinkButton NavigateUri="https://github.com/ShadowAmitendu" Padding="0" Style="{ThemeResource DefaultHyperlinkButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xEC1B;" FontSize="14" FontFamily="{ThemeResource SymbolThemeFontFamily}" VerticalAlignment="Center" />
+                                                <TextBlock Text="GitHub" FontSize="13" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </HyperlinkButton>
+                                        
+                                        <HyperlinkButton NavigateUri="https://linkedin.com/in/amitendu" Padding="0" Style="{ThemeResource DefaultHyperlinkButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE77B;" FontSize="14" FontFamily="{ThemeResource SymbolThemeFontFamily}" VerticalAlignment="Center" />
+                                                <TextBlock Text="LinkedIn" FontSize="13" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </HyperlinkButton>
+
+                                        <HyperlinkButton NavigateUri="https://shadowamitendu.github.io/" Padding="0" Style="{ThemeResource DefaultHyperlinkButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE12B;" FontSize="14" FontFamily="{ThemeResource SymbolThemeFontFamily}" VerticalAlignment="Center" />
+                                                <TextBlock Text="Personal Site" FontSize="13" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </HyperlinkButton>
+                                    </StackPanel>
                                 </StackPanel>
                             </Expander>
                         </StackPanel>
@@ -2246,6 +2279,11 @@
 
             <!-- Blog Publisher Page -->
             <Grid x:Name="BlogPageGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="860" HorizontalAlignment="Stretch" Padding="40,40,40,40" Spacing="20">
                         <Border Width="860" Height="0" HorizontalAlignment="Stretch" IsHitTestVisible="False" />
@@ -2355,6 +2393,11 @@
 
             <!-- Map View Grid -->
             <Grid x:Name="MapGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -2382,6 +2425,11 @@
 
             <!-- AI Chat History Grid -->
             <Grid x:Name="AIChatGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="260" MinWidth="200" MaxWidth="400" x:Name="AIChatSidebarColumn" />
                     <ColumnDefinition Width="Auto" />
@@ -2391,12 +2439,22 @@
                 <!-- Left Column: Session List Sidebar -->
                 <Grid Grid.Column="0" Padding="16,16,16,16" Background="{ThemeResource LayerFillColorDefaultBrush}">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
+                    <!-- Title Header -->
+                    <TextBlock Grid.Row="0" Text="AI Chat" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="8,0,0,12" />
+
                     <!-- Chat Sessions List -->
-                    <ListView x:Name="AIChatSessionListView" Grid.Row="0" SelectionMode="Single" SelectionChanged="AIChatSessionListView_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                    <ListView x:Name="AIChatSessionListView" Grid.Row="1" SelectionMode="Single" SelectionChanged="AIChatSessionListView_SelectionChanged" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                        <ListView.ItemContainerTransitions>
+                            <TransitionCollection>
+                                <AddDeleteThemeTransition />
+                                <ReorderThemeTransition />
+                            </TransitionCollection>
+                        </ListView.ItemContainerTransitions>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:AIChatSession">
                                 <Grid Padding="8,8" CornerRadius="8" HorizontalAlignment="Stretch">
@@ -2416,7 +2474,7 @@
                     </ListView>
 
                     <!-- New Chat Button -->
-                    <Button x:Name="AIChatNewSessionButton" Grid.Row="1" HorizontalAlignment="Stretch" Click="AIChatNewSessionButton_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,10" CornerRadius="8">
+                    <Button x:Name="AIChatNewSessionButton" Grid.Row="2" HorizontalAlignment="Stretch" Click="AIChatNewSessionButton_Click" Style="{StaticResource AccentButtonStyle}" Padding="12,10" CornerRadius="8">
                         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                             <FontIcon Glyph="&#xE710;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" />
                             <TextBlock Text="New Chat" FontWeight="SemiBold" />
@@ -2456,6 +2514,11 @@
                     <!-- Chat Message Area ScrollViewer -->
                     <ScrollViewer Grid.Row="1" x:Name="AIChatPageHistoryScrollViewer" VerticalScrollBarVisibility="Auto" Margin="0,12,0,12" Padding="0,0,8,0">
                         <StackPanel x:Name="AIChatPageHistoryPanel" Spacing="8">
+                            <StackPanel.ChildrenTransitions>
+                                <TransitionCollection>
+                                    <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="12" />
+                                </TransitionCollection>
+                            </StackPanel.ChildrenTransitions>
                             <!-- Welcome bubble when session is empty -->
                             <Border x:Name="AIChatPageWelcomePlaceholder" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8" Padding="12" Margin="4,4,40,4" HorizontalAlignment="Left" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <TextBlock Text="Welcome! Select an old chat on the left or type below to start a new conversation." 
@@ -2521,6 +2584,11 @@
 
             <!-- Keyboard Shortcuts Grid -->
             <Grid x:Name="ShortcutsGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
@@ -2658,6 +2726,11 @@
 
             <!-- GitHub Commit History Grid -->
             <Grid x:Name="GitHubGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000"
@@ -2889,6 +2962,11 @@
 
             <!-- Stats Grid -->
             <Grid x:Name="StatsGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <!-- Scrollable Content -->
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000"
@@ -3034,6 +3112,11 @@
 
             <!-- Gallery Grid -->
             <Grid x:Name="GalleryGrid" Visibility="Collapsed" Padding="0,24,0,0">
+                <Grid.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition FromHorizontalOffset="0" FromVerticalOffset="16" />
+                    </TransitionCollection>
+                </Grid.Transitions>
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalAlignment="Stretch">
                     <StackPanel MaxWidth="1000" HorizontalAlignment="Center"
                                 Padding="40,40,40,40" Spacing="16">
@@ -3302,6 +3385,95 @@
                 </ScrollViewer>
             </Grid>
         </ContentDialog>
+
+        <!-- First-Time Onboarding Tutorial Dialog -->
+        <ContentDialog x:Name="TutorialDialog" 
+                       Title="Welcome to JournalApp" 
+                       CloseButtonText="Skip" 
+                       CloseButtonClick="TutorialDialog_CloseButtonClick"
+                       CornerRadius="8" 
+                       MaxWidth="540" 
+                       XamlRoot="{x:Bind XamlRoot}">
+            <Grid Width="460" Height="360" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Onboarding Slides FlipView -->
+                <FlipView x:Name="TutorialFlipView" Grid.Row="0" Background="Transparent" SelectionChanged="TutorialFlipView_SelectionChanged">
+                    <!-- Slide 1: Welcome -->
+                    <FlipViewItem>
+                        <StackPanel Spacing="16" Margin="12,12,12,12" VerticalAlignment="Center">
+                            <Border Width="64" Height="64" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="16" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE70F;" Foreground="White" FontSize="32" />
+                            </Border>
+                            <TextBlock Text="Your Personal Space" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                            <TextBlock Text="Welcome to JournalApp! A beautiful, secure, distraction-free environment to log your thoughts, capture memories, and reflect on your days. Everything is stored locally on your device for absolute privacy." 
+                                       FontSize="13" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" LineHeight="18" />
+                        </StackPanel>
+                    </FlipViewItem>
+
+                    <!-- Slide 2: Markdown & Banners -->
+                    <FlipViewItem>
+                        <StackPanel Spacing="16" Margin="12,12,12,12" VerticalAlignment="Center">
+                            <Border Width="64" Height="64" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE8A5;" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontSize="30" />
+                            </Border>
+                            <TextBlock Text="Rich Markdown Editor" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                            <TextBlock Text="Express yourself with rich text, headers, quotes, lists, and images. Set custom cover photo banners (directly from local files or search millions of photos on Unsplash) to make every note visually unique." 
+                                       FontSize="13" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" LineHeight="18" />
+                        </StackPanel>
+                    </FlipViewItem>
+
+                    <!-- Slide 3: Smart Tools & Insights -->
+                    <FlipViewItem>
+                        <StackPanel Spacing="16" Margin="12,12,12,12" VerticalAlignment="Center">
+                            <Border Width="64" Height="64" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xEC25;" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontSize="32" />
+                            </Border>
+                            <TextBlock Text="AI Insights &amp; Statistics" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                            <TextBlock Text="Get smart writing prompts, outline continuation, and sentiment/mood analysis from local AI models. Revisit entries with an interactive geographical map, and analyze your writing habits with contribution graphs." 
+                                       FontSize="13" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" LineHeight="18" />
+                        </StackPanel>
+                    </FlipViewItem>
+
+                    <!-- Slide 4: GitHub Backup & Lock -->
+                    <FlipViewItem>
+                        <StackPanel Spacing="16" Margin="12,12,12,12" VerticalAlignment="Center">
+                            <Border Width="64" Height="64" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE72E;" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontSize="30" />
+                            </Border>
+                            <TextBlock Text="Cloud Sync &amp; Privacy" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                            <TextBlock Text="Secure your journal with master passwords or Windows Hello. Configure automatic cloud backups to private GitHub repositories so you never lose your journals." 
+                                       FontSize="13" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" LineHeight="18" />
+                        </StackPanel>
+                    </FlipViewItem>
+                </FlipView>
+
+                <!-- Bottom Navigation Bar -->
+                <Grid Grid.Row="1" Padding="4,4,4,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button x:Name="TutorialBackButton" Content="Back" Click="TutorialBackButton_Click" IsEnabled="False" Width="80" />
+                    
+                    <!-- Pager Dots/Indicator -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                        <Ellipse x:Name="Dot1" Width="8" Height="8" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                        <Ellipse x:Name="Dot2" Width="8" Height="8" Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.4" />
+                        <Ellipse x:Name="Dot3" Width="8" Height="8" Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.4" />
+                        <Ellipse x:Name="Dot4" Width="8" Height="8" Fill="{ThemeResource TextFillColorSecondaryBrush}" Opacity="0.4" />
+                    </StackPanel>
+
+                    <Button x:Name="TutorialNextButton" Content="Next" Click="TutorialNextButton_Click" Style="{StaticResource AccentButtonStyle}" Width="110" Grid.Column="2" />
+                </Grid>
+            </Grid>
+        </ContentDialog>
+
         <!-- App Lock Overlay Screen -->
         <Grid x:Name="AppLockOverlay"
               Visibility="Collapsed"
